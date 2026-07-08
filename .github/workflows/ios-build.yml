@@ -47,18 +47,19 @@ jobs:
 
       - name: Build IPA (unsigned)
         working-directory: flutter_app
-        run: flutter build ipa --no-codesign --release --no-tree-shake-icons
+        run: flutter build ios --release --no-codesign --no-tree-shake-icons
 
-      - name: Locate IPA
+      - name: Create unsigned IPA
         working-directory: flutter_app
         run: |
-          IPA_PATH=$(find build/ios/ipa -name "*.ipa" -print -quit || true)
-          echo "Found IPA: $IPA_PATH"
-          echo "IPA_PATH=$IPA_PATH" >> $GITHUB_ENV
+          mkdir -p Payload
+          cp -R build/ios/iphoneos/Runner.app Payload/
+          zip -r ai_audiobook_unsigned.ipa Payload >/dev/null
+          rm -rf Payload
+          echo "IPA created: $(ls -lh ai_audiobook_unsigned.ipa)"
 
       - uses: actions/upload-artifact@v4
         with:
           name: ai-audiobook-unsigned-ipa
-          path: flutter_app/build/ios/ipa/*.ipa
+          path: flutter_app/ai_audiobook_unsigned.ipa
           retention-days: 30
-          if-no-files-found: error
