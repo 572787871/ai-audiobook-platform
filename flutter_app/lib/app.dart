@@ -47,7 +47,7 @@ class AiAudiobookApp extends StatelessWidget {
 
         // 未登录 -> 路由守卫
         final protectedRoutes = [
-          "/home", "/upload", "/tasks", "/profile", "/membership", "/settings"
+          "/home", "/upload", "/tasks", "/profile", "/membership"
         ];
         if (protectedRoutes.any((r) => settings.name == r || (settings.name ?? "").startsWith(r)) && !auth.isLoggedIn) {
           return MaterialPageRoute(builder: (_) => const LoginScreen());
