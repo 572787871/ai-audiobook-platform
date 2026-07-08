@@ -24,7 +24,7 @@ jobs:
           mkdir -p /tmp/flutter_ios_gen
           cd /tmp/flutter_ios_gen
           flutter create --project-name ai_audiobook --org com.ai.audiobook --platforms=ios .
-          cp -R ios ../../flutter_app/
+          cp -R ios "$GITHUB_WORKSPACE/flutter_app/"
 
       - name: Install dependencies
         working-directory: flutter_app
@@ -49,22 +49,16 @@ jobs:
         working-directory: flutter_app
         run: flutter build ipa --no-codesign --release --no-tree-shake-icons
 
-      - name: Create Payload and zip IPA
+      - name: Locate IPA
         working-directory: flutter_app
         run: |
-          mkdir -p payload
-          APP_PATH=$(find build/ios/ipa -name "*.app" -print -quit || true)
-          if [ -z "$APP_PATH" ]; then
-            APP_PATH=$(find build/ios/iphoneos -name "Runner.app" -print -quit || true)
-          fi
-          echo "APP_PATH=$APP_PATH"
-          if [ -z "$APP_PATH" ]; then echo "未找到 .app"; exit 1; fi
-          cp -R "$APP_PATH" payload/
-          zip -r ai_audiobook_unsigned.ipa payload >/dev/null
-          ls -la ai_audiobook_unsigned.ipa
+          IPA_PATH=$(find build/ios/ipa -name "*.ipa" -print -quit || true)
+          echo "Found IPA: $IPA_PATH"
+          echo "IPA_PATH=$IPA_PATH" >> $GITHUB_ENV
 
       - uses: actions/upload-artifact@v4
         with:
           name: ai-audiobook-unsigned-ipa
-          path: flutter_app/ai_audiobook_unsigned.ipa
+          path: flutter_app/build/ios/ipa/*.ipa
           retention-days: 30
+          if-no-files-found: error
