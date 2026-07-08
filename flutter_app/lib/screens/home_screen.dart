@@ -5,7 +5,6 @@ import "package:cached_network_image/cached_network_image.dart";
 import "../providers/auth_provider.dart";
 import "../providers/book_provider.dart";
 import "../providers/task_provider.dart";
-import "../models/book.dart";
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});

@@ -71,7 +71,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   /// 更新个人资料
-  Future<bool updateProfile({String? username}) async {
+  Future<bool> updateProfile({String? username}) async {
     try {
       _user = await ApiService.updateProfile(username: username);
       notifyListeners();
@@ -84,7 +84,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   /// 升级会员
-  Future<bool upgradePremium() async {
+  Future<bool> upgradePremium() async {
     try {
       _user = await ApiService.upgradePremium();
       notifyListeners();

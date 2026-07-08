@@ -1,7 +1,6 @@
 /// 任务详情页：实时显示任务进度
 import "dart:async";
 import "package:flutter/material.dart";
-import "package:provider/provider.dart";
 import "../services/api_service.dart";
 import "../models/task.dart";
 

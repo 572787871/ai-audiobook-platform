@@ -19,9 +19,16 @@ jobs:
         with:
           channel: stable
 
-      - name: Generate iOS project files
+      - name: Generate iOS project files in temp dir
+        run: |
+          mkdir -p /tmp/flutter_ios_gen
+          cd /tmp/flutter_ios_gen
+          flutter create --project-name ai_audiobook --org com.ai.audiobook --platforms=ios .
+          cp -R ios ../../flutter_app/
+
+      - name: Install dependencies
         working-directory: flutter_app
-        run: flutter create . --platforms=ios --project-name ai_audiobook --org com.ai.audiobook
+        run: flutter pub get
 
       - name: Patch Info.plist for background audio
         working-directory: flutter_app
@@ -34,10 +41,6 @@ jobs:
             echo "Patched Info.plist"
           fi
 
-      - name: Install dependencies
-        working-directory: flutter_app
-        run: flutter pub get
-
       - name: Analyze
         working-directory: flutter_app
         run: flutter analyze --no-fatal-infos
@@ -46,7 +49,7 @@ jobs:
         working-directory: flutter_app
         run: flutter build ipa --no-codesign --release --no-tree-shake-icons
 
-      - name: Create Payload directory and zip IPA
+      - name: Create Payload and zip IPA
         working-directory: flutter_app
         run: |
           mkdir -p payload

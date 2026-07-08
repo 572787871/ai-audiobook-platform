@@ -5,7 +5,6 @@ import "package:just_audio/just_audio.dart";
 import "package:provider/provider.dart";
 import "../providers/book_provider.dart";
 import "../models/book.dart";
-import "../services/api_service.dart";
 
 class PlayerScreen extends StatefulWidget {
   final int bookId;
@@ -42,7 +41,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       }
       final url = detail.audioUrl!;
       // 后端 URL 可能是 localhost 链接，把它替换成 baseUrl
-      final fullUrl = url.startsWith("http") ? url : "\${ApiService.baseUrl}\$url";
+      final fullUrl = url.startsWith("http") ? url : "${ApiService.baseUrl}$url";
       await _player.setAudioSource(AudioSource.uri(Uri.parse(fullUrl)));
       _posSub = _player.positionStream.listen((pos) {
         final d = detail;
@@ -70,11 +69,16 @@ class _PlayerScreenState extends State<PlayerScreen> {
     super.dispose();
   }
 
-  String _fmt(Duration d) {
+    String _fmt(Duration d) {
     final h = d.inHours;
     final m = d.inMinutes.remainder(60);
     final s = d.inSeconds.remainder(60);
-    return h > 0 ? "\$h:\${m.toString().padLeft(2, "0")}:\${s.toString().padLeft(2, "0")}" : "\${m.toString().padLeft(2, "0")}:\${s.toString().padLeft(2, "0")}";
+    if (h > 0) {
+      return '${h.toString().padLeft(2, "0")}:${m.toString().padLeft(2, "0")}:${s.toString().padLeft(2, "0")}';
+    }
+    return '${m.toString().padLeft(2, "0")}:${s.toString().padLeft(2, "0")}';
+  }
+
   }
 
   @override
@@ -184,7 +188,7 @@ class _PlayerBody extends StatelessWidget {
         // 倍速
         Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           const Text("倍速："),
-          PopupMenuButton<double>(value: speed, onSelected: onSpeedChange, itemBuilder: (_) => const [PopupMenuItem(value: 0.5, child: Text("0.5×")), PopupMenuItem(value: 0.75, child: Text("0.75×")), PopupMenuItem(value: 1.0, child: Text("1.0×")), PopupMenuItem(value: 1.5, child: Text("1.5×")), PopupMenuItem(value: 2.0, child: Text("2.0×"))], child: Text("\$speed×", style: const TextStyle(fontWeight: FontWeight.w600))),
+          PopupMenuButton<double>(initialValue: speed, onSelected: onSpeedChange, itemBuilder: (_) => const [PopupMenuItem(value: 0.5, child: Text("0.5×")), PopupMenuItem(value: 0.75, child: Text("0.75×")), PopupMenuItem(value: 1.0, child: Text("1.0×")), PopupMenuItem(value: 1.5, child: Text("1.5×")), PopupMenuItem(value: 2.0, child: Text("2.0×"))], child: Text("\$speed×", style: const TextStyle(fontWeight: FontWeight.w600))),
         ]),
 
         if (detail?.chapters.isNotEmpty == true) ...[
