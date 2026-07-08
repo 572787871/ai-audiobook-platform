@@ -1,0 +1,32 @@
+name: Flutter Analyze
+
+on:
+  push:
+    paths:
+      - "flutter_app/**"
+      - ".github/workflows/flutter-analyze.yml"
+  pull_request:
+    paths:
+      - "flutter_app/**"
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Install dependencies
+        working-directory: flutter_app
+        run: flutter pub get
+
+      - name: Analyze
+        working-directory: flutter_app
+        run: flutter analyze --no-fatal-infos
+
+      - name: Test
+        working-directory: flutter_app
+        run: flutter test

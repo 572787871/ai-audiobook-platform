@@ -1,0 +1,67 @@
+name: iOS Build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "flutter_app/**"
+      - ".github/workflows/ios-build.yml"
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Generate iOS project files
+        working-directory: flutter_app
+        run: flutter create . --platforms=ios --project-name ai_audiobook --org com.ai.audiobook
+
+      - name: Patch Info.plist for background audio
+        working-directory: flutter_app
+        run: |
+          INFO=ios/Runner/Info.plist
+          if [ -f "$INFO" ]; then
+            /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" "$INFO" 2>/dev/null || true
+            /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string audio" "$INFO" 2>/dev/null || true
+            /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string 需要麦克风权限用于有声书录音" "$INFO" 2>/dev/null || true
+            echo "Patched Info.plist"
+          fi
+
+      - name: Install dependencies
+        working-directory: flutter_app
+        run: flutter pub get
+
+      - name: Analyze
+        working-directory: flutter_app
+        run: flutter analyze --no-fatal-infos
+
+      - name: Build IPA (unsigned)
+        working-directory: flutter_app
+        run: flutter build ipa --no-codesign --release --no-tree-shake-icons
+
+      - name: Create Payload directory and zip IPA
+        working-directory: flutter_app
+        run: |
+          mkdir -p payload
+          APP_PATH=$(find build/ios/ipa -name "*.app" -print -quit || true)
+          if [ -z "$APP_PATH" ]; then
+            APP_PATH=$(find build/ios/iphoneos -name "Runner.app" -print -quit || true)
+          fi
+          echo "APP_PATH=$APP_PATH"
+          if [ -z "$APP_PATH" ]; then echo "未找到 .app"; exit 1; fi
+          cp -R "$APP_PATH" payload/
+          zip -r ai_audiobook_unsigned.ipa payload >/dev/null
+          ls -la ai_audiobook_unsigned.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ai-audiobook-unsigned-ipa
+          path: flutter_app/ai_audiobook_unsigned.ipa
+          retention-days: 30
