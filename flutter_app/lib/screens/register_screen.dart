@@ -67,7 +67,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   keyboardType: TextInputType.emailAddress,
                   validator: (v) {
                     if (v == null || v.isEmpty) return "请输入邮箱";
-                    if (!RegExp(r"^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$").hasMatch(v)) return "邮箱格式不正确";
+                    if (!RegExp(r"^[^@\s]+@[^@\s]+\.[^@\s]+$").hasMatch(v)) return "邮箱格式不正确";
                     return null;
                   },
                 ),

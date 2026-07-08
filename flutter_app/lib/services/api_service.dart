@@ -10,7 +10,7 @@ class ApiService {
   static const String _baseUrlKey = "api_base_url";
   static const String _tokenKey = "auth_token";
 
-  static String _baseUrl = "http://localhost:8000";
+  static String _baseUrl = "http://localhost:8001";
   static String? _token;
   static Dio? _dio;
 
@@ -37,7 +37,7 @@ class ApiService {
   /// 初始化：从本地存储读取 baseUrl 和 token
   static Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
-    _baseUrl = prefs.getString(_baseUrlKey) ?? "http://localhost:8000";
+    _baseUrl = prefs.getString(_baseUrlKey) ?? "http://localhost:8001";
     _token = prefs.getString(_tokenKey);
     _updateClient();
   }
