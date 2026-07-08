@@ -1,7 +1,7 @@
-/// API 服务：封装所有后端 HTTP 请求
-import "dart:convert";
+/// API 服务：封装所有后端 HTTP 请求，使用 Dio
 import "dart:io";
-import "package:http/http.dart as http";
+import "dart:convert";
+import "package:dio/dio.dart";
 import "package:shared_preferences/shared_preferences.dart";
 import "../models/user.dart";
 import "../models/book.dart";
@@ -13,26 +13,52 @@ class ApiService {
 
   static String _baseUrl = "http://localhost:8000";
   static String? _token;
+  static Dio? _dio;
+
+  static Dio get _client {
+    if (_dio == null) {
+      _dio = Dio(BaseOptions(
+        baseUrl: _baseUrl,
+        connectTimeout: const Duration(seconds: 10),
+        receiveTimeout: const Duration(seconds: 30),
+      ));
+    }
+    return _dio!;
+  }
+
+  static void _updateClient() {
+    _dio = Dio(BaseOptions(
+      baseUrl: _baseUrl,
+      connectTimeout: const Duration(seconds: 10),
+      receiveTimeout: const Duration(seconds: 30),
+      headers: _token != null ? {"Authorization": "Bearer $_token"} : null,
+    ));
+  }
 
   /// 初始化：从本地存储读取 baseUrl 和 token
   static Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     _baseUrl = prefs.getString(_baseUrlKey) ?? "http://localhost:8000";
     _token = prefs.getString(_tokenKey);
+    _updateClient();
   }
 
   /// 设置后端地址
   static Future<void> setBaseUrl(String url) async {
     _baseUrl = url.replaceAll(RegExp(r"/$"), "");
+    _updateClient();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_baseUrlKey, _baseUrl);
   }
 
   static String get baseUrl => _baseUrl;
+  static String? get token => _token;
+  static bool get isLoggedIn => _token != null;
 
   /// 保存/清除 token
   static Future<void> _saveToken(String? token) async {
     _token = token;
+    _updateClient();
     final prefs = await SharedPreferences.getInstance();
     if (token != null) {
       await prefs.setString(_tokenKey, token);
@@ -41,49 +67,27 @@ class ApiService {
     }
   }
 
-  static String? get token => _token;
-  static bool get isLoggedIn => _token != null;
-
-  /// 通用请求头
-  static Map<String, String> _headers({bool json = true}) {
-    final h = <String, String>{};
-    if (json) h["Content-Type"] = "application/json";
-    if (_token != null) h["Authorization"] = "Bearer $_token";
-    return h;
-  }
-
-  /// 通用 GET 请求
+  /// 通用 GET
   static Future<Map<String, dynamic>> _get(String path) async {
-    final resp = await http.get(Uri.parse("$_baseUrl$path"), headers: _headers());
-    return _handleResponse(resp);
+    final resp = await _client.get(path);
+    return resp.data as Map<String, dynamic>;
   }
 
-  /// 通用 POST 请求（JSON body）
+  /// 通用 POST
   static Future<Map<String, dynamic>> _post(String path, Map<String, dynamic> body) async {
-    final resp = await http.post(
-      Uri.parse("$_baseUrl$path"),
-      headers: _headers(),
-      body: jsonEncode(body),
-    );
-    return _handleResponse(resp);
+    final resp = await _client.post(path, data: body);
+    return resp.data as Map<String, dynamic>;
   }
 
-  /// 通用 PATCH 请求
+  /// 通用 PATCH
   static Future<Map<String, dynamic>> _patch(String path, Map<String, dynamic> body) async {
-    final resp = await http.patch(
-      Uri.parse("$_baseUrl$path"),
-      headers: _headers(),
-      body: jsonEncode(body),
-    );
-    return _handleResponse(resp);
+    final resp = await _client.patch(path, data: body);
+    return resp.data as Map<String, dynamic>;
   }
 
-  /// 通用 DELETE 请求
+  /// 通用 DELETE
   static Future<void> _delete(String path) async {
-    final resp = await http.delete(Uri.parse("$_baseUrl$path"), headers: _headers());
-    if (resp.statusCode >= 400) {
-      _throwError(resp);
-    }
+    await _client.delete(path);
   }
 
   /// Multipart 上传
@@ -92,31 +96,11 @@ class ApiService {
     File file,
     Map<String, String> fields,
   ) async {
-    final req = http.MultipartRequest("POST", Uri.parse("$_baseUrl$path"));
-    req.headers.addAll(_headers(json: false));
-    req.files.add(await http.MultipartFile.fromPath("file", file.path));
-    fields.forEach((k, v) => req.fields[k] = v);
-    final streamedResp = await req.send();
-    final resp = await http.Response.fromStream(streamedResp);
-    return _handleResponse(resp);
-  }
-
-  /// 处理响应
-  static Map<String, dynamic> _handleResponse(http.Response resp) {
-    if (resp.statusCode >= 400) {
-      _throwError(resp);
-    }
-    if (resp.body.isEmpty) return {};
-    return jsonDecode(resp.body) as Map<String, dynamic>;
-  }
-
-  static Never _throwError(http.Response resp) {
-    String msg = "请求失败 (${resp.statusCode})";
-    try {
-      final body = jsonDecode(resp.body) as Map<String, dynamic>;
-      msg = body["detail"] as String? ?? msg;
-    } catch (_) {}
-    throw ApiException(resp.statusCode, msg);
+    final form = FormData();
+    form.files.add(MapEntry("file", await MultipartFile.fromFile(file.path, filename: file.path.split("/").last)));
+    fields.forEach((k, v) => form.fields.add(MapEntry(k, v)));
+    final resp = await _client.post(path, data: form);
+    return resp.data as Map<String, dynamic>;
   }
 
   // ========== Auth ==========

@@ -5,6 +5,7 @@ import "package:just_audio/just_audio.dart";
 import "package:provider/provider.dart";
 import "../providers/book_provider.dart";
 import "../models/book.dart";
+import "../services/api_service.dart";
 
 class PlayerScreen extends StatefulWidget {
   final int bookId;
@@ -35,18 +36,20 @@ class _PlayerScreenState extends State<PlayerScreen> {
       final bp = context.read<BookProvider>();
       await bp.loadDetail(widget.bookId);
       final detail = bp.currentDetail;
-      if (detail == null || detail.audioUrl == null) {
+      if (detail == null) {
+        setState(() { _error = "加载失败"; _loading = false; });
+        return;
+      }
+      if (detail.audioUrl == null) {
         setState(() { _error = "音频尚未生成"; _loading = false; });
         return;
       }
       final url = detail.audioUrl!;
-      // 后端 URL 可能是 localhost 链接，把它替换成 baseUrl
       final fullUrl = url.startsWith("http") ? url : "${ApiService.baseUrl}$url";
       await _player.setAudioSource(AudioSource.uri(Uri.parse(fullUrl)));
       _posSub = _player.positionStream.listen((pos) {
         final d = detail;
         if (d == null) return;
-        // 找当前章节
         for (int i = 0; i < d.chapters.length; i++) {
           final c = d.chapters[i];
           if (pos.inSeconds >= c.start.toInt() && pos.inSeconds < c.end.toInt()) {
@@ -69,7 +72,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     super.dispose();
   }
 
-    String _fmt(Duration d) {
+  String _fmt(Duration d) {
     final h = d.inHours;
     final m = d.inMinutes.remainder(60);
     final s = d.inSeconds.remainder(60);
@@ -77,8 +80,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
       return '${h.toString().padLeft(2, "0")}:${m.toString().padLeft(2, "0")}:${s.toString().padLeft(2, "0")}';
     }
     return '${m.toString().padLeft(2, "0")}:${s.toString().padLeft(2, "0")}';
-  }
-
   }
 
   @override
@@ -100,7 +101,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   speed: _speed,
                   currentChapter: _currentChapter,
                   showTranscript: _showTranscript,
-                  onSpeedChange: (v) => setState(() { _speed = v; _player.setSpeed(v); }),
+                  onSpeedChange: (v) { setState(() { _speed = v; }); _player.setSpeed(v); },
                   onSeek: (p) => _player.seek(Duration(seconds: p.toInt())),
                   fmt: _fmt,
                 ),
@@ -138,8 +139,10 @@ class _PlayerBody extends StatelessWidget {
       children: [
         const SizedBox(height: 20),
         Center(child: SizedBox(width: 220, height: 220, child: ClipRRect(borderRadius: BorderRadius.circular(20),
-          child: detail?.coverUrl != null ? Image.network(detail!.coverUrl!, fit: BoxFit.cover)
-              : Container(color: Theme.of(context).colorScheme.primaryContainer, child: Icon(Icons.book, size: 96, color: Theme.of(context).colorScheme.primary))))),
+          child: detail?.coverUrl != null
+              ? Image.network(detail!.coverUrl!, fit: BoxFit.cover)
+              : Container(color: Theme.of(context).colorScheme.primaryContainer,
+                  child: Icon(Icons.book, size: 96, color: Theme.of(context).colorScheme.primary))))),
         const SizedBox(height: 24),
         Center(child: Text(detail?.title ?? "", style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold), textAlign: TextAlign.center)),
         if (detail?.author != null) Center(child: Text(detail!.author!, style: TextStyle(fontSize: 16, color: Colors.grey.shade600))),
@@ -156,11 +159,12 @@ class _PlayerBody extends StatelessWidget {
             return StreamBuilder<Duration?>(
               stream: player.durationStream,
               builder: (ctx, durSnap) {
-                final dur = durSnap.data ?? (detail?.audioDuration?.let((v) => Duration(seconds: v.toInt())) ?? Duration.zero);
+                final dur = durSnap.data ?? Duration.zero;
+                final sliderMax = (dur.inMilliseconds > 0) ? dur.inMilliseconds.toDouble() : 1.0;
                 return Column(children: [
-                  Slider(value: pos.inMilliseconds.toDouble(),
+                  Slider(value: pos.inMilliseconds.toDouble().clamp(0.0, sliderMax),
                     min: 0,
-                    max: (dur.inMilliseconds.isInfinite || dur.inMilliseconds == 0) ? 1.0 : dur.inMilliseconds.toDouble(),
+                    max: sliderMax,
                     onChanged: (v) => onSeek(v / 1000),
                   ),
                   Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
@@ -178,7 +182,8 @@ class _PlayerBody extends StatelessWidget {
           IconButton(icon: const Icon(Icons.replay_10, size: 36), onPressed: () => player.seek(player.position - const Duration(seconds: 10))),
           StreamBuilder<PlayerState>(stream: player.playerStateStream, builder: (ctx, snap) {
             final playing = snap.data?.playing ?? false;
-            return IconButton(iconSize: 64, icon: Icon(playing ? Icons.pause_circle_filled : Icons.play_circle_filled),
+            return IconButton(iconSize: 64,
+              icon: Icon(playing ? Icons.pause_circle_filled : Icons.play_circle_filled),
               onPressed: isReady ? () => playing ? player.pause() : player.play() : null);
           }),
           IconButton(icon: const Icon(Icons.forward_30, size: 36), onPressed: () => player.seek(player.position + const Duration(seconds: 30))),
@@ -188,7 +193,18 @@ class _PlayerBody extends StatelessWidget {
         // 倍速
         Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           const Text("倍速："),
-          PopupMenuButton<double>(initialValue: speed, onSelected: onSpeedChange, itemBuilder: (_) => const [PopupMenuItem(value: 0.5, child: Text("0.5×")), PopupMenuItem(value: 0.75, child: Text("0.75×")), PopupMenuItem(value: 1.0, child: Text("1.0×")), PopupMenuItem(value: 1.5, child: Text("1.5×")), PopupMenuItem(value: 2.0, child: Text("2.0×"))], child: Text("\$speed×", style: const TextStyle(fontWeight: FontWeight.w600))),
+          PopupMenuButton<double>(
+            initialValue: speed,
+            onSelected: onSpeedChange,
+            itemBuilder: (_) => [
+              const PopupMenuItem(value: 0.5, child: Text("0.5x")),
+              const PopupMenuItem(value: 0.75, child: Text("0.75x")),
+              const PopupMenuItem(value: 1.0, child: Text("1.0x")),
+              const PopupMenuItem(value: 1.5, child: Text("1.5x")),
+              const PopupMenuItem(value: 2.0, child: Text("2.0x")),
+            ],
+            child: Text("${speed}x", style: const TextStyle(fontWeight: FontWeight.w600)),
+          ),
         ]),
 
         if (detail?.chapters.isNotEmpty == true) ...[
@@ -197,9 +213,9 @@ class _PlayerBody extends StatelessWidget {
           ...detail!.chapters.asMap().entries.map((e) => ListTile(
             dense: true,
             selected: e.key == currentChapter,
-            leading: Text("#\${e.value.index + 1}"),
+            leading: Text("#${e.value.index + 1}"),
             title: Text(e.value.title, style: TextStyle(color: e.key == currentChapter ? Theme.of(context).colorScheme.primary : null)),
-            subtitle: Text("\${e.value.start.toStringAsFixed(1)}s"),
+            subtitle: Text("${e.value.start.toStringAsFixed(1)}s"),
             onTap: () => onSeek(e.value.start),
           )),
         ],
@@ -207,25 +223,25 @@ class _PlayerBody extends StatelessWidget {
         if (showTranscript && detail?.transcript.isNotEmpty == true) ...[
           const SizedBox(height: 24),
           const Text("字幕", style: TextStyle(fontWeight: FontWeight.bold)),
-          ...detail!.transcript.map((t) => StreamBuilder<Duration>(stream: player.positionStream, builder: ((ctx, snap) {
-            final pos = snap.data?.inSeconds ?? 0;
-            final active = (pos >= t.start.toInt() && pos < t.end.toInt());
-            return Container(
-              color: active ? Theme.of(context).colorScheme.primaryContainer : null,
-              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                SizedBox(width: 60, child: Text("\${t.start.toStringAsFixed(1)}s", style: TextStyle(fontSize: 12, color: active ? Theme.of(context).colorScheme.primary : Colors.grey))),
-                const SizedBox(width: 8),
-                Expanded(child: Text(t.text, style: TextStyle(fontWeight: active ? FontWeight.bold : FontWeight.normal))),
-              ]),
-            );
-          }))),
+          ...detail!.transcript.map((t) => StreamBuilder<Duration>(
+            stream: player.positionStream,
+            builder: (ctx, snap) {
+              final pos = snap.data?.inSeconds ?? 0;
+              final active = (pos >= t.start.toInt() && pos < t.end.toInt());
+              return Container(
+                color: active ? Theme.of(context).colorScheme.primaryContainer : null,
+                padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  SizedBox(width: 60, child: Text("${t.start.toStringAsFixed(1)}s",
+                    style: TextStyle(fontSize: 12, color: active ? Theme.of(context).colorScheme.primary : Colors.grey))),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(t.text, style: TextStyle(fontWeight: active ? FontWeight.bold : FontWeight.normal))),
+                ]),
+              );
+            },
+          )),
         ],
       ],
     );
   }
-}
-
-extension on double {
-  T? let<T>(T Function(double) fn) => fn(this);
 }
