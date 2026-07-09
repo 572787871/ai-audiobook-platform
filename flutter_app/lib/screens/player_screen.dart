@@ -4,6 +4,7 @@ import "package:flutter/material.dart";
 import "package:just_audio/just_audio.dart";
 import "package:provider/provider.dart";
 import "../providers/book_provider.dart";
+import "../models/book.dart";
 import "../services/api_service.dart";
 import "../theme/app_theme.dart";
 
@@ -91,6 +92,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
   }
 
+  String _fmt(Duration d) {
+    final h = d.inHours;
+    final m = d.inMinutes.remainder(60);
+    final s = d.inSeconds.remainder(60);
+    return h > 0 ? "${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}" : "${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}";
+  }
+
   void _autoScroll(int index) {
     if (_scrollCtrl.hasClients && index * 60 > _scrollCtrl.position.pixels + 200) {
       _scrollCtrl.animateTo(index * 60.0 - 100, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
@@ -103,6 +111,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _player.dispose();
     _scrollCtrl.dispose();
     super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

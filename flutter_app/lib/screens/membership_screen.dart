@@ -69,7 +69,7 @@ class _FeatureItem extends StatelessWidget {
           child: Icon(icon, color: AppTheme.primary, size: 24)),
         const SizedBox(width: 16),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title, style: TextStyle(fontWeight: FontWeight.w600, color: isDark ? Colors.white : AppTheme.textPrimary)),
+          Text(title, style: TextStyle(fontWeight: FontWeight.w600, color: AppTheme.textPrimary)),
           Text(subtitle, style: const TextStyle(fontSize: 13, color: Colors.grey)),
         ])),
       ]),

@@ -144,7 +144,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
     );
   }
 
-  Widget _buildBottomBar(BookDetail detail) {
+  Widget _buildBottomBar(BookDetail? detail) {
     return SafeArea(
       child: Container(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
