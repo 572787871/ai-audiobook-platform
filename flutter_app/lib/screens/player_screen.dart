@@ -283,7 +283,7 @@ class _PlayerControls extends StatelessWidget {
               child: IconButton(iconSize: 40, icon: Icon(playing ? Icons.pause : Icons.play_arrow, color: Colors.white), onPressed: isReady ? () => playing ? player.pause() : player.play() : null),
             );
           }),
-          IconButton(icon: const Icon(Icons.skip_next, size: 32), onPressed: detail != null && currentChapter < detail.chapters.length - 1 ? onNextChapter : null),
+          IconButton(icon: const Icon(Icons.skip_next, size: 32), onPressed: detail != null && currentChapter < detail!.chapters.length - 1 ? onNextChapter : null),
           IconButton(icon: const Icon(Icons.forward_30, size: 28), onPressed: isReady ? () => player.seek(player.position + const Duration(seconds: 15)) : null),
         ]),
         const SizedBox(height: 8),
