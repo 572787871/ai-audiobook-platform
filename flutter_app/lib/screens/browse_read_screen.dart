@@ -136,7 +136,7 @@ class _BrowseReadScreenState extends State<BrowseReadScreen> {
                     style: TextStyle(
                       fontSize: _fontSize,
                       height: 1.8,
-                      color: isCurrent ? cs.primary : (_nightMode ? Colors.white80 : cs.onSurface),
+                      color: isCurrent ? cs.primary : (_nightMode ? Colors.white70 : cs.onSurface),
                       fontWeight: isCurrent ? FontWeight.w600 : FontWeight.normal,
                     ),
                   ),
