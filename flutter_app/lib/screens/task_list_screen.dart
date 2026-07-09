@@ -36,6 +36,35 @@ class _TaskListScreenState extends State<TaskListScreen> {
     super.dispose();
   }
 
+  Future<void> _deleteTask(dynamic task) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusLg)),
+        title: const Text("删除任务"),
+        content: const Text("确定要删除此任务吗？"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text("取消")),
+          FilledButton(style: FilledButton.styleFrom(backgroundColor: AppTheme.danger),
+            onPressed: () => Navigator.pop(c, true), child: const Text("删除")),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    final ok = await context.read<TaskProvider>().deleteTask(task.id);
+    if (!ok && mounted) {
+      final err = context.read<TaskProvider>().error ?? "删除失败";
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err), backgroundColor: AppTheme.danger));
+    }
+  }
+
+  Future<void> _retryTask(dynamic task) async {
+    final ok = await context.read<TaskProvider>().retryTask(task.bookId);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("重试失败"), backgroundColor: AppTheme.danger));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final tp = context.watch<TaskProvider>();
@@ -69,8 +98,11 @@ class _TaskListScreenState extends State<TaskListScreen> {
           )
         else
           SliverList(
-            delegate: SliverChildBuilderDelegate((ctx, i) => _TaskCard(task: tasks[i]),
-              childCount: tasks.length),
+            delegate: SliverChildBuilderDelegate((ctx, i) => _TaskCard(
+              task: tasks[i],
+              onDelete: () => _deleteTask(tasks[i]),
+              onRetry: () => _retryTask(tasks[i]),
+            ), childCount: tasks.length),
           ),
         const SliverToBoxAdapter(child: SizedBox(height: 80)),
       ]),
@@ -80,7 +112,9 @@ class _TaskListScreenState extends State<TaskListScreen> {
 
 class _TaskCard extends StatelessWidget {
   final dynamic task;
-  const _TaskCard({required this.task});
+  final VoidCallback onDelete;
+  final VoidCallback onRetry;
+  const _TaskCard({required this.task, required this.onDelete, required this.onRetry});
 
   @override
   Widget build(BuildContext context) {
@@ -90,19 +124,24 @@ class _TaskCard extends StatelessWidget {
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      decoration: BoxDecoration(color: isDark ? AppTheme.cardDark : Colors.white, borderRadius: BorderRadius.circular(AppTheme.radiusLg), boxShadow: AppTheme.cardShadow(cs.onSurface, opacity: 0.03, blur: 8)),
+      decoration: BoxDecoration(
+        color: isDark ? AppTheme.cardDark : Colors.white,
+        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+        boxShadow: AppTheme.cardShadow(cs.onSurface, opacity: 0.03, blur: 8),
+      ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Padding(padding: const EdgeInsets.fromLTRB(16, 14, 16, 12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Expanded(child: Text("书籍 #${task.bookId} · 任务 #${task.id}", maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: cs.onSurface))),
             StatusTag(status: task.status),
           ]),
-          if (task.status == "processing") Padding(padding: const EdgeInsets.only(top: 12), child: ClipRRect(borderRadius: BorderRadius.circular(AppTheme.radiusFull), child: LinearProgressIndicator(value: (task.progress ?? 0) / 100, minHeight: 4, backgroundColor: statusColor.withValues(alpha: 0.1), valueColor: AlwaysStoppedAnimation<Color>(statusColor)))),
-          if (task.status == "failed" && task.errorMessage != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(task.errorMessage!, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: AppTheme.danger))),
+          if (task.status == "processing")
+            Padding(padding: const EdgeInsets.only(top: 12), child: ClipRRect(borderRadius: BorderRadius.circular(AppTheme.radiusFull), child: LinearProgressIndicator(value: (task.progress ?? 0) / 100, minHeight: 4, backgroundColor: statusColor.withValues(alpha: 0.1), valueColor: AlwaysStoppedAnimation<Color>(statusColor)))),
+          if (task.status == "failed" && task.errorMessage != null)
+            Padding(padding: const EdgeInsets.only(top: 8), child: Text(task.errorMessage!, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: AppTheme.danger))),
           Row(children: [
             Text(task.createdAt, style: TextStyle(fontSize: 11, color: cs.onSurface.withValues(alpha: 0.3))),
             const Spacer(),
-            // 操作按钮
             PopupMenuButton<String>(
               icon: Icon(Icons.more_vert, size: 18, color: cs.onSurface.withValues(alpha: 0.4)),
               itemBuilder: (ctx) {
@@ -112,11 +151,8 @@ class _TaskCard extends StatelessWidget {
                 return items;
               },
               onSelected: (v) async {
-                if (v == "retry") await context.read<TaskProvider>().retryTask(task.bookId);
-                if (v == "delete") {
-                  final confirm = await showDialog<bool>(context: context, builder: (c) => AlertDialog(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusLg)), title: const Text("删除任务"), content: const Text("确定要删除此任务吗？"), actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text("取消")), FilledButton(style: FilledButton.styleFrom(backgroundColor: AppTheme.danger), onPressed: () => Navigator.pop(c, true), child: const Text("删除"))]));
-                  if (confirm == true) await context.read<TaskProvider>().deleteTask(task.id);
-                }
+                if (v == "retry") onRetry();
+                if (v == "delete") onDelete();
               },
             )
           ]),
