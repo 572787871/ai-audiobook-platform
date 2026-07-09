@@ -216,6 +216,10 @@ class ApiService {
     final json = await _post("/api/tasks/$id/cancel", {});
     return Task.fromJson(json);
   }
+
+  static Future<void> deleteTask(int id) async {
+    await _delete("/api/tasks/$id");
+  }
 }
 
 /// API 异常

@@ -87,6 +87,15 @@ def get_task(task_id: int, user: User = Depends(get_current_user), db: Session =
     return _task_to_out(task)
 
 
+@router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_task(task_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    task = db.query(Task).filter(Task.id == task_id, Task.user_id == user.id).first()
+    if not task:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "任务不存在")
+    db.delete(task)
+    db.commit()
+
+
 @router.post("/{task_id}/cancel", response_model=TaskOut)
 def cancel_task(task_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     task = db.query(Task).filter(Task.id == task_id, Task.user_id == user.id).first()

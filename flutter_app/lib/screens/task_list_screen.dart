@@ -1,6 +1,7 @@
 import "package:flutter/material.dart";
 import "package:provider/provider.dart";
 import "../providers/task_provider.dart";
+import "../services/api_service.dart";
 import "../models/task.dart";
 
 class TaskListScreen extends StatefulWidget {
@@ -26,6 +27,28 @@ class _TaskListScreenState extends State<TaskListScreen> {
     super.dispose();
   }
 
+  Future<void> _deleteTask(Task task) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("删除任务"),
+        content: Text("确定删除任务 #${task.id}？"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("取消")),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text("删除")),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      try {
+        await ApiService.cancelTask(task.id);
+        await context.read<TaskProvider>().loadTasks();
+      } catch (e) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("删除失败: $e")));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -47,7 +70,11 @@ class _TaskListScreenState extends State<TaskListScreen> {
               : ListView.builder(
                   padding: const EdgeInsets.all(16),
                   itemCount: tasks.length,
-                  itemBuilder: (ctx, i) => _TaskCard(task: tasks[i], cs: cs),
+                  itemBuilder: (ctx, i) => _TaskCard(
+                    task: tasks[i],
+                    cs: cs,
+                    onDelete: () => _deleteTask(tasks[i]),
+                  ),
                 ),
     );
   }
@@ -56,7 +83,8 @@ class _TaskListScreenState extends State<TaskListScreen> {
 class _TaskCard extends StatelessWidget {
   final Task task;
   final ColorScheme cs;
-  const _TaskCard({required this.task, required this.cs});
+  final VoidCallback onDelete;
+  const _TaskCard({required this.task, required this.cs, required this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -73,11 +101,25 @@ class _TaskCard extends StatelessWidget {
               Text(statusInfo.label, style: TextStyle(fontWeight: FontWeight.bold, color: statusInfo.color)),
               Text("有声书 #${task.bookId}", style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.5))),
             ])),
-            if (task.status == "failed")
-              TextButton(onPressed: () async {
-                await context.read<TaskProvider>().cancelTask(task.id);
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("已重试")));
-              }, child: const Text("重试")),
+            PopupMenuButton<String>(
+              onSelected: (v) async {
+                if (v == "delete") onDelete();
+                if (v == "retry" && task.status == "failed") {
+                  try {
+                    await ApiService.cancelTask(task.id);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("已重试")));
+                      context.read<TaskProvider>().loadTasks();
+                    }
+                  } catch (_) {}
+                }
+              },
+              itemBuilder: (_) => [
+                if (task.status == "failed")
+                  const PopupMenuItem(value: "retry", child: ListTile(leading: Icon(Icons.refresh), title: Text("重试"), dense: true)),
+                const PopupMenuItem(value: "delete", child: ListTile(leading: Icon(Icons.delete, color: Colors.red), title: Text("删除", style: TextStyle(color: Colors.red)), dense: true)),
+              ],
+            ),
           ]),
           const SizedBox(height: 12),
           if (task.status != "completed" && task.status != "failed")

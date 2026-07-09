@@ -1,4 +1,3 @@
-/// 上传有声书页面：选择文件 -> 填表 -> 上传 -> 创建任务
 import "dart:io";
 import "package:flutter/material.dart";
 import "package:file_picker/file_picker.dart";
@@ -29,7 +28,10 @@ class _UploadScreenState extends State<UploadScreen> {
   }
 
   Future<void> _pickFile() async {
-    final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ["txt", "md", "pdf", "epub"]);
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ["txt", "md", "pdf", "epub"],
+    );
     if (result != null && result.files.single.path != null) {
       setState(() {
         _selectedFile = File(result.files.single.path!);
@@ -60,11 +62,12 @@ class _UploadScreenState extends State<UploadScreen> {
     );
     setState(() => _uploading = false);
     if (book != null) {
-      // 自动创建 TTS 任务
       await bp.createTask(book.id);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("上传成功，TTS 任务已创建")));
-        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("上传成功，正在生成有声书")));
+        // 刷新书架数据后返回
+        await bp.loadBooks();
+        if (context.mounted) Navigator.pushNamedAndRemoveUntil(context, "/home", (route) => false);
       }
     } else {
       if (context.mounted) {
@@ -76,7 +79,7 @@ class _UploadScreenState extends State<UploadScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("上传有声书")),
+      appBar: AppBar(title: const Text("上传有声书"), leading: IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context))),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -87,12 +90,15 @@ class _UploadScreenState extends State<UploadScreen> {
               borderRadius: BorderRadius.circular(12),
               child: Container(
                 width: double.infinity,
-                height: 120,
-                decoration: BoxDecoration(border: Border.all(color: Colors.grey, style: BorderStyle.solid, width: 1), borderRadius: BorderRadius.circular(12)),
+                height: 140,
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade300, width: 1.5, strokeAlign: BorderSide.strokeAlignInside),
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                   Icon(_selectedFile == null ? Icons.upload_file : Icons.check_circle, size: 48, color: _selectedFile == null ? Colors.grey : Colors.green),
                   const SizedBox(height: 8),
-                  Text(_fileName ?? "点击选择文件", style: TextStyle(color: _selectedFile == null ? Colors.grey : Colors.black)),
+                  Text(_fileName ?? "点击选择文件", style: TextStyle(color: _selectedFile == null ? Colors.grey : Colors.black87)),
                   const Text("支持 txt / md / pdf / epub", style: TextStyle(fontSize: 12, color: Colors.grey)),
                 ]),
               ),
@@ -106,10 +112,11 @@ class _UploadScreenState extends State<UploadScreen> {
             const SizedBox(height: 32),
             SizedBox(width: double.infinity, height: 50,
               child: FilledButton(
+                style: FilledButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                 onPressed: _uploading ? null : _submit,
                 child: _uploading
                     ? Row(mainAxisAlignment: MainAxisAlignment.center, children: const [SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)), SizedBox(width: 12), Text("上传中...")])
-                    : const Text("上传并创建任务"),
+                    : const Text("上传并生成有声书"),
               ),
             ),
           ],

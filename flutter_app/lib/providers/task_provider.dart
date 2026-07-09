@@ -68,6 +68,19 @@ class TaskProvider extends ChangeNotifier {
     }
   }
 
+  Future<bool> deleteTask(int id) async {
+    try {
+      await ApiService.deleteTask(id);
+      _tasks.removeWhere((t) => t.id == id);
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
   void clearError() {
     _error = null;
     notifyListeners();
