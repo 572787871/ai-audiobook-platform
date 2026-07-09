@@ -49,3 +49,6 @@ target/
 
 # Docker
 docker-compose.override.yml
+worker/__pycache__/
+worker/tasks/
+*.pyc

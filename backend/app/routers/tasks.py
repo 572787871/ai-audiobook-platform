@@ -48,8 +48,7 @@ def create_task(payload: TaskCreate, user: User = Depends(get_current_user), db:
 
     # 提交 Celery 异步任务
     try:
-        from worker.tasks.tts_tasks import run_tts_task
-        result = run_tts_task.delay(task.id)
+        result = generate_audio.delay(task.id)
         task.celery_task_id = result.id
         db.commit()
         db.refresh(task)

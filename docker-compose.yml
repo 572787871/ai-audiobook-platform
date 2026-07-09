@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   db:
     image: postgres:16-alpine
@@ -29,15 +27,17 @@ services:
 
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     env_file:
       - .env
     ports:
       - "8000:8000"
     volumes:
-      - ./backend:/app/backend
-      - ./storage:/app/storage
+      - .:/app
+    environment:
+      - PYTHONPATH=/app
+    working_dir: /app
     depends_on:
       db:
         condition: service_healthy
@@ -47,19 +47,21 @@ services:
 
   worker:
     build:
-      context: ./worker
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: worker/Dockerfile
     env_file:
       - .env
     volumes:
-      - ./worker:/app/worker
-      - ./storage:/app/storage
+      - .:/app
+    environment:
+      - PYTHONPATH=/app
+    working_dir: /app
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: celery -A worker.celery_app worker --loglevel=info --concurrency=2
+    command: celery -A backend.app.celery_app.celery_app worker --loglevel=info --concurrency=2
 
 volumes:
   pgdata:

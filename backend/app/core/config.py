@@ -4,13 +4,13 @@ from typing import List
 
 
 class Settings(BaseSettings):
-    POSTGRES_HOST: str = "localhost"
+    POSTGRES_HOST: str = "db"
     POSTGRES_PORT: int = 5432
     POSTGRES_USER: str = "audiobook"
     POSTGRES_PASSWORD: str = "audiobook_secret"
     POSTGRES_DB: str = "audiobook"
 
-    REDIS_HOST: str = "localhost"
+    REDIS_HOST: str = "redis"
     REDIS_PORT: int = 6379
     REDIS_DB: int = 0
 
@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 10080
 
     STORAGE_TYPE: str = "local"
-    LOCAL_STORAGE_ROOT: str = "./storage"
+    LOCAL_STORAGE_ROOT: str = "/app/storage"
     LOCAL_STORAGE_BASE_URL: str = "http://localhost:8000/storage"
 
     CORS_ORIGINS: str = "http://localhost:8000,http://localhost:3000"

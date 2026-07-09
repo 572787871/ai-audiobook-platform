@@ -1,31 +1,27 @@
-# TTS 任务：读取上传文件、生成音频与字幕、更新数据库。
+"""Celery 任务定义：TTS 合成、音频生成、字幕/章节提取。"""
 import os
 import json
-import time
 import subprocess
-import tempfile
 from pathlib import Path
 from datetime import datetime, timezone
 
 from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker
 
-from worker.celery_app import celery_app
+from backend.app.celery_app import celery_app
 
 DB_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql+psycopg2://{}:{}@{}:{}/{}".format(
-        os.getenv("POSTGRES_USER", "audiobook"),
-        os.getenv("POSTGRES_PASSWORD", "audiobook_secret"),
-        os.getenv("POSTGRES_HOST", "localhost"),
-        os.getenv("POSTGRES_PORT", "5432"),
-        os.getenv("POSTGRES_DB", "audiobook"),
+    "postgresql+psycopg2://{user}:{pwd}@{host}:{port}/{db}".format(
+        user=os.getenv("POSTGRES_USER", "audiobook"),
+        pwd=os.getenv("POSTGRES_PASSWORD", "audiobook_secret"),
+        host=os.getenv("POSTGRES_HOST", "db"),
+        port=os.getenv("POSTGRES_PORT", "5432"),
+        db=os.getenv("POSTGRES_DB", "audiobook"),
     ),
 )
 STORAGE_ROOT = Path(os.getenv("LOCAL_STORAGE_ROOT", "./storage"))
 
 engine = create_engine(DB_URL, pool_pre_ping=True)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 def _set_task_status(task_id, status, progress=None, error_message=None, result=None):
@@ -81,14 +77,10 @@ def _read_source_text(file_path: str) -> str:
     p = Path(file_path)
     if not p.exists():
         return ""
-    suffix = p.suffix.lower()
-    if suffix in (".txt", ".md"):
-        return p.read_text(encoding="utf-8", errors="ignore")
-    # 其他格式：尝试以文本读取
     try:
         return p.read_text(encoding="utf-8", errors="ignore")
     except Exception:
-        return str(p)
+        return ""
 
 
 def _split_paragraphs(text: str, max_len: int = 500) -> list[str]:
@@ -116,9 +108,18 @@ def _generate_silent_audio(output_path: str, duration_sec: float):
     subprocess.run(cmd, capture_output=True, timeout=60)
 
 
-@celery_app.task(name="worker.tasks.tts_tasks.run_tts_task", bind=True)
-def run_tts_task(self, task_id: int):
-    """主 TTS 任务入口。"""
+@celery_app.task(name="generate_audio", bind=True)
+def generate_audio(self, task_id: int):
+    """主 TTS 任务入口。
+
+    流程:
+    1. 读取 task + book 记录
+    2. 读取上传的源文本文件
+    3. 按段落切分，逐段合成（当前 stub：用 ffmpeg 生成静音占位 + 提取文字作为字幕）
+    4. 合并为单一 mp3
+    5. 生成 chapters.json 和 transcript.json
+    6. 更新 book 和 task 状态
+    """
     _set_task_status(task_id, "processing", progress=0)
 
     # 1) 读取 task + book
@@ -159,7 +160,6 @@ def run_tts_task(self, task_id: int):
         _set_task_status(task_id, "processing", progress=progress)
 
         seg_path = str(audio_dir / f"task_{task_id}_seg_{i}.mp3")
-        # 每段约 5 秒占位（实际 TTS 会根据文字长度生成）
         seg_duration = max(5.0, min(len(para) / 20.0, 300.0))
         _generate_silent_audio(seg_path, seg_duration)
         segment_files.append(seg_path)
