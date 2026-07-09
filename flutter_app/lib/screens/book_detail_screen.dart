@@ -171,8 +171,8 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
             ] else ...[
               Expanded(
                 child: FilledButton.icon(
-                  icon: Icon(detail.status == "pending" ? Icons.hourglass_empty : Icons.sync, size: 20),
-                  label: Text(detail.status == "pending" ? "等待合成" : "合成中"),
+                  icon: Icon(detail!.status == "pending" ? Icons.hourglass_empty : Icons.sync, size: 20),
+                  label: Text(detail!.status == "pending" ? "等待合成" : "合成中"),
                   onPressed: null,
                 ),
               ),
