@@ -1,6 +1,7 @@
 import "package:flutter/material.dart";
 import "package:provider/provider.dart";
 import "../providers/book_provider.dart";
+import "upload_screen.dart";
 import "../models/book.dart";
 
 class HomeScreen extends StatefulWidget {
@@ -108,10 +109,27 @@ class _HomeScreenState extends State<HomeScreen> {
               style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
               icon: const Icon(Icons.add_circle_outline, size: 28),
               label: const Text("上传小说生成有声书", style: TextStyle(fontSize: 16)),
-              onPressed: _isPicking ? null : () { setState(() => _isPicking = true); Navigator.pushNamed(context, "/upload").then((_) { if (mounted) setState(() => _isPicking = false); }); },
+              onPressed: _isPicking ? null : () {
+                debugPrint("UPLOAD_BUTTON_TAPPED_FROM_REAL_HOME");
+                setState(() => _isPicking = true);
+                Navigator.push<bool>(context, MaterialPageRoute(builder: (_) => const UploadScreen())).then((result) {
+                  if (mounted) setState(() => _isPicking = false);
+                  if (result == true) {
+                    debugPrint("UPLOAD_SUCCESS_REFRESH_BOOKS");
+                    context.read<BookProvider>().loadBooks();
+                  }
+                });
+              },
             ),
           )),
           const SliverToBoxAdapter(child: SizedBox(height: 20)),
+          SliverToBoxAdapter(child: Center(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Text("build: upload-fix-20260709-2",
+                style: TextStyle(fontSize: 10, color: Colors.grey.shade400)),
+            ),
+          )),
         ],
       ),
     );

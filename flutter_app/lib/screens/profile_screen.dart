@@ -22,7 +22,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (user != null && _usernameCtrl.text.isEmpty) _usernameCtrl.text = user.username;
 
     return Scaffold(
-      appBar: AppBar(title: const Text("个人资料")),
+      appBar: AppBar(automaticallyImplyLeading: false, title: const Text("个人资料")),
       body: ListView(padding: const EdgeInsets.all(24), children: [
         Center(
           child: Column(children: [

@@ -14,7 +14,7 @@ class MembershipScreen extends StatelessWidget {
     final isPremium = user?.isPremium ?? false;
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Pro 会员")),
+      appBar: AppBar(automaticallyImplyLeading: false, title: const Text("Pro 会员")),
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [

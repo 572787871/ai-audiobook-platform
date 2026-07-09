@@ -2,6 +2,7 @@ import "package:flutter/material.dart";
 import "package:provider/provider.dart";
 import "../providers/book_provider.dart";
 import "../models/book.dart";
+import "upload_screen.dart";
 
 class BookshelfScreen extends StatefulWidget {
   const BookshelfScreen({super.key});
@@ -23,11 +24,11 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
   Widget build(BuildContext context) {
     final books = context.watch<BookProvider>().books;
     return Scaffold(
-      appBar: AppBar(
+      appBar: AppBar(automaticallyImplyLeading: false,
         title: const Text("我的书架", style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [
           IconButton(icon: Icon(_grid ? Icons.list : Icons.grid_view), onPressed: () => setState(() => _grid = !_grid)),
-          IconButton(icon: const Icon(Icons.upload_outlined), onPressed: () => Navigator.pushNamed(context, "/upload")),
+          IconButton(icon: const Icon(Icons.upload_outlined), onPressed: () => Navigator.push<bool>(context, MaterialPageRoute(builder: (_) => const UploadScreen())).then((result) { if (result == true) context.read<BookProvider>().loadBooks(); })),
         ],
       ),
       body: books.isEmpty

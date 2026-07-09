@@ -56,7 +56,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
     final tasks = tp.tasks;
 
     return Scaffold(
-      appBar: AppBar(title: const Text("生成任务", style: TextStyle(fontWeight: FontWeight.bold))),
+      appBar: AppBar(automaticallyImplyLeading: false, title: const Text("生成任务", style: TextStyle(fontWeight: FontWeight.bold))),
       body: tp.isLoading && tasks.isEmpty
           ? const Center(child: CircularProgressIndicator())
           : tasks.isEmpty

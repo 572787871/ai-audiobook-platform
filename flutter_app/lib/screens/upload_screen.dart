@@ -29,12 +29,14 @@ class _UploadScreenState extends State<UploadScreen> {
   }
 
   Future<void> _pickFile() async {
+    debugPrint("UploadScreen _pickFile started");
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ["txt", "md", "pdf", "epub"],
       );
       if (result != null && result.files.single.path != null) {
+        debugPrint("UploadScreen file picked: \${result.files.single.name}");
         setState(() {
           _selectedFile = File(result.files.single.path!);
           _fileName = result.files.single.name;
@@ -45,8 +47,10 @@ class _UploadScreenState extends State<UploadScreen> {
         });
       }
     } catch (e) {
+      debugPrint("UploadScreen pickFile error: $e");
       setState(() => _errorMsg = "选择文件失败: $e");
     }
+    debugPrint("UploadScreen _pickFile ended");
   }
 
   Future<void> _submit() async {
@@ -76,13 +80,14 @@ class _UploadScreenState extends State<UploadScreen> {
       }
       await bp.createTask(book.id);
       if (context.mounted) {
+        debugPrint("UploadScreen upload success, popping with true");
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("上传成功，正在生成有声书")));
-        await bp.loadBooks();
         if (context.mounted) {
-          Navigator.pop(context);
+          Navigator.pop(context, true);
         }
       }
     } catch (e) {
+      debugPrint("UploadScreen upload exception: $e");
       setState(() {
         _errorMsg = "上传异常: $e";
         _uploading = false;

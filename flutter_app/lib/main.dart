@@ -15,6 +15,7 @@ import "screens/task_detail_screen.dart";
 import "screens/profile_screen.dart";
 import "screens/membership_screen.dart";
 import "screens/settings_screen.dart";
+import "screens/upload_screen.dart";
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -77,6 +78,8 @@ class AiAudiobookApp extends StatelessWidget {
             return MaterialPageRoute(builder: (_) => const LoginScreen());
           case "/register":
             return MaterialPageRoute(builder: (_) => const RegisterScreen());
+          case "/upload":
+            return MaterialPageRoute(builder: (_) => const UploadScreen());
           case "/home":
             return MaterialPageRoute(builder: (_) => const MainTabScreen());
           case "/book":
