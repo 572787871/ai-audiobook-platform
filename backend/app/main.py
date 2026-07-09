@@ -36,10 +36,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 静态文件：storage 目录
+# 静态文件：storage 目录（兼容旧路径 + 新 /media 路径）
 storage_root = Path(settings.LOCAL_STORAGE_ROOT)
 storage_root.mkdir(parents=True, exist_ok=True)
 app.mount("/storage", StaticFiles(directory=str(storage_root)), name="storage")
+app.mount("/media", StaticFiles(directory=str(storage_root)), name="media")
 
 # 路由
 app.include_router(auth.router)

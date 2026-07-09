@@ -218,7 +218,7 @@ def generate_audio(self, task_id: int):
     except Exception:
         duration = current_time
 
-    audio_url = os.getenv("LOCAL_STORAGE_BASE_URL", "http://localhost:8000/storage") + "/audio/book_" + str(book_id) + ".mp3"
+    audio_url = os.getenv("PUBLIC_BASE_URL", "http://localhost:8002") + "/media/audio/book_" + str(book_id) + ".mp3"
 
     _set_book_status(
         book_id, "completed",

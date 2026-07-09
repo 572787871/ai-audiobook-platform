@@ -1,7 +1,7 @@
 """有声书路由：上传、列表、详情、更新、删除、下载。"""
 import json
 from pathlib import Path
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Request
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -14,10 +14,26 @@ from backend.app.schemas.book import BookOut, BookUpdate, BookListOut, BookDetai
 from backend.app.schemas.task import TaskOut, TaskListOut
 from backend.app.services.storage import save_upload_file, file_public_url, get_file_path, ensure_storage_dirs
 
+
+def _resolve_audio_url(book: Book, request: Request = None) -> str:
+    """生成可在客户端直接访问的音频 URL。"""
+    if book.audio_file_path:
+        url = file_public_url(book.audio_file_path)
+        if request and url:
+            from urllib.parse import urlparse, urlunparse
+            parsed = urlparse(url)
+            base = str(request.base_url).rstrip("/")
+            base_parsed = urlparse(base)
+            if parsed.scheme and parsed.netloc and parsed.netloc != base_parsed.netloc:
+                url = urlunparse((base_parsed.scheme, base_parsed.netloc, parsed.path, parsed.params, parsed.query, parsed.fragment))
+        return url
+    return book.audio_url or ""
+
 router = APIRouter(prefix="/api/books", tags=["books"])
 
 
-def _book_to_out(book: Book) -> BookOut:
+def _book_to_out(book: Book, request: Request = None) -> BookOut:
+    public_audio_url = _resolve_audio_url(book, request)
     return BookOut(
         id=book.id,
         user_id=book.user_id,
@@ -25,7 +41,7 @@ def _book_to_out(book: Book) -> BookOut:
         author=book.author,
         description=book.description,
         cover_url=book.cover_url,
-        audio_url=book.audio_url,
+        audio_url=public_audio_url,
         audio_duration=book.audio_duration,
         status=book.status,
         created_at=book.created_at.isoformat() if book.created_at else "",
@@ -59,7 +75,8 @@ def _load_transcript(book: Book) -> list[TranscriptLine]:
         return []
 
 
-def _book_to_detail(book: Book) -> BookDetailOut:
+def _book_to_detail(book: Book, request: Request = None) -> BookDetailOut:
+    public_audio_url = _resolve_audio_url(book, request)
     return BookDetailOut(
         id=book.id,
         user_id=book.user_id,
@@ -67,7 +84,7 @@ def _book_to_detail(book: Book) -> BookDetailOut:
         author=book.author,
         description=book.description,
         cover_url=book.cover_url,
-        audio_url=book.audio_url,
+        audio_url=public_audio_url,
         audio_duration=book.audio_duration,
         status=book.status,
         chapters=_load_chapters(book),
@@ -105,7 +122,7 @@ def upload_book(
 
 
 @router.get("", response_model=BookListOut)
-def list_books(
+async def list_books(
     page: int = 1,
     page_size: int = 20,
     user: User = Depends(get_current_user),
@@ -114,15 +131,15 @@ def list_books(
     q = db.query(Book).filter(Book.user_id == user.id).order_by(Book.created_at.desc())
     total = q.count()
     items = q.offset((page - 1) * page_size).limit(page_size).all()
-    return BookListOut(total=total, items=[_book_to_out(b) for b in items])
+    return BookListOut(total=total, items=[_book_to_out(b, request) for b in items])
 
 
 @router.get("/{book_id}", response_model=BookDetailOut)
-def get_book(book_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+async def get_book(request: Request, book_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     book = db.query(Book).filter(Book.id == book_id, Book.user_id == user.id).first()
     if not book:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "有声书不存在")
-    return _book_to_detail(book)
+    return _book_to_detail(book, request)
 
 
 @router.patch("/{book_id}", response_model=BookOut)

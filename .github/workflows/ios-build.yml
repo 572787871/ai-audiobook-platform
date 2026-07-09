@@ -30,15 +30,17 @@ jobs:
         working-directory: flutter_app
         run: flutter pub get
 
-      - name: Patch Info.plist for background audio
+      - name: Patch Info.plist for ATS and background audio
         working-directory: flutter_app
         run: |
           INFO=ios/Runner/Info.plist
           if [ -f "$INFO" ]; then
             /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" "$INFO" 2>/dev/null || true
             /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string audio" "$INFO" 2>/dev/null || true
+            /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity dict" "$INFO" 2>/dev/null || true
+            /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity:NSAllowsArbitraryLoads bool true" "$INFO" 2>/dev/null || true
             /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string 需要麦克风权限用于有声书录音" "$INFO" 2>/dev/null || true
-            echo "Patched Info.plist"
+            echo "Patched Info.plist with ATS exception"
           fi
 
       - name: Analyze

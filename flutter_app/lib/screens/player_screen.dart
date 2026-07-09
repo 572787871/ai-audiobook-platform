@@ -24,6 +24,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   int _currentChapter = 0;
   bool _showTranscript = false;
   StreamSubscription? _posSub;
+  String? _debugUrl;
 
   @override
   void initState() {
@@ -37,18 +38,28 @@ class _PlayerScreenState extends State<PlayerScreen> {
       await bp.loadDetail(widget.bookId);
       final detail = bp.currentDetail;
       if (detail == null) {
-        setState(() { _error = "加载失败"; _loading = false; });
+        setState(() { _error = "加载有声书信息失败"; _loading = false; });
         return;
       }
-      if (detail.audioUrl == null) {
-        setState(() { _error = "音频尚未生成"; _loading = false; });
+      if (detail.audioUrl == null || detail.audioUrl!.isEmpty) {
+        setState(() { _error = "音频尚未生成，请等待 TTS 任务完成"; _loading = false; });
         return;
       }
-      final url = detail.audioUrl!;
-      final fullUrl = url.startsWith("http") ? url : "${ApiService.baseUrl}$url";
+      String rawUrl = detail.audioUrl!;
+      String fullUrl;
+      if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://")) {
+        fullUrl = rawUrl;
+      } else if (rawUrl.startsWith("/")) {
+        fullUrl = "${ApiService.baseUrl}$rawUrl";
+      } else {
+        fullUrl = "${ApiService.baseUrl}/$rawUrl";
+      }
+      setState(() => _debugUrl = fullUrl);
+
       await _player.setAudioSource(AudioSource.uri(Uri.parse(fullUrl)));
       _posSub = _player.positionStream.listen((pos) {
         final d = detail;
+        if (d == null) return;
         for (int i = 0; i < d.chapters.length; i++) {
           final c = d.chapters[i];
           if (pos.inSeconds >= c.start.toInt() && pos.inSeconds < c.end.toInt()) {
@@ -60,7 +71,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
       setState(() { _isReady = true; _loading = false; });
       _player.play();
     } catch (e) {
-      setState(() { _error = e.toString(); _loading = false; });
+      setState(() {
+        _error = "无法连接音频服务器 (${e.toString().substring(0, e.toString().length.clamp(0, 120))})";
+        _loading = false;
+      });
     }
   }
 
@@ -92,7 +106,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? Center(child: Text(_error!, style: const TextStyle(color: Colors.red)))
+              ? _ErrorBody(error: _error!, debugUrl: _debugUrl, bookId: widget.bookId)
               : _PlayerBody(
                   player: _player,
                   detail: detail,
@@ -104,6 +118,44 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   onSeek: (p) => _player.seek(Duration(seconds: p.toInt())),
                   fmt: _fmt,
                 ),
+    );
+  }
+}
+
+class _ErrorBody extends StatelessWidget {
+  final String error;
+  final String? debugUrl;
+  final int bookId;
+  const _ErrorBody({required this.error, this.debugUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.wifi_off, size: 80, color: Colors.red),
+            const SizedBox(height: 24),
+            Text(error, style: const TextStyle(fontSize: 16, color: Colors.red), textAlign: TextAlign.center),
+            if (debugUrl != null) ...[
+              const SizedBox(height: 16),
+              const Text("请求地址：", style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              SelectableText(debugUrl!, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              const SizedBox(height: 16),
+              const Text("提示：请检查后端地址是否配置正确", style: TextStyle(color: Colors.orange)),
+            ],
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              icon: const Icon(Icons.refresh),
+              label: const Text("重试"),
+              onPressed: () => Navigator.pushReplacementNamed(context, "/player", arguments: widget.bookId),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -150,7 +202,6 @@ class _PlayerBody extends StatelessWidget {
           Center(child: Text(detail!.chapters[currentChapter].title, style: const TextStyle(color: Colors.grey))),
         const SizedBox(height: 24),
 
-        // 进度条
         StreamBuilder<Duration>(
           stream: player.positionStream,
           builder: (ctx, posSnap) {
@@ -176,7 +227,6 @@ class _PlayerBody extends StatelessWidget {
           },
         ),
 
-        // 控制列
         Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
           IconButton(icon: const Icon(Icons.replay_10, size: 36), onPressed: () => player.seek(player.position - const Duration(seconds: 10))),
           StreamBuilder<PlayerState>(stream: player.playerStateStream, builder: (ctx, snap) {
@@ -189,7 +239,6 @@ class _PlayerBody extends StatelessWidget {
         ]),
 
         const SizedBox(height: 16),
-        // 倍速
         Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           const Text("倍速："),
           PopupMenuButton<double>(

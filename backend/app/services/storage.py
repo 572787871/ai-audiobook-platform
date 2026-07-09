@@ -27,7 +27,7 @@ def file_public_url(file_path: str) -> str:
     abs_path = str(Path(file_path).resolve())
     if abs_path.startswith(root):
         rel = abs_path[len(root):].lstrip("/")
-        return f"{settings.LOCAL_STORAGE_BASE_URL}/{rel}"
+        return f"{settings.PUBLIC_BASE_URL}/media/{rel}"
     return ""
 
 def get_file_path(rel_or_abs: str) -> Path:

@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     LOCAL_STORAGE_ROOT: str = "/app/storage"
     LOCAL_STORAGE_BASE_URL: str = "http://localhost:8000/storage"
 
+    PUBLIC_BASE_URL: str = "http://localhost:8002"
     CORS_ORIGINS: str = "http://localhost:8000,http://localhost:3000"
 
     @property
