@@ -38,6 +38,38 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  void _showServerDialog() {
+    final ctrl = TextEditingController(text: ApiService.baseUrl);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("服务器地址"),
+        content: TextField(
+          controller: ctrl,
+          decoration: const InputDecoration(
+            labelText: "后端 API 地址",
+            hintText: "http://192.168.x.x:8001",
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("取消")),
+          FilledButton(onPressed: () async {
+            await ApiService.setBaseUrl(ctrl.text.trim());
+            if (ctx.mounted) {
+              Navigator.pop(ctx);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("服务器地址已更新")),
+                );
+              }
+            }
+          }, child: const Text("保存")),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
@@ -67,7 +99,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     labelText: "密码",
                     prefixIcon: const Icon(Icons.lock),
                     border: const OutlineInputBorder(),
-                    suffixIcon: IconButton(icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off), onPressed: () => setState(() => _obscure = !_obscure)),
+                    suffixIcon: IconButton(icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
+                      onPressed: () => setState(() => _obscure = !_obscure)),
                   ),
                   obscureText: _obscure,
                   validator: (v) => (v == null || v.length < 6) ? "密码至少6位" : null,
@@ -78,7 +111,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   height: 50,
                   child: FilledButton(
                     onPressed: auth.isLoading ? null : _submit,
-                    child: auth.isLoading ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(strokeWidth: 2)) : const Text("登录"),
+                    child: auth.isLoading
+                        ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Text("登录"),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -88,6 +123,12 @@ class _LoginScreenState extends State<LoginScreen> {
                     const Text("还没有账号？"),
                     TextButton(onPressed: () => Navigator.pushNamed(context, "/register"), child: const Text("注册")),
                   ],
+                ),
+                const SizedBox(height: 8),
+                TextButton.icon(
+                  icon: const Icon(Icons.settings, size: 16),
+                  label: const Text("服务器地址"),
+                  onPressed: _showServerDialog,
                 ),
               ],
             ),
