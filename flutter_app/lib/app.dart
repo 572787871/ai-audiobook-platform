@@ -53,8 +53,14 @@ class AiAudiobookApp extends StatelessWidget {
             final bookId = settings.arguments as int;
             return MaterialPageRoute(builder: (_) => BookDetailScreen(bookId: bookId));
           case "/player":
-            final bookId = settings.arguments as int;
-            return MaterialPageRoute(builder: (_) => PlayerScreen(bookId: bookId));
+            if (settings.arguments is int) {
+              final bookId = settings.arguments as int;
+              return MaterialPageRoute(builder: (_) => PlayerScreen(bookId: bookId));
+            }
+            final args = settings.arguments as Map<String, dynamic>;
+            final bookId = args["bookId"] as int;
+            final readAlong = args["readAlong"] as bool? ?? false;
+            return MaterialPageRoute(builder: (_) => PlayerScreen(bookId: bookId, startWithReadAlong: readAlong));
           default:
             return MaterialPageRoute(builder: (_) => const SplashScreen());
         }
