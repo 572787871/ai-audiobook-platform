@@ -1,7 +1,11 @@
-"""Celery 任务定义：TTS 合成、音频生成、字幕/章节提取。"""
+"""Celery 任务定义：TTS 合成、音频生成、字幕/章节提取。
+
+使用 edge-tts (Microsoft Edge 在线 TTS) 生成真实中文语音。
+"""
 import os
 import json
-import shlex
+import asyncio
+import tempfile
 import subprocess
 from pathlib import Path
 from datetime import datetime, timezone
@@ -22,6 +26,9 @@ DB_URL = os.getenv(
 )
 STORAGE_ROOT = Path(os.getenv("LOCAL_STORAGE_ROOT", "./storage"))
 
+# 默认中文 TTS 声音（可在 .env 中覆盖）
+DEFAULT_VOICE = os.getenv("TTS_VOICE", "zh-CN-YunxiNeural")
+
 engine = create_engine(DB_URL, pool_pre_ping=True)
 
 
@@ -38,7 +45,7 @@ def _set_task_status(task_id, status, progress=None, error_message=None, result=
             params["error_message"] = error_message
         if result is not None:
             fields.append("result = :result")
-            params["result"] = json.dumps(result)
+            params["result"] = json.dumps(result, ensure_ascii=False)
         if status in ("completed", "failed"):
             fields.append("completed_at = :completed_at")
             params["completed_at"] = datetime.now(timezone.utc)
@@ -74,16 +81,48 @@ def _set_book_status(book_id, status, audio_path=None, audio_url=None, audio_dur
 
 
 def _read_source_text(file_path: str) -> str:
-    """读取上传的源文件文本，兼容中文小说常见编码。"""
+    """读取上传的源文件文本，兼容中文小说常见编码。
+
+    优先尝试 UTF-8（含 BOM），然后 GB18030/GBK/Big5，
+    最后用 chardet 库自动检测（如果安装了）。
+    """
     p = Path(file_path)
     if not p.exists():
         return ""
     raw = p.read_bytes()
-    for encoding in ("utf-8-sig", "utf-8", "gb18030", "gbk", "big5"):
+    if not raw:
+        return ""
+
+    # 先试 UTF-8 BOM
+    for enc in ("utf-8-sig", "utf-8"):
         try:
-            return raw.decode(encoding)
+            return raw.decode(enc)
         except UnicodeDecodeError:
             continue
+
+    # 尝试 chardet 自动检测
+    try:
+        import chardet
+        det = chardet.detect(raw)
+        if det["encoding"] and det["confidence"] > 0.7:
+            enc = det["encoding"]
+            # chardet 有时返回 GB2312，但它被 GB18030 包含
+            if enc.upper() in ("GB2312", "GB2312-80"):
+                enc = "gb18030"
+            try:
+                return raw.decode(enc)
+            except (UnicodeDecodeError, LookupError):
+                pass
+    except ImportError:
+        pass
+
+    # 尝试 GB 系列编码
+    for enc in ("gb18030", "gbk", "big5"):
+        try:
+            return raw.decode(enc)
+        except UnicodeDecodeError:
+            continue
+
     return raw.decode("utf-8", errors="replace")
 
 
@@ -103,51 +142,19 @@ def _split_paragraphs(text: str, max_len: int = 500) -> list[str]:
     return result if result else ["（空内容）"]
 
 
-def _run_abogen(input_path: Path, output_path: Path, params: dict | None = None):
-    """调用 abogen 生成真实音频。
+async def _tts_segment(text: str, voice: str, output_path: Path) -> float:
+    """用 edge-tts 合成一段文本，返回音频时长（秒）。"""
+    import edge_tts
+    communicate = edge_tts.Communicate(text, voice)
+    await communicate.save(str(output_path))
 
-    支持两种配置方式：
-    - ABOGEN_COMMAND_TEMPLATE='abogen --input {input} --output {output}'
-    - ABOGEN_COMMAND=abogen，自动尝试常见参数形态。
-    """
-    params = params or {}
-    template = os.getenv("ABOGEN_COMMAND_TEMPLATE", "").strip()
-    command = os.getenv("ABOGEN_COMMAND", "abogen").strip() or "abogen"
-    voice = str(params.get("voice") or os.getenv("ABOGEN_VOICE", "")).strip()
-    extra_args = shlex.split(str(params.get("extra_args") or os.getenv("ABOGEN_EXTRA_ARGS", "")))
-
-    candidates: list[list[str]] = []
-    if template:
-        candidates.append(shlex.split(template.format(input=str(input_path), output=str(output_path), voice=voice)))
-    else:
-        base = [command]
-        if voice:
-            base.extend(["--voice", voice])
-        base.extend(extra_args)
-        candidates.extend([
-            [*base, "--input", str(input_path), "--output", str(output_path)],
-            [*base, "-i", str(input_path), "-o", str(output_path)],
-            [*base, str(input_path), str(output_path)],
-        ])
-
-    errors = []
-    for cmd in candidates:
-        try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=int(os.getenv("ABOGEN_TIMEOUT", "3600")))
-        except FileNotFoundError as exc:
-            raise RuntimeError("未找到 abogen 命令。请在 worker 镜像中安装 abogen，或设置 ABOGEN_COMMAND/ABOGEN_COMMAND_TEMPLATE。") from exc
-        except subprocess.TimeoutExpired as exc:
-            errors.append(f"{' '.join(cmd)} 超时")
-            continue
-        if result.returncode == 0 and output_path.exists() and output_path.stat().st_size > 0:
-            return
-        errors.append(
-            f"{' '.join(cmd)} -> code={result.returncode}, stderr={(result.stderr or result.stdout or '').strip()[:800]}"
-        )
-    raise RuntimeError("abogen 生成失败：" + " | ".join(errors))
+    # 用 ffprobe 获取时长
+    duration = _probe_audio_duration(output_path)
+    return duration
 
 
 def _probe_audio_duration(audio_path: Path) -> float:
+    """用 ffprobe 获取音频时长。"""
     duration_cmd = [
         "ffprobe", "-v", "quiet", "-show_entries", "format=duration",
         "-of", "default=noprint_wrappers=1:nokey=1", str(audio_path),
@@ -156,33 +163,44 @@ def _probe_audio_duration(audio_path: Path) -> float:
         dur_out = subprocess.run(duration_cmd, capture_output=True, text=True, timeout=15)
         duration = float(dur_out.stdout.strip())
     except Exception as exc:
-        raise RuntimeError(f"音频文件已生成，但无法读取时长或格式不被支持: {exc}") from exc
+        raise RuntimeError(f"无法读取音频时长: {exc}") from exc
     if duration <= 0:
-        raise RuntimeError("音频文件时长为 0，请检查 abogen 输出格式")
+        raise RuntimeError("音频文件时长为 0")
     return duration
 
 
-def _build_timeline(paragraphs: list[str], duration: float):
-    total_chars = max(sum(max(len(p), 1) for p in paragraphs), 1)
-    transcript = []
-    chapters = []
-    current_time = 0.0
-    for i, para in enumerate(paragraphs):
-        weight = max(len(para), 1) / total_chars
-        seg_duration = duration * weight
-        if i == len(paragraphs) - 1:
-            end = duration
-        else:
-            end = min(duration, current_time + seg_duration)
-        transcript.append({"start": current_time, "end": end, "text": para})
-        chapters.append({
-            "index": i,
-            "title": para[:30] + ("..." if len(para) > 30 else ""),
-            "start": current_time,
-            "end": end,
-        })
-        current_time = end
-    return transcript, chapters
+def _merge_mp3(files: list[Path], output: Path) -> float:
+    """用 ffmpeg concat 合并多个 MP3 文件为一个大文件，返回总时长。"""
+    if len(files) == 1:
+        # 单段直接复制
+        import shutil
+        shutil.copy2(str(files[0]), str(output))
+    else:
+        # 用 ffmpeg concat demuxer 合并
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".txt", delete=False, dir=str(output.parent), prefix="concat_"
+        ) as f:
+            for seg in files:
+                f.write(f"file '{seg}'\n")
+            concat_list = f.name
+
+        cmd = [
+            "ffmpeg", "-y", "-f", "concat", "-safe", "0",
+            "-i", concat_list, "-c", "copy", str(output),
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        os.unlink(concat_list)
+        if result.returncode != 0:
+            # concat copy 失败时重新编码
+            cmd2 = [
+                "ffmpeg", "-y", "-f", "concat", "-safe", "0",
+                "-i", concat_list, "-c:a", "libmp3lame", "-b:a", "128k", str(output),
+            ]
+            result2 = subprocess.run(cmd2, capture_output=True, text=True, timeout=300)
+            if result2.returncode != 0:
+                raise RuntimeError(f"音频合并失败: {result2.stderr[:500]}")
+
+    return _probe_audio_duration(output)
 
 
 @celery_app.task(name="generate_audio", bind=True)
@@ -191,10 +209,10 @@ def generate_audio(self, task_id: int):
 
     流程:
     1. 读取 task + book 记录
-    2. 读取上传的源文本文件
-    3. 调用 abogen 合成真实音频
-    4. 校验 mp3 时长和可播放性
-    5. 生成 chapters.json 和 transcript.json
+    2. 读取上传的源文本文件（自动检测编码）
+    3. 用 edge-tts 逐段合成语音
+    4. 用 ffmpeg 合并为单个 MP3
+    5. 生成 chapters.json 和 transcript.json（含时间轴）
     6. 更新 book 和 task 状态
     """
     _set_task_status(task_id, "processing", progress=0)
@@ -207,9 +225,8 @@ def generate_audio(self, task_id: int):
             _set_task_status(task_id, "failed", error_message="任务不存在")
             return {"error": "task not found"}
         book_id = row[1]
-        book_row = conn.execute(
-            sa_text("SELECT id, source_file_path, title FROM books WHERE id = :id"),
-            {"id": book_id}).fetchone()
+        book_row = conn.execute(sa_text("SELECT id, source_file_path, title FROM books WHERE id = :id"),
+                               {"id": book_id}).fetchone()
         if not book_row:
             _set_task_status(task_id, "failed", error_message="有声书不存在")
             return {"error": "book not found"}
@@ -217,52 +234,94 @@ def generate_audio(self, task_id: int):
         title = book_row[2]
 
     _set_book_status(book_id, "processing")
-    _set_task_status(task_id, "processing", progress=10)
+    _set_task_status(task_id, "processing", progress=5)
 
-    # 2) 读取文本并分段
+    # 2) 读取文本并分段（自动编码检测）
     source_content = _read_source_text(source_path)
     paragraphs = _split_paragraphs(source_content)
     total = len(paragraphs)
 
-    # 3) 调用 abogen 合成真实音频
+    # 3) 逐段合成语音
     audio_dir = STORAGE_ROOT / "audio"
     audio_dir.mkdir(parents=True, exist_ok=True)
-    final_audio_path = audio_dir / f"book_{book_id}.mp3"
-    normalized_source = audio_dir / f"book_{book_id}_source_utf8.txt"
-    normalized_source.write_text("\n\n".join(paragraphs), encoding="utf-8")
+
+    # 段落临时目录
+    tmp_dir = STORAGE_ROOT / "tmp" / f"task_{task_id}"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+
+    voice = DEFAULT_VOICE
+    params = row[2] if isinstance(row[2], dict) else {}
+    if isinstance(params, dict) and params.get("voice"):
+        voice = params["voice"]
+
+    segment_files = []
+    segment_durations = []
+    transcript = []
+
     try:
-        _set_task_status(task_id, "processing", progress=35)
-        params = row[2] if isinstance(row[2], dict) else {}
-        _run_abogen(normalized_source, final_audio_path, params=params)
+        for i, para in enumerate(paragraphs):
+            pct = int(10 + (i / max(total, 1)) * 75)
+            _set_task_status(task_id, "processing", progress=pct)
+
+            seg_path = tmp_dir / f"seg_{i:06d}.mp3"
+            duration = asyncio.run(_tts_segment(para, voice, seg_path))
+            segment_files.append(seg_path)
+            segment_durations.append(duration)
+
+            # 累加时间轴
+            start = sum(segment_durations[:-1]) if segment_durations else 0.0
+            end = start + duration
+            transcript.append({"start": start, "end": end, "text": para})
+
         _set_task_status(task_id, "processing", progress=85)
-        duration = _probe_audio_duration(final_audio_path)
+
+        # 4) 合并为最终 MP3
+        final_audio_path = audio_dir / f"book_{book_id}.mp3"
+        total_duration = _merge_mp3(segment_files, final_audio_path)
+
     except Exception as exc:
+        # 清理临时文件
+        import shutil
+        shutil.rmtree(tmp_dir, ignore_errors=True)
         message = str(exc)
         _set_book_status(book_id, "failed")
         _set_task_status(task_id, "failed", progress=100, error_message=message)
         return {"status": "failed", "error": message}
 
-    transcript, chapters = _build_timeline(paragraphs, duration)
+    # 清理临时文件
+    import shutil
+    shutil.rmtree(tmp_dir, ignore_errors=True)
 
-    # 5) 写 transcript.json 和 chapters.json
+    # 5) 生成 chapters.json
+    chapters = []
+    for i, para in enumerate(paragraphs):
+        start = transcript[i]["start"]
+        end = transcript[i]["end"]
+        title = para[:30] + ("..." if len(para) > 30 else "")
+        chapters.append({"index": i, "title": title, "start": start, "end": end})
+
     transcript_dir = STORAGE_ROOT / "transcripts"
     chapters_dir = STORAGE_ROOT / "chapters"
     transcript_dir.mkdir(parents=True, exist_ok=True)
     chapters_dir.mkdir(parents=True, exist_ok=True)
+
     transcript_path = str(transcript_dir / f"book_{book_id}.json")
     chapters_path = str(chapters_dir / f"book_{book_id}.json")
-    with open(transcript_path, "w", encoding="utf-8") as f:
-        json.dump(transcript, f, ensure_ascii=False)
-    with open(chapters_path, "w", encoding="utf-8") as f:
-        json.dump(chapters, f, ensure_ascii=False)
 
-    audio_url = os.getenv("PUBLIC_BASE_URL", "http://localhost:8002") + "/media/audio/book_" + str(book_id) + ".mp3"
+    with open(transcript_path, "w", encoding="utf-8") as f:
+        json.dump(transcript, f, ensure_ascii=False, indent=2)
+    with open(chapters_path, "w", encoding="utf-8") as f:
+        json.dump(chapters, f, ensure_ascii=False, indent=2)
+
+    # 6) 更新 book 和 task
+    public_base = os.getenv("PUBLIC_BASE_URL", "http://localhost:8002")
+    audio_url = f"{public_base}/media/audio/book_{book_id}.mp3"
 
     _set_book_status(
         book_id, "completed",
-        audio_path=str(final_audio_path), audio_url=audio_url, audio_duration=duration,
+        audio_path=str(final_audio_path), audio_url=audio_url, audio_duration=total_duration,
         transcript_path=transcript_path, chapters_path=chapters_path,
     )
     _set_task_status(task_id, "completed", progress=100,
-                    result={"audio_url": audio_url, "duration": duration})
-    return {"status": "completed", "audio_url": audio_url, "duration": duration}
+                    result={"audio_url": audio_url, "duration": total_duration})
+    return {"status": "completed", "audio_url": audio_url, "duration": total_duration}

@@ -101,8 +101,6 @@ class _BrowseReadScreenState extends State<BrowseReadScreen> {
 
   Widget _buildReader(bool isDark, ColorScheme cs) {
     final lines = detail!.transcript;
-    final desc = detail!.description ?? "";
-    final paragraphs = (desc.isNotEmpty ? desc.split("\n\n") : <String>[]);
     final idx = _currentLineIndex(lines, _position.inSeconds.toDouble());
 
     return Column(children: [
@@ -114,20 +112,39 @@ class _BrowseReadScreenState extends State<BrowseReadScreen> {
         IconButton(icon: Icon(Icons.nightlight_round, color: _nightMode ? Colors.amber : cs.onSurface), onPressed: () => setState(() => _nightMode = !_nightMode)),
       ]))),
 
-      // 内容
-      Expanded(child: ListView.builder(controller: _scrollCtrl, padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16), itemCount: paragraphs.length + (lines.isNotEmpty ? 1 : 0), itemBuilder: (c, i) {
-        if (i < paragraphs.length) {
-          final p = paragraphs[i];
-          return Padding(padding: const EdgeInsets.only(bottom: 16), child: Text(p, style: TextStyle(fontSize: _fontSize, height: 1.8, color: _nightMode ? Colors.white70 : cs.onSurface.withValues(alpha: 0.7))));
-        }
-        // 字幕列表
-        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: lines.asMap().entries.map((entry) {
-          final li = entry.key;
-          final line = entry.value;
-          final isCurrent = li == idx;
-          return GestureDetector(onTap: () => _player.seek(Duration(seconds: line.start.toInt())), child: AnimatedContainer(duration: const Duration(milliseconds: 300), width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 10), decoration: BoxDecoration(color: isCurrent ? cs.primary.withValues(alpha: _nightMode ? 0.1 : 0.06) : Colors.transparent, borderRadius: BorderRadius.circular(AppTheme.radiusMd)), child: Text(line.text, style: TextStyle(fontSize: _fontSize, height: 1.8, color: isCurrent ? cs.primary : (_nightMode ? Colors.white70 : cs.onSurface), fontWeight: isCurrent ? FontWeight.w600 : FontWeight.normal))));
-        }).toList());
-      })),
+      // 内容：直接展示字幕/段落，支持同步高亮
+      Expanded(child: lines.isEmpty
+        ? Center(child: Text("暂无字幕内容", style: TextStyle(color: _nightMode ? Colors.white38 : Colors.grey)))
+        : ListView.builder(
+            controller: _scrollCtrl,
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+            itemCount: lines.length,
+            itemBuilder: (c, i) {
+              final line = lines[i];
+              final isCurrent = i == idx;
+              return GestureDetector(
+                onTap: () => _player.seek(Duration(seconds: line.start.toInt())),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+                  decoration: BoxDecoration(
+                    color: isCurrent ? cs.primary.withValues(alpha: _nightMode ? 0.15 : 0.08) : Colors.transparent,
+                    borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                  ),
+                  child: Text(line.text,
+                    style: TextStyle(
+                      fontSize: _fontSize,
+                      height: 1.8,
+                      color: isCurrent ? cs.primary : (_nightMode ? Colors.white80 : cs.onSurface),
+                      fontWeight: isCurrent ? FontWeight.w600 : FontWeight.normal,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+      ),
     ]);
   }
 
