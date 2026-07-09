@@ -151,7 +151,7 @@ class _ErrorBody extends StatelessWidget {
             FilledButton.icon(
               icon: const Icon(Icons.refresh),
               label: const Text("重试"),
-              onPressed: () => Navigator.pushReplacementNamed(context, "/player", arguments: widget.bookId),
+              onPressed: () => Navigator.pushReplacementNamed(context, "/player", arguments: bookId),
             ),
           ],
         ),
