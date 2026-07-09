@@ -32,6 +32,22 @@ def _resolve_audio_url(book: Book, request: Request = None) -> str:
 router = APIRouter(prefix="/api/books", tags=["books"])
 
 
+def _task_to_out(task: Task) -> TaskOut:
+    return TaskOut(
+        id=task.id,
+        user_id=task.user_id,
+        book_id=task.book_id,
+        task_type=task.task_type,
+        status=task.status,
+        progress=task.progress,
+        error_message=task.error_message,
+        celery_task_id=task.celery_task_id,
+        created_at=task.created_at.isoformat() if task.created_at else "",
+        updated_at=task.updated_at.isoformat() if task.updated_at else "",
+        completed_at=task.completed_at.isoformat() if task.completed_at else None,
+    )
+
+
 def _book_to_out(book: Book, request: Request = None) -> BookOut:
     public_audio_url = _resolve_audio_url(book, request)
     return BookOut(
@@ -123,6 +139,7 @@ def upload_book(
 
 @router.get("", response_model=BookListOut)
 async def list_books(
+    request: Request,
     page: int = 1,
     page_size: int = 20,
     user: User = Depends(get_current_user),

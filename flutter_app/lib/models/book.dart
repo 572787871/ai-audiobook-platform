@@ -92,6 +92,8 @@ class TranscriptLine {
 class BookDetail extends Book {
   final List<Chapter> chapters;
   final List<TranscriptLine> transcript;
+  final int? wordCount;
+  final String? totalDuration;
 
   BookDetail({
     required super.id,
@@ -107,6 +109,8 @@ class BookDetail extends Book {
     required super.updatedAt,
     required this.chapters,
     required this.transcript,
+    this.wordCount,
+    this.totalDuration,
   });
 
   factory BookDetail.fromJson(Map<String, dynamic> json) {
@@ -128,6 +132,8 @@ class BookDetail extends Book {
       transcript: ((json["transcript"] as List?) ?? [])
           .map((e) => TranscriptLine.fromJson(e as Map<String, dynamic>))
           .toList(),
+      wordCount: json["word_count"] as int?,
+      totalDuration: json["total_duration"] as String? ?? (json["audio_duration"]?.toString()),
     );
   }
 }

@@ -17,6 +17,11 @@ class BookProvider extends ChangeNotifier {
   BookDetail? get currentDetail => _currentDetail;
 
   /// 获取有声书列表
+  /// 获取书籍详情
+  Future<BookDetail> fetchBookDetail(int id) async {
+    return ApiService.fetchBookDetail(id);
+  }
+
   Future<void> loadBooks() async {
     _isLoading = true;
     _error = null;

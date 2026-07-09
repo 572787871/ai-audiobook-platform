@@ -1,4 +1,6 @@
 import "package:flutter/material.dart";
+import "../theme/app_theme.dart";
+import "../widgets/common_widgets.dart";
 import "home_screen.dart";
 import "bookshelf_screen.dart";
 import "task_list_screen.dart";
@@ -12,7 +14,8 @@ class MainTabScreen extends StatefulWidget {
   State<MainTabScreen> createState() => _MainTabScreenState();
 }
 
-class _MainTabScreenState extends State<MainTabScreen> {
+class _MainTabScreenState extends State<MainTabScreen> with TickerProviderStateMixin {
+  late TabController _tabCtrl;
   int _index = 0;
 
   final _pages = <Widget>[
@@ -24,20 +27,87 @@ class _MainTabScreenState extends State<MainTabScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _tabCtrl = TabController(length: 5, vsync: this);
+    _tabCtrl.addListener(() {
+      if (!_tabCtrl.indexIsChanging) setState(() => _index = _tabCtrl.index);
+    });
+    // 监听全局 tab 切换
+    tabSwitchNotifier.addListener(_onTabSwitch);
+  }
+
+  void _onTabSwitch() {
+    final idx = tabSwitchNotifier.value;
+    if (idx >= 0 && idx < 5 && idx != _index) _tabCtrl.animateTo(idx);
+  }
+
+  @override
+  void dispose() {
+    tabSwitchNotifier.removeListener(_onTabSwitch);
+    _tabCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      body: IndexedStack(index: _index, children: _pages),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: "首页"),
-          NavigationDestination(icon: Icon(Icons.library_books_outlined), selectedIcon: Icon(Icons.library_books), label: "书架"),
-          NavigationDestination(icon: Icon(Icons.assignment_outlined), selectedIcon: Icon(Icons.assignment), label: "任务"),
-          NavigationDestination(icon: Icon(Icons.workspace_premium_outlined), selectedIcon: Icon(Icons.workspace_premium), label: "会员"),
-          NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: "我的"),
-        ],
+      body: TabBarView(
+        controller: _tabCtrl,
+        physics: const NeverScrollableScrollPhysics(),
+        children: _pages,
       ),
+      bottomNavigationBar: Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom),
+        child: Container(
+          decoration: BoxDecoration(
+            color: isDark ? AppTheme.cardDark : Colors.white,
+            boxShadow: AppTheme.cardShadow(Colors.black, opacity: 0.08, blur: 20, y: -2),
+          ),
+          child: SafeArea(
+            top: false,
+            child: TabBar(
+              controller: _tabCtrl,
+              indicatorSize: TabBarIndicatorSize.label,
+              indicatorColor: Colors.transparent,
+              labelColor: AppTheme.primaryLight,
+              unselectedLabelColor: isDark ? AppTheme.textTertiaryDark : AppTheme.textTertiaryLight,
+              tabs: [
+                _TabItem(icon: Icons.home_rounded, label: "首页", isActive: _index == 0),
+                _TabItem(icon: Icons.library_books_rounded, label: "书架", isActive: _index == 1),
+                _TabItem(icon: Icons.task_alt_rounded, label: "任务", isActive: _index == 2),
+                _TabItem(icon: Icons.workspace_premium_rounded, label: "会员", isActive: _index == 3),
+                _TabItem(icon: Icons.person_rounded, label: "我的", isActive: _index == 4),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TabItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool isActive;
+
+  const _TabItem({required this.icon, required this.label, required this.isActive});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tab(
+      icon: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: isActive ? AppTheme.primaryLight.withValues(alpha: 0.1) : Colors.transparent,
+          borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+        ),
+        child: Icon(icon, size: 22),
+      ),
+      text: label,
     );
   }
 }

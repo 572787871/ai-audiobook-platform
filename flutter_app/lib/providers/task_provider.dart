@@ -39,6 +39,26 @@ class TaskProvider extends ChangeNotifier {
     }
   }
 
+  Future<Task?> createTask(int bookId) async {
+    try {
+      final task = await ApiService.createTask(bookId);
+      _tasks.insert(0, task);
+      notifyListeners();
+      return task;
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+      return null;
+    }
+  }
+
+  Future<bool> retryTask(int bookId) async {
+    final task = await createTask(bookId);
+    if (task == null) return false;
+    await loadTasks();
+    return true;
+  }
+
   /// 启动自动轮询（用于任务列表页）
   void startPolling() {
     _pollTimer?.cancel();

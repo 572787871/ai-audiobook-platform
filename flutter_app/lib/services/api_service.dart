@@ -2,6 +2,8 @@
 import "dart:io";
 import "package:dio/dio.dart";
 import "package:shared_preferences/shared_preferences.dart";
+import "package:path_provider/path_provider.dart";
+import "package:path/path.dart" as p;
 import "../models/user.dart";
 import "../models/book.dart";
 import "../models/task.dart";
@@ -170,6 +172,8 @@ class ApiService {
     return BookDetail.fromJson(json);
   }
 
+  static Future<BookDetail> fetchBookDetail(int id) => getBook(id);
+
   static Future<Book> updateBook(int id, {String? title, String? author, String? description}) async {
     final body = <String, dynamic>{};
     if (title != null) body["title"] = title;
@@ -185,6 +189,14 @@ class ApiService {
 
   static String downloadUrl(int id) {
     return "$_baseUrl/api/books/$id/download";
+  }
+
+  static Future<File> downloadBook(int id, String audioUrl) async {
+    final dir = await getApplicationDocumentsDirectory();
+    final safeName = "book_$id${p.extension(Uri.parse(audioUrl).path).isNotEmpty ? p.extension(Uri.parse(audioUrl).path) : ".mp3"}";
+    final dest = File(p.join(dir.path, safeName));
+    await _client.download("/api/books/$id/download", dest.path);
+    return dest;
   }
 
   // ========== Tasks ==========
