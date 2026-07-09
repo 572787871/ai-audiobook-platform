@@ -12,7 +12,6 @@ class MembershipScreen extends StatelessWidget {
     final auth = context.watch<AuthProvider>();
     final user = auth.user;
     final isPremium = user?.isPremium ?? false;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       appBar: AppBar(title: const Text("Pro 会员")),
@@ -63,7 +62,6 @@ class _FeatureItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(children: [
