@@ -1,4 +1,4 @@
-/// 播放器页面：播放/暂停/拖动/倍速/字幕/章节
+/// 播放器 - 专业听书 App 风格 + 边看边听模式
 import "dart:async";
 import "package:flutter/material.dart";
 import "package:just_audio/just_audio.dart";
@@ -6,6 +6,7 @@ import "package:provider/provider.dart";
 import "../providers/book_provider.dart";
 import "../models/book.dart";
 import "../services/api_service.dart";
+import "../theme/app_theme.dart";
 
 class PlayerScreen extends StatefulWidget {
   final int bookId;
@@ -23,8 +24,17 @@ class _PlayerScreenState extends State<PlayerScreen> {
   double _speed = 1.0;
   int _currentChapter = 0;
   bool _showTranscript = false;
-  StreamSubscription? _posSub;
+  int _modeIndex = 0; // 0=智能朗读 1=真人讲书
   String? _debugUrl;
+  StreamSubscription? _posSub;
+  final ScrollController _scrollCtrl = ScrollController();
+  int _currentLineIndex = 0;
+  double _fontSize = 16;
+  Color _bgColor = const Color(0xFFF5F0E8);
+  double _lineSpacing = 1.6;
+  bool _isDarkReading = false;
+
+  static const List<double> _speedOptions = [0.8, 1.0, 1.2, 1.5, 2.0];
 
   @override
   void initState() {
@@ -37,28 +47,23 @@ class _PlayerScreenState extends State<PlayerScreen> {
       final bp = context.read<BookProvider>();
       await bp.loadDetail(widget.bookId);
       final detail = bp.currentDetail;
-      if (detail == null) {
-        setState(() { _error = "加载有声书信息失败"; _loading = false; });
-        return;
-      }
+      if (detail == null) { setState(() { _error = "加载有声书信息失败"; _loading = false; }); return; }
       if (detail.audioUrl == null || detail.audioUrl!.isEmpty) {
-        setState(() { _error = "音频尚未生成，请等待 TTS 任务完成"; _loading = false; });
-        return;
+        setState(() { _error = "音频尚未生成，请等待 TTS 任务完成"; _loading = false; }); return;
       }
       String rawUrl = detail.audioUrl!;
       String fullUrl;
       if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://")) {
         fullUrl = rawUrl;
-      } else if (rawUrl.startsWith("/")) {
-        fullUrl = "${ApiService.baseUrl}$rawUrl";
       } else {
-        fullUrl = "${ApiService.baseUrl}/$rawUrl";
+        fullUrl = rawUrl.startsWith("/") ? "${ApiService.baseUrl}$rawUrl" : "${ApiService.baseUrl}/$rawUrl";
       }
       setState(() => _debugUrl = fullUrl);
-
       await _player.setAudioSource(AudioSource.uri(Uri.parse(fullUrl)));
       _posSub = _player.positionStream.listen((pos) {
-        final d = detail;
+        if (!mounted) return;
+        final d = bp.currentDetail;
+        if (d == null) return;
         for (int i = 0; i < d.chapters.length; i++) {
           final c = d.chapters[i];
           if (pos.inSeconds >= c.start.toInt() && pos.inSeconds < c.end.toInt()) {
@@ -66,14 +71,30 @@ class _PlayerScreenState extends State<PlayerScreen> {
             break;
           }
         }
+        // 高亮当前字幕行
+        if (d.transcript.isNotEmpty) {
+          for (int i = 0; i < d.transcript.length; i++) {
+            final t = d.transcript[i];
+            if (pos.inMilliseconds / 1000 >= t.start && pos.inMilliseconds / 1000 <= t.end) {
+              if (_currentLineIndex != i) {
+                setState(() => _currentLineIndex = i);
+                _autoScroll(i);
+              }
+              break;
+            }
+          }
+        }
       });
       setState(() { _isReady = true; _loading = false; });
       _player.play();
     } catch (e) {
-      setState(() {
-        _error = "无法连接音频服务器 (${e.toString().substring(0, e.toString().length.clamp(0, 120))})";
-        _loading = false;
-      });
+      setState(() { _error = "无法连接音频服务器 (${e.toString().substring(0, e.toString().length.clamp(0, 120))})"; _loading = false; });
+    }
+  }
+
+  void _autoScroll(int index) {
+    if (_scrollCtrl.hasClients && index * 60 > _scrollCtrl.position.pixels + 200) {
+      _scrollCtrl.animateTo(index * 60.0 - 100, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
     }
   }
 
@@ -81,6 +102,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   void dispose() {
     _posSub?.cancel();
     _player.dispose();
+    _scrollCtrl.dispose();
     super.dispose();
   }
 
@@ -88,207 +110,365 @@ class _PlayerScreenState extends State<PlayerScreen> {
     final h = d.inHours;
     final m = d.inMinutes.remainder(60);
     final s = d.inSeconds.remainder(60);
-    if (h > 0) {
-      return '${h.toString().padLeft(2, "0")}:${m.toString().padLeft(2, "0")}:${s.toString().padLeft(2, "0")}';
-    }
-    return '${m.toString().padLeft(2, "0")}:${s.toString().padLeft(2, "0")}';
+    return h > 0 ? "${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}" : "${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}";
   }
 
   @override
   Widget build(BuildContext context) {
     final bp = context.watch<BookProvider>();
     final detail = bp.currentDetail;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      appBar: AppBar(title: Text(detail?.title ?? "播放"), actions: [
-        IconButton(icon: const Icon(Icons.subject), onPressed: () => setState(() => _showTranscript = !_showTranscript)),
-      ]),
+      backgroundColor: _showTranscript ? _bgColor : null,
+      appBar: AppBar(
+        backgroundColor: _showTranscript ? _bgColor : null,
+        elevation: 0,
+        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () {
+          _player.stop();
+          Navigator.pop(context);
+        }),
+        title: Text(detail?.title ?? "播放", style: const TextStyle(fontSize: 16)),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: Icon(_showTranscript ? Icons.headphones : Icons.auto_stories),
+            onPressed: () => setState(() => _showTranscript = !_showTranscript),
+            tooltip: _showTranscript ? "只听书" : "边看边听",
+          ),
+          PopupMenuButton<String>(itemBuilder: (_) => [
+            const PopupMenuItem(value: "download", child: ListTile(leading: Icon(Icons.download), title: Text("下载"), contentPadding: EdgeInsets.zero)),
+            const PopupMenuItem(value: "timer", child: ListTile(leading: Icon(Icons.timer), title: Text("定时关闭"), contentPadding: EdgeInsets.zero)),
+            const PopupMenuItem(value: "share", child: ListTile(leading: Icon(Icons.share), title: Text("分享"), contentPadding: EdgeInsets.zero)),
+          ]),
+        ],
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? _ErrorBody(error: _error!, debugUrl: _debugUrl, bookId: widget.bookId)
-              : _PlayerBody(
-                  player: _player,
-                  detail: detail,
-                  isReady: _isReady,
-                  speed: _speed,
-                  currentChapter: _currentChapter,
-                  showTranscript: _showTranscript,
-                  onSpeedChange: (v) { setState(() { _speed = v; }); _player.setSpeed(v); },
-                  onSeek: (p) => _player.seek(Duration(seconds: p.toInt())),
-                  fmt: _fmt,
-                ),
+              ? Center(child: Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    const Icon(Icons.wifi_off, size: 64, color: Colors.red),
+                    const SizedBox(height: 16),
+                    Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.red)),
+                    const SizedBox(height: 8),
+                    if (_debugUrl != null) SelectableText(_debugUrl!, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                    const SizedBox(height: 16),
+                    FilledButton(onPressed: () => Navigator.pushReplacementNamed(context, "/player", arguments: widget.bookId), child: const Text("重试")),
+                  ]),
+                ))
+              : _showTranscript ? _buildReadAlong(detail!) : _buildPlayerUI(detail!),
     );
   }
-}
 
-class _ErrorBody extends StatelessWidget {
-  final String error;
-  final String? debugUrl;
-  final int bookId;
-  const _ErrorBody({required this.error, this.debugUrl, required this.bookId});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.wifi_off, size: 80, color: Colors.red),
-            const SizedBox(height: 24),
-            Text(error, style: const TextStyle(fontSize: 16, color: Colors.red), textAlign: TextAlign.center),
-            if (debugUrl != null) ...[
-              const SizedBox(height: 16),
-              const Text("请求地址：", style: TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 4),
-              SelectableText(debugUrl!, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-              const SizedBox(height: 16),
-              const Text("提示：请检查后端地址是否配置正确", style: TextStyle(color: Colors.orange)),
+  // ========== 纯播放模式 ==========
+  Widget _buildPlayerUI(BookDetail detail) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Column(
+      children: [
+        const Spacer(flex: 1),
+        // 模式切换
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 60),
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: (isDark ? Colors.white10 : Colors.black.withOpacity(0.05)),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            children: [
+              Expanded(child: _ModeButton(label: "智能朗读", selected: _modeIndex == 0, onTap: () => setState(() => _modeIndex = 0))),
+              Expanded(child: _ModeButton(label: "真人讲书", selected: _modeIndex == 1, onTap: () => setState(() => _modeIndex = 1))),
             ],
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              icon: const Icon(Icons.refresh),
-              label: const Text("重试"),
-              onPressed: () => Navigator.pushReplacementNamed(context, "/player", arguments: bookId),
+          ),
+        ),
+        const Spacer(flex: 1),
+        // 封面
+        Container(
+          width: 240, height: 280,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            color: AppTheme.primary.withOpacity(0.12),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 30, offset: const Offset(0, 10))],
+          ),
+          child: Center(child: Icon(Icons.book, size: 80, color: AppTheme.primary.withOpacity(0.3))),
+        ),
+        const Spacer(flex: 1),
+        // 书名
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Text(detail.title, textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? Colors.white : AppTheme.textPrimary)),
+        ),
+        if (detail.author != null) ...[
+          const SizedBox(height: 4),
+          Text(detail.author!, style: TextStyle(color: Colors.grey.shade600, fontSize: 14)),
+        ],
+        const SizedBox(height: 24),
+        // 进度条
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: StreamBuilder<Duration>(
+            stream: _player.positionStream,
+            builder: (ctx, posSnap) => StreamBuilder<Duration?>(
+              stream: _player.durationStream,
+              builder: (ctx, durSnap) {
+                final pos = posSnap.data ?? Duration.zero;
+                final dur = durSnap.data ?? const Duration(seconds: 1);
+                return Column(children: [
+                  SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      trackHeight: 4,
+                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+                      overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
+                      activeTrackColor: AppTheme.primary,
+                      inactiveTrackColor: isDark ? Colors.white24 : Colors.black12,
+                      thumbColor: AppTheme.primary,
+                    ),
+                    child: Slider(
+                      value: pos.inMilliseconds.toDouble().clamp(0, dur.inMilliseconds.toDouble()),
+                      min: 0,
+                      max: dur.inMilliseconds.toDouble().clamp(1, double.infinity),
+                      onChanged: (v) => _player.seek(Duration(milliseconds: v.toInt())),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                      Text(_fmt(pos), style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                      Text(_fmt(dur), style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                    ]),
+                  ),
+                ]);
+              },
             ),
-          ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        // 控制按钮
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          IconButton(icon: const Icon(Icons.replay_10, size: 32), onPressed: () => _player.seek(_player.position - const Duration(seconds: 10))),
+          const SizedBox(width: 8),
+          IconButton(icon: const Icon(Icons.skip_previous, size: 36), onPressed: () {
+            if (_currentChapter > 0 && detail.chapters.isNotEmpty) {
+              _player.seek(Duration(seconds: detail.chapters[_currentChapter - 1].start.toInt()));
+              setState(() => _currentChapter--);
+            }
+          }),
+          const SizedBox(width: 8),
+          StreamBuilder<PlayerState>(stream: _player.playerStateStream, builder: (ctx, snap) {
+            final playing = snap.data?.playing ?? false;
+            return GestureDetector(
+              onTap: _isReady ? () => playing ? _player.pause() : _player.play() : null,
+              child: Container(
+                width: 72, height: 72,
+                decoration: BoxDecoration(
+                  color: AppTheme.primary,
+                  shape: BoxShape.circle,
+                  boxShadow: [BoxShadow(color: AppTheme.primary.withOpacity(0.4), blurRadius: 16, offset: const Offset(0, 4))],
+                ),
+                child: Icon(playing ? Icons.pause : Icons.play_arrow, color: Colors.white, size: 36),
+              ),
+            );
+          }),
+          const SizedBox(width: 8),
+          IconButton(icon: const Icon(Icons.skip_next, size: 36), onPressed: () {
+            if (_currentChapter < detail.chapters.length - 1) {
+              _player.seek(Duration(seconds: detail.chapters[_currentChapter + 1].start.toInt()));
+              setState(() => _currentChapter++);
+            }
+          }),
+          const SizedBox(width: 8),
+          IconButton(icon: const Icon(Icons.forward_30, size: 32), onPressed: () => _player.seek(_player.position + const Duration(seconds: 30))),
+        ]),
+        const SizedBox(height: 24),
+        // 倍速
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          ..._speedOptions.map((s) => Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: ChoiceChip(
+              label: Text("${s}x", style: TextStyle(fontSize: 13, color: _speed == s ? Colors.white : null)),
+              selected: _speed == s,
+              selectedColor: AppTheme.primary,
+              onSelected: (v) { setState(() => _speed = s); _player.setSpeed(s); },
+            ),
+          )),
+        ]),
+        const Spacer(flex: 2),
+      ],
+    );
+  }
+
+  // ========== 边看边听模式 ==========
+  Widget _buildReadAlong(BookDetail detail) {
+    return Column(
+      children: [
+        // 顶部控制条
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          color: _bgColor,
+          child: Row(
+            children: [
+              IconButton(
+                icon: Icon(Icons.text_fields, size: 20),
+                onPressed: () => _showReadSettings(),
+              ),
+              Expanded(
+                child: StreamBuilder<Duration>(
+                  stream: _player.positionStream,
+                  builder: (ctx, snap) {
+                    final pos = snap.data ?? Duration.zero;
+                    final dur = _player.duration ?? const Duration(seconds: 1);
+                    return SliderTheme(
+                      data: SliderTheme.of(context).copyWith(
+                        trackHeight: 2, thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
+                        activeTrackColor: AppTheme.primary, inactiveTrackColor: Colors.grey.shade300,
+                      ),
+                      child: Slider(
+                        value: pos.inMilliseconds.toDouble().clamp(0, dur.inMilliseconds.toDouble()),
+                        min: 0, max: dur.inMilliseconds.toDouble(),
+                        onChanged: (v) => _player.seek(Duration(milliseconds: v.toInt())),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              StreamBuilder<PlayerState>(stream: _player.playerStateStream, builder: (ctx, snap) {
+                return IconButton(
+                  icon: Icon(snap.data?.playing == true ? Icons.pause : Icons.play_arrow, size: 24),
+                  onPressed: () {
+                    final playing = snap.data?.playing ?? false;
+                    playing ? _player.pause() : _player.play();
+                  },
+                );
+              }),
+            ],
+          ),
+        ),
+        // 正文
+        Expanded(
+          child: Container(
+            color: _bgColor,
+            child: ListView.builder(
+              controller: _scrollCtrl,
+              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              itemCount: detail.transcript.length,
+              itemBuilder: (ctx, i) {
+                final line = detail.transcript[i];
+                final isActive = i == _currentLineIndex;
+                return GestureDetector(
+                  onTap: () {
+                    _player.seek(Duration(milliseconds: (line.start * 1000).toInt()));
+                    setState(() => _currentLineIndex = i);
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: EdgeInsets.symmetric(vertical: _lineSpacing * 2, horizontal: 8),
+                    margin: const EdgeInsets.symmetric(vertical: 2),
+                    decoration: BoxDecoration(
+                      color: isActive ? AppTheme.primary.withOpacity(0.1) : Colors.transparent,
+                      borderRadius: BorderRadius.circular(8),
+                      border: isActive ? Border.all(color: AppTheme.primary.withOpacity(0.3)) : null,
+                    ),
+                    child: Text(
+                      line.text,
+                      style: TextStyle(
+                        fontSize: _fontSize,
+                        height: _lineSpacing,
+                        color: isActive ? AppTheme.primary : (_isDarkReading ? Colors.white70 : Colors.black87),
+                        fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showReadSettings() {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text("阅读设置", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              const SizedBox(height: 20),
+              Row(children: [
+                const Text("字体大小"),
+                const Spacer(),
+                IconButton(icon: const Icon(Icons.remove), onPressed: () { if (_fontSize > 12) setState(() => _fontSize -= 2); setSheetState(() {}); }),
+                Text("${_fontSize.toInt()}", style: const TextStyle(fontWeight: FontWeight.bold)),
+                IconButton(icon: const Icon(Icons.add), onPressed: () { if (_fontSize < 28) setState(() => _fontSize += 2); setSheetState(() {}); }),
+              ]),
+              Row(children: [
+                const Text("行距"),
+                const Spacer(),
+                IconButton(icon: const Icon(Icons.remove), onPressed: () { if (_lineSpacing > 1.2) setState(() => _lineSpacing -= 0.2); setSheetState(() {}); }),
+                Text("${_lineSpacing.toStringAsFixed(1)}", style: const TextStyle(fontWeight: FontWeight.bold)),
+                IconButton(icon: const Icon(Icons.add), onPressed: () { if (_lineSpacing < 2.4) setState(() => _lineSpacing += 0.2); setSheetState(() {}); }),
+              ]),
+              const SizedBox(height: 16),
+              Row(children: [
+                const Text("背景"),
+                const Spacer(),
+                ...[
+                  const Color(0xFFF5F0E8), const Color(0xFFE8F0F5),
+                  const Color(0xFFF0F5E8), const Color(0xFFFFFFF0),
+                  const Color(0xFF2D2D2D),
+                ].map((c) => GestureDetector(
+                  onTap: () { setState(() { _bgColor = c; _isDarkReading = c == const Color(0xFF2D2D2D); }); setSheetState(() {}); },
+                  child: Container(
+                    width: 36, height: 36, margin: const EdgeInsets.symmetric(horizontal: 4),
+                    decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: _bgColor == c ? AppTheme.primary : Colors.grey.shade300, width: 2)),
+                  ),
+                )),
+              ]),
+              const SizedBox(height: 20),
+            ],
+          ),
         ),
       ),
     );
   }
+
+  @override
+  void dispose() {
+    _posSub?.cancel();
+    _player.dispose();
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
 }
 
-class _PlayerBody extends StatelessWidget {
-  final AudioPlayer player;
-  final BookDetail? detail;
-  final bool isReady;
-  final double speed;
-  final int currentChapter;
-  final bool showTranscript;
-  final void Function(double) onSpeedChange;
-  final void Function(double) onSeek;
-  final String Function(Duration) fmt;
-
-  const _PlayerBody({
-    required this.player,
-    required this.detail,
-    required this.isReady,
-    required this.speed,
-    required this.currentChapter,
-    required this.showTranscript,
-    required this.onSpeedChange,
-    required this.onSeek,
-    required this.fmt,
-  });
+class _ModeButton extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _ModeButton({required this.label, required this.selected, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(24),
-      children: [
-        const SizedBox(height: 20),
-        Center(child: SizedBox(width: 220, height: 220, child: ClipRRect(borderRadius: BorderRadius.circular(20),
-          child: detail?.coverUrl != null
-              ? Image.network(detail!.coverUrl!, fit: BoxFit.cover)
-              : Container(color: Theme.of(context).colorScheme.primaryContainer,
-                  child: Icon(Icons.book, size: 96, color: Theme.of(context).colorScheme.primary))))),
-        const SizedBox(height: 24),
-        Center(child: Text(detail?.title ?? "", style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold), textAlign: TextAlign.center)),
-        if (detail?.author != null) Center(child: Text(detail!.author!, style: TextStyle(fontSize: 16, color: Colors.grey.shade600))),
-        const SizedBox(height: 12),
-        if (detail?.chapters.isNotEmpty == true)
-          Center(child: Text(detail!.chapters[currentChapter].title, style: const TextStyle(color: Colors.grey))),
-        const SizedBox(height: 24),
-
-        StreamBuilder<Duration>(
-          stream: player.positionStream,
-          builder: (ctx, posSnap) {
-            final pos = posSnap.data ?? Duration.zero;
-            return StreamBuilder<Duration?>(
-              stream: player.durationStream,
-              builder: (ctx, durSnap) {
-                final dur = durSnap.data ?? Duration.zero;
-                final sliderMax = (dur.inMilliseconds > 0) ? dur.inMilliseconds.toDouble() : 1.0;
-                return Column(children: [
-                  Slider(value: pos.inMilliseconds.toDouble().clamp(0.0, sliderMax),
-                    min: 0,
-                    max: sliderMax,
-                    onChanged: (v) => onSeek(v / 1000),
-                  ),
-                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                    Text(fmt(pos), style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                    Text(fmt(dur), style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                  ]),
-                ]);
-              },
-            );
-          },
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? AppTheme.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
         ),
-
-        Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-          IconButton(icon: const Icon(Icons.replay_10, size: 36), onPressed: () => player.seek(player.position - const Duration(seconds: 10))),
-          StreamBuilder<PlayerState>(stream: player.playerStateStream, builder: (ctx, snap) {
-            final playing = snap.data?.playing ?? false;
-            return IconButton(iconSize: 64,
-              icon: Icon(playing ? Icons.pause_circle_filled : Icons.play_circle_filled),
-              onPressed: isReady ? () => playing ? player.pause() : player.play() : null);
-          }),
-          IconButton(icon: const Icon(Icons.forward_30, size: 36), onPressed: () => player.seek(player.position + const Duration(seconds: 30))),
-        ]),
-
-        const SizedBox(height: 16),
-        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          const Text("倍速："),
-          PopupMenuButton<double>(
-            initialValue: speed,
-            onSelected: onSpeedChange,
-            itemBuilder: (_) => [
-              const PopupMenuItem(value: 0.5, child: Text("0.5x")),
-              const PopupMenuItem(value: 0.75, child: Text("0.75x")),
-              const PopupMenuItem(value: 1.0, child: Text("1.0x")),
-              const PopupMenuItem(value: 1.5, child: Text("1.5x")),
-              const PopupMenuItem(value: 2.0, child: Text("2.0x")),
-            ],
-            child: Text("${speed}x", style: const TextStyle(fontWeight: FontWeight.w600)),
-          ),
-        ]),
-
-        if (detail?.chapters.isNotEmpty == true) ...[
-          const SizedBox(height: 24),
-          const Text("章节", style: TextStyle(fontWeight: FontWeight.bold)),
-          ...detail!.chapters.asMap().entries.map((e) => ListTile(
-            dense: true,
-            selected: e.key == currentChapter,
-            leading: Text("#${e.value.index + 1}"),
-            title: Text(e.value.title, style: TextStyle(color: e.key == currentChapter ? Theme.of(context).colorScheme.primary : null)),
-            subtitle: Text("${e.value.start.toStringAsFixed(1)}s"),
-            onTap: () => onSeek(e.value.start),
-          )),
-        ],
-
-        if (showTranscript && detail?.transcript.isNotEmpty == true) ...[
-          const SizedBox(height: 24),
-          const Text("字幕", style: TextStyle(fontWeight: FontWeight.bold)),
-          ...detail!.transcript.map((t) => StreamBuilder<Duration>(
-            stream: player.positionStream,
-            builder: (ctx, snap) {
-              final pos = snap.data?.inSeconds ?? 0;
-              final active = (pos >= t.start.toInt() && pos < t.end.toInt());
-              return Container(
-                color: active ? Theme.of(context).colorScheme.primaryContainer : null,
-                padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  SizedBox(width: 60, child: Text("${t.start.toStringAsFixed(1)}s",
-                    style: TextStyle(fontSize: 12, color: active ? Theme.of(context).colorScheme.primary : Colors.grey))),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text(t.text, style: TextStyle(fontWeight: active ? FontWeight.bold : FontWeight.normal))),
-                ]),
-              );
-            },
-          )),
-        ],
-      ],
+        child: Text(label, textAlign: TextAlign.center,
+          style: TextStyle(color: selected ? Colors.white : Colors.grey, fontSize: 13, fontWeight: FontWeight.w600)),
+      ),
     );
   }
 }
