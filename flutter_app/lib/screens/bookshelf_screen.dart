@@ -21,7 +21,6 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     final books = context.watch<BookProvider>().books;
     return Scaffold(
       appBar: AppBar(

@@ -54,7 +54,7 @@ class _PlayerScreenState extends State<PlayerScreen> with WidgetsBindingObserver
       await bp.loadDetail(widget.bookId);
       final detail = bp.currentDetail;
       if (detail == null) { setState(() { _error = "加载有声书信息失败"; _loading = false; }); return; }
-      if (detail.audioUrl == null || detail.audioUrl!.isEmpty) {
+      if (detail.audioUrl!.isEmpty) {
         setState(() { _error = "音频尚未生成，请等待 TTS 任务完成"; _loading = false; }); return;
       }
       String rawUrl = detail.audioUrl!;
