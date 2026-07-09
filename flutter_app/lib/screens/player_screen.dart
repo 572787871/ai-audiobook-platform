@@ -304,9 +304,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
           ]),
           const SizedBox(height: 20),
         ])),
-    );
+    ));
   }
-}
 
 class _ModeButton extends StatelessWidget {
   final String label;
