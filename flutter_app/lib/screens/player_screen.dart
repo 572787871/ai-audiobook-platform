@@ -214,13 +214,10 @@ class _PlayerArt extends StatelessWidget {
           const SizedBox(height: 24),
           Text(detail?.title ?? "", style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
           if (detail?.author != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(detail!.author!, style: TextStyle(color: cs.onSurface.withValues(alpha: 0.6)))),
-          if (detail?.chapters.isNotEmpty == true) Padding(padding: const EdgeInsets.only(top: 12), child: Text(detail!.chapters[_findChapter(detail)].title, style: TextStyle(color: cs.onSurface.withValues(alpha: 0.5), fontSize: 13))),
         ]),
       ),
     );
   }
-
-  int _findChapter(BookDetail d) => 0;
 }
 
 class _PlayerControls extends StatelessWidget {

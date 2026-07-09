@@ -47,7 +47,7 @@ class AiAudiobookApp extends StatelessWidget {
           surface: const Color(0xFFF5F7FA),
         ),
         appBarTheme: const AppBarTheme(centerTitle: false, elevation: 0),
-        cardTheme: CardTheme(
+        cardTheme: CardThemeData(
           elevation: 2,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         ),
