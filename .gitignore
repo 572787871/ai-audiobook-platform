@@ -14,6 +14,7 @@ flutter_app/.pub/
 flutter_app/build/
 flutter_app/.flutter-plugins
 flutter_app/.flutter-plugins-dependencies
+flutter_app/ios/
 flutter_app/ios/Pods/
 flutter_app/ios/.symlinks/
 flutter_app/ios/Flutter/Flutter.framework
