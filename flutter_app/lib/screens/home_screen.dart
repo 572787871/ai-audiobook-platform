@@ -12,6 +12,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _searchCtrl = TextEditingController();
+  bool _isPicking = false;
 
   @override
   void initState() {
@@ -36,7 +37,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          SliverAppBar(
+          SliverAppBar(automaticallyImplyLeading: false, 
             floating: true,
             title: Text("AI有声书", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24)),
             actions: [
@@ -107,7 +108,7 @@ class _HomeScreenState extends State<HomeScreen> {
               style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
               icon: const Icon(Icons.add_circle_outline, size: 28),
               label: const Text("上传小说生成有声书", style: TextStyle(fontSize: 16)),
-              onPressed: () => Navigator.pushNamed(context, "/upload"),
+              onPressed: _isPicking ? null : () { setState(() => _isPicking = true); Navigator.pushNamed(context, "/upload").then((_) { if (mounted) setState(() => _isPicking = false); }); },
             ),
           )),
           const SliverToBoxAdapter(child: SizedBox(height: 20)),

@@ -79,7 +79,7 @@ class _UploadScreenState extends State<UploadScreen> {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("上传成功，正在生成有声书")));
         await bp.loadBooks();
         if (context.mounted) {
-          Navigator.pushNamedAndRemoveUntil(context, "/home", (route) => false);
+          Navigator.pop(context);
         }
       }
     } catch (e) {
