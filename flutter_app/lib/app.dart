@@ -14,6 +14,7 @@ import "screens/upload_screen.dart";
 import "screens/book_detail_screen.dart";
 import "screens/player_screen.dart";
 import "screens/membership_screen.dart";
+import "screens/profile_screen.dart";
 import "screens/settings_screen.dart";
 
 class AiAudiobookApp extends StatelessWidget {

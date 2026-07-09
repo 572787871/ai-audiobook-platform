@@ -3,7 +3,6 @@ import "dart:async";
 import "package:flutter/material.dart";
 import "package:provider/provider.dart";
 import "../providers/book_provider.dart";
-import "../providers/task_provider.dart";
 import "../models/book.dart";
 import "../theme/app_theme.dart";
 
@@ -145,7 +144,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
     );
   }
 
-  Widget _buildBottomBar(BookDetail detail) {
+  Widget _buildBottomBar(BookDetail? detail) {
     return SafeArea(
       child: Container(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
@@ -155,7 +154,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
         ),
         child: Row(
           children: [
-            if (detail.status == "completed") ...[
+            if (detail != null && detail.status == "completed") ...[
               Expanded(
                 child: FilledButton.icon(
                   icon: const Icon(Icons.play_arrow, size: 20),

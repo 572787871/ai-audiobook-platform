@@ -19,7 +19,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final user = auth.user;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     if (user != null && _usernameCtrl.text.isEmpty) _usernameCtrl.text = user.username;
 
     return Scaffold(
