@@ -3,7 +3,7 @@ import os
 import shutil
 from pathlib import Path
 from uuid import uuid4
-from app.core.config import settings
+from backend.app.core.config import settings
 
 def ensure_storage_dirs():
     root = Path(settings.LOCAL_STORAGE_ROOT)

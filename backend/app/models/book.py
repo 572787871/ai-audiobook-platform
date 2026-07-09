@@ -2,7 +2,7 @@
 from datetime import datetime, timezone
 from sqlalchemy import Integer, String, Text, DateTime, Float, ForeignKey, Column
 from sqlalchemy.orm import relationship
-from app.core.database import Base
+from backend.app.core.database import Base
 
 class Book(Base):
     __tablename__ = "books"

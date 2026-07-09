@@ -5,7 +5,7 @@ import subprocess
 from pathlib import Path
 from datetime import datetime, timezone
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text as sa_text
 
 from backend.app.celery_app import celery_app
 
@@ -41,7 +41,7 @@ def _set_task_status(task_id, status, progress=None, error_message=None, result=
         if status in ("completed", "failed"):
             fields.append("completed_at = :completed_at")
             params["completed_at"] = datetime.now(timezone.utc)
-        sql = text("UPDATE tasks SET " + ", ".join(fields) + " WHERE id = :task_id")
+        sql = sa_text("UPDATE tasks SET " + ", ".join(fields) + " WHERE id = :task_id")
         conn.execute(sql, params)
         conn.commit()
 
@@ -67,7 +67,7 @@ def _set_book_status(book_id, status, audio_path=None, audio_url=None, audio_dur
         if chapters_path is not None:
             fields.append("chapters_path = :chapters_path")
             params["chapters_path"] = chapters_path
-        sql = text("UPDATE books SET " + ", ".join(fields) + " WHERE id = :book_id")
+        sql = sa_text("UPDATE books SET " + ", ".join(fields) + " WHERE id = :book_id")
         conn.execute(sql, params)
         conn.commit()
 
@@ -124,14 +124,14 @@ def generate_audio(self, task_id: int):
 
     # 1) 读取 task + book
     with engine.connect() as conn:
-        row = conn.execute(text("SELECT id, book_id, params FROM tasks WHERE id = :id"),
+        row = conn.execute(sa_text("SELECT id, book_id, params FROM tasks WHERE id = :id"),
                           {"id": task_id}).fetchone()
         if not row:
             _set_task_status(task_id, "failed", error_message="任务不存在")
             return {"error": "task not found"}
         book_id = row[1]
         book_row = conn.execute(
-            text("SELECT id, source_file_path, title FROM books WHERE id = :id"),
+            sa_text("SELECT id, source_file_path, title FROM books WHERE id = :id"),
             {"id": book_id}).fetchone()
         if not book_row:
             _set_task_status(task_id, "failed", error_message="有声书不存在")
@@ -143,8 +143,8 @@ def generate_audio(self, task_id: int):
     _set_task_status(task_id, "processing", progress=10)
 
     # 2) 读取文本并分段
-    text = _read_source_text(source_path)
-    paragraphs = _split_paragraphs(text)
+    source_content = _read_source_text(source_path)
+    paragraphs = _split_paragraphs(source_content)
     total = len(paragraphs)
 
     # 3) 逐段合成（当前 stub：静音占位 + 字幕记录）

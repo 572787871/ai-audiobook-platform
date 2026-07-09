@@ -5,14 +5,14 @@ from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File,
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db
-from app.core.deps import get_current_user
-from app.models.user import User
-from app.models.book import Book
-from app.models.task import Task
-from app.schemas.book import BookOut, BookUpdate, BookListOut, BookDetailOut, ChapterOut, TranscriptLine
-from app.schemas.task import TaskOut, TaskListOut
-from app.services.storage import save_upload_file, file_public_url, get_file_path, ensure_storage_dirs
+from backend.app.core.database import get_db
+from backend.app.core.deps import get_current_user
+from backend.app.models.user import User
+from backend.app.models.book import Book
+from backend.app.models.task import Task
+from backend.app.schemas.book import BookOut, BookUpdate, BookListOut, BookDetailOut, ChapterOut, TranscriptLine
+from backend.app.schemas.task import TaskOut, TaskListOut
+from backend.app.services.storage import save_upload_file, file_public_url, get_file_path, ensure_storage_dirs
 
 router = APIRouter(prefix="/api/books", tags=["books"])
 

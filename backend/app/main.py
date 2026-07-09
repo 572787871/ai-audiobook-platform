@@ -6,10 +6,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.core.config import settings
-from app.core.database import Base, engine
-from app.routers import auth, users, books, tasks
-from app.services.storage import ensure_storage_dirs
+from backend.app.core.config import settings
+from backend.app.core.database import Base, engine
+from backend.app.routers import auth, users, books, tasks
+from backend.app.services.storage import ensure_storage_dirs
 
 
 @asynccontextmanager
