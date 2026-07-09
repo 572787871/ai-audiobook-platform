@@ -59,7 +59,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
       await _player.setAudioSource(AudioSource.uri(Uri.parse(fullUrl)));
       _posSub = _player.positionStream.listen((pos) {
         final d = detail;
-        if (d == null) return;
         for (int i = 0; i < d.chapters.length; i++) {
           final c = d.chapters[i];
           if (pos.inSeconds >= c.start.toInt() && pos.inSeconds < c.end.toInt()) {
@@ -126,7 +125,7 @@ class _ErrorBody extends StatelessWidget {
   final String error;
   final String? debugUrl;
   final int bookId;
-  const _ErrorBody({required this.error, this.debugUrl});
+  const _ErrorBody({required this.error, this.debugUrl, required this.bookId});
 
   @override
   Widget build(BuildContext context) {
