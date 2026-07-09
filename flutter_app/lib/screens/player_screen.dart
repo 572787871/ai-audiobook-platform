@@ -308,8 +308,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 }
 
-}
-
 class _ModeButton extends StatelessWidget {
   final String label;
   final bool selected;
