@@ -49,14 +49,16 @@ jobs:
           # config-only 完成后，再在 runner 本地禁用 pbxproj 签名
           # （必须在 config-only 之后，否则 Flutter 会重新写回签名设置）
           python3 - <<'PY'
+          import re
           p = 'ios/Runner.xcodeproj/project.pbxproj'
           s = open(p).read()
-          # 移除带 [sdk=iphoneos*] 条件签名身份（优先级最高，会盖过 xcconfig）
-          s = s.replace('"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";\n', '')
+          # 移除所有带 [sdk=iphoneos*] 条件签名身份行（优先级最高，会盖过 xcconfig）
+          s = re.sub(r'\s*"CODE_SIGN_IDENTITY\[sdk=iphoneos\*\]\" = "iPhone Developer";\n', '', s)
           # Automatic -> Manual（配合无 team/identity 即禁用签名）
           s = s.replace('CODE_SIGN_STYLE = Automatic;', 'CODE_SIGN_STYLE = Manual;')
           open(p, 'w').write(s)
-          print('pbxproj patched for unsigned build (local only, after config-only)')
+          removed = s.count('CODE_SIGN_IDENTITY[sdk=iphoneos*]')
+          print('pbxproj patched (local only); remaining conditional identity lines:', removed)
           PY
           xcodebuild archive \
             -workspace ios/Runner.xcworkspace \
