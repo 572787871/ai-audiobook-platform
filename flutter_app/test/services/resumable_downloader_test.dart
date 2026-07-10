@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:test/test.dart';
 import 'package:ai_audiobook/services/resumable_downloader.dart';
@@ -18,7 +17,6 @@ class _RangeServer {
     _svr!.listen((req) async {
       requests++;
       final range = req.headers.value('range');
-      final sha = sha256.convert(bytes).toString();
       if (range != null && range.startsWith('bytes=')) {
         final spec = range.substring(6);
         final start = int.parse(spec.split('-').first);
