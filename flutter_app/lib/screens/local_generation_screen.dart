@@ -333,7 +333,7 @@ class _FormulaCard extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             DropdownButtonFormField<String>(
-              initialValue: selected?.formulaId,
+              value: selected?.formulaId,
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
                 labelText: "混合音色",
