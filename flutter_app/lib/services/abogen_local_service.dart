@@ -108,7 +108,15 @@ class AbogenLocalService {
   static Future<Directory> kokoroRoot() => KokoroModelManager.kokoroRoot();
 
   static Future<bool> isCoreModelDownloaded() =>
-      KokoroModelManager.isCoreModelDownloaded();
+      KokoroModelManager.isBundledInstalled();
+
+  static Future<bool> isBundledInstalled() =>
+      KokoroModelManager.isBundledInstalled();
+
+  static Future<void> installBundledModel({
+    void Function(double progress)? onProgress,
+  }) =>
+      KokoroModelManager.installBundledModel(onProgress: onProgress);
 
   static Future<List<VoicePack>> voicePacks() async {
     final root = await kokoroRoot();

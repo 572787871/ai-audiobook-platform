@@ -48,3 +48,6 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
+    - assets/kokoro/model.onnx
+    - assets/kokoro/voices.bin
+    - assets/kokoro/tokens.txt

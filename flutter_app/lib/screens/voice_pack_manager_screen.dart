@@ -142,22 +142,25 @@ class _KokoroStatusCard extends StatelessWidget {
           if (downloading) ...[
             LinearProgressIndicator(value: progress),
             const SizedBox(height: 6),
-            Text('下载中 ${(progress * 100).toInt()}%',
+            Text('正在安装内置模型 ${(progress * 100).toInt()}%',
                 style: TextStyle(color: cs.primary, fontSize: 13)),
           ] else if (pack?.isDownloaded ?? false) ...[
-            Text('模型已就绪，可离线推理。',
+            Text('已安装 · 模型随 App 提供，可离线使用。',
                 style: TextStyle(color: AppTheme.success, fontSize: 13)),
+            const SizedBox(height: 6),
+            Text('Kokoro 内置模型无需联网下载。',
+                style: TextStyle(
+                    color: cs.onSurface.withValues(alpha: 0.6), fontSize: 12)),
           ] else ...[
-            Text('未下载：Kokoro 音色暂不可用，点击下载或首次启动自动下载。',
+            Text('Kokoro 内置模型尚未安装，点击从 App 包内安装（无需联网）。',
                 style: TextStyle(
                     color: cs.onSurface.withValues(alpha: 0.6), fontSize: 13)),
             const SizedBox(height: 8),
             Align(
               alignment: Alignment.centerLeft,
               child: FilledButton.tonal(
-                onPressed: () => provider.downloadVoicePack(
-                    pack ?? AbogenLocalService.kokoroPack(isDownloaded: false)),
-                child: const Text('下载模型'),
+                onPressed: () => provider.reinstallBundledModel(),
+                child: const Text('重新安装内置模型'),
               ),
             ),
           ],

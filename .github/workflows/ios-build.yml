@@ -21,6 +21,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - name: Select Xcode 16.4
         uses: maxim-lobanov/setup-xcode@v1
@@ -150,6 +152,22 @@ jobs:
           unzip -l "$IPA_PATH" | head -n 100
 
           unzip -l "$IPA_PATH" | grep -q 'Payload/Runner.app/Info.plist'
+
+          echo "===== 校验内置 Kokoro 模型是否进入 IPA ====="
+          echo "查找 model.onnx / voices.bin / tokens.txt ..."
+          found_model=$(unzip -l "$IPA_PATH" | grep -E 'assets/kokoro/model\.onnx' || true)
+          found_voices=$(unzip -l "$IPA_PATH" | grep -E 'assets/kokoro/voices\.bin' || true)
+          found_tokens=$(unzip -l "$IPA_PATH" | grep -E 'assets/kokoro/tokens\.txt' || true)
+          echo "model.onnx : $found_model"
+          echo "voices.bin : $found_voices"
+          echo "tokens.txt : $found_tokens"
+          if [ -z "$found_model" ] || [ -z "$found_voices" ] || [ -z "$found_tokens" ]; then
+            echo "::error::内置 Kokoro 模型未进入 IPA（assets/kokoro/ 三文件缺失）。请确认 pubspec.yaml 已声明 assets 且模型文件已放入 flutter_app/assets/kokoro/。"
+            echo "===== IPA 内 assets/kokoro 内容 ====="
+            unzip -l "$IPA_PATH" | grep -E 'assets/kokoro' || echo "(无任何 kokoro 资产)"
+            exit 1
+          fi
+          echo "内置 Kokoro 模型校验通过 ✓" 
 
       - name: Upload unsigned IPA
         uses: actions/upload-artifact@v4

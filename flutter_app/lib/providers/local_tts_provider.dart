@@ -30,7 +30,7 @@ class LocalTtsProvider extends ChangeNotifier {
       voices = await LocalTtsService.getAvailableVoices();
       voiceFormulas = await LocalTtsService.getVoiceFormulas();
       // 首次启动：若 Kokoro 核心模型未下载，后台自动下载默认模型（不阻塞进入 App）
-      _autoDownloadKokoroIfNeeded();
+      _installBundledKokoroIfNeeded();
     } catch (e) {
       error = "本地语音初始化失败: $e";
       voices = LocalTtsService.fallbackVoices();
@@ -209,20 +209,20 @@ class LocalTtsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 首次启动自动下载 Kokoro 默认模型 + 推荐音色（后台进行，UI 显示进度）。
-  Future<void> _autoDownloadKokoroIfNeeded() async {
+  /// 首次启动：若内置 Kokoro 模型未安装，从 App Bundle 复制（无需联网）。
+  Future<void> _installBundledKokoroIfNeeded() async {
     try {
       final core = await LocalTtsService.isKokoroCoreDownloaded();
       if (core) return;
-      // 标记下载中，便于 UI 提示
+      // 标记“正在安装内置模型”，便于 UI 提示
       voicePacks = voicePacks
           .map((p) => p.packId == AbogenLocalService.kokoroPackId
               ? p.copyWith(progress: 0.01)
               : p)
           .toList();
       notifyListeners();
-      await LocalTtsService.downloadKokoroDefault(
-        onProgress: (p, label) {
+      await LocalTtsService.installBundledModel(
+        onProgress: (p) {
           voicePacks = voicePacks
               .map((pk) => pk.packId == AbogenLocalService.kokoroPackId
                   ? pk.copyWith(progress: p)
@@ -232,8 +232,35 @@ class LocalTtsProvider extends ChangeNotifier {
         },
       );
     } catch (e) {
-      // 后台下载失败不阻塞主流程，用户可在诊断页/音色页手动重试
+      // 安装失败不阻塞主流程，用户可在诊断页/音色页手动重试
       error = null;
+    } finally {
+      notifyListeners();
+    }
+  }
+
+  /// 用户手动触发“重新安装内置模型”（覆盖已安装/损坏的内置模型）。
+  Future<void> reinstallBundledModel() async {
+    try {
+      error = null;
+      voicePacks = voicePacks
+          .map((p) => p.packId == AbogenLocalService.kokoroPackId
+              ? p.copyWith(progress: 0.01)
+              : p)
+          .toList();
+      notifyListeners();
+      await LocalTtsService.installBundledModel(
+        onProgress: (p) {
+          voicePacks = voicePacks
+              .map((pk) => pk.packId == AbogenLocalService.kokoroPackId
+                  ? pk.copyWith(progress: p)
+                  : pk)
+              .toList();
+          notifyListeners();
+        },
+      );
+    } catch (e) {
+      error = '重新安装失败: $e';
     } finally {
       notifyListeners();
     }

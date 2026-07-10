@@ -1,15 +1,14 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import '../models/local_tts.dart';
 import '../services/abogen_local_service.dart';
 import '../services/kokoro_model_manager.dart';
 import '../theme/app_theme.dart';
 
 /// Kokoro 本地推理状态诊断页：
-/// 明确展示 ONNX Runtime / model.onnx / tokenizer / voices.bin / config 的状态，
-/// 以及下载目录、下载进度、已安装音色数量，失败时给出具体原因。
+/// 展示模型来源（App 内置）、Bundle 资源存在与大小、本地安装目录与大小、
+/// 安装状态、最后复制错误，以及已安装音色数量。
 class KokoroDiagnosticsScreen extends StatefulWidget {
   const KokoroDiagnosticsScreen({super.key});
   @override
@@ -22,6 +21,10 @@ class _KokoroDiagnosticsScreenState extends State<KokoroDiagnosticsScreen> {
   String _dir = '';
   bool _loading = true;
   String _backendNote = '';
+  String _source = '';
+  String _installError = '';
+  Map<String, int> _bundleSizes = {};
+  Map<String, int> _localSizes = {};
 
   @override
   void initState() {
@@ -32,52 +35,99 @@ class _KokoroDiagnosticsScreenState extends State<KokoroDiagnosticsScreen> {
   Future<void> _refresh() async {
     setState(() => _loading = true);
     final root = await KokoroModelManager.kokoroRoot();
+    final diag = await KokoroModelManager.diagnostics();
     final checks = <String, _Item>{};
+
+    final bundleSizes = Map<String, int>.from(diag['bundleSizes'] as Map);
+    final localSizes = Map<String, int>.from(diag['localSizes'] as Map);
+    final coreReady = diag['coreReady'] as bool;
+
     for (final name in KokoroModelManager.kokoroCoreFiles) {
       final f = File(p.join(root.path, name));
       final exists = await f.exists();
       final size = exists ? await f.length() : 0;
+      final bundleSize = bundleSizes[name] ?? -1;
+      final bundleOk = bundleSize > 0;
+      final detail = exists
+          ? '${(size / 1024 / 1024).toStringAsFixed(1)} MB'
+          : '缺失';
+      final bundleDetail =
+          bundleOk ? '${(bundleSize / 1024 / 1024).toStringAsFixed(1)} MB' : '缺失';
       checks[name] = _Item(
         label: name,
         ok: exists && size > 64,
-        detail: exists ? '${(size / 1024).toStringAsFixed(1)} KB' : '缺失',
-      );
-    }
-    final modelFile = File(p.join(root.path, KokoroModelManager.modelFile));
-    final modelExists = await modelFile.exists();
-    final onnx = _Item(
-      label: 'ONNX Runtime / ${KokoroModelManager.modelFile}',
-      ok: modelExists,
-      detail: modelExists
-          ? '模型文件存在（sherpa-onnx 内置 ONNX Runtime）'
-          : '未下载', // sherpa_onnx 内置运行时，无需单独安装
-    );
-    checks['onnxruntime'] = onnx;
-
-    // 可选辅助文件（不参与推理必需，但影响诊断完整度）
-    for (final aux in ['config.json', 'tokenizer.json']) {
-      final af = File(p.join(root.path, aux));
-      final aExists = await af.exists();
-      checks[aux] = _Item(
-        label: aux,
-        ok: aExists,
-        detail: aExists ? '存在（可选，不影响推理）' : '缺失（可选）',
+        detail: '本地: $detail · Bundle: $bundleDetail',
       );
     }
 
-    // voices.bin 单一文件含全部音色；可用音色数 = 列表总数（核心模型就绪即全部可用）
+    // Bundle 资源存在性（直接从 asset 探测）
+    final bundleChecks = <String, bool>{
+      for (final a in KokoroModelManager.bundledAssetPaths)
+        p.basename(a): await KokoroModelManager.bundledExists(a),
+    };
+
+    // 已安装音色数
     final allVoices = AbogenLocalService.kokoroVoices(downloaded: {});
-    final coreReady = await KokoroModelManager.isCoreModelDownloaded();
     _voiceCount = coreReady ? allVoices.length : 0;
     _dir = root.path;
+    _source = diag['source'] as String? ?? '未安装';
+    _installError = (diag['installError'] as String?) ?? '';
+    _bundleSizes = bundleSizes;
+    _localSizes = localSizes;
 
     final issues = await KokoroModelManager.verifyIntegrity();
     _backendNote = issues.isEmpty
-        ? '模型完整，可在真机进行 Kokoro 本地推理。'
+        ? '模型完整，可在真机进行 Kokoro 本地推理（模型来源：$_source）。'
         : '存在问题：\n- ${issues.join('\n- ')}';
 
+    final bundleAllOk = bundleChecks.values.every((v) => v);
+
     setState(() {
-      _items = checks;
+      _items = {
+        ...checks,
+        'bundle_model': _Item(
+          label: 'Bundle model.onnx',
+          ok: bundleChecks['model.onnx'] ?? false,
+          detail: bundleChecks['model.onnx'] ?? false
+              ? '存在 (${(_bundleSizes['model.onnx'] ?? 0) / 1024 / 1024 ~/ 1} MB)'
+              : '缺失（请确认已打包 assets/kokoro/）',
+        ),
+        'bundle_voices': _Item(
+          label: 'Bundle voices.bin',
+          ok: bundleChecks['voices.bin'] ?? false,
+          detail: bundleChecks['voices.bin'] ?? false
+              ? '存在 (${(_bundleSizes['voices.bin'] ?? 0) / 1024 ~/ 1} KB)'
+              : '缺失（请确认已打包 assets/kokoro/）',
+        ),
+        'bundle_tokens': _Item(
+          label: 'Bundle tokens.txt',
+          ok: bundleChecks['tokens.txt'] ?? false,
+          detail: bundleChecks['tokens.txt'] ?? false
+              ? '存在'
+              : '缺失（请确认已打包 assets/kokoro/）',
+        ),
+        'source': _Item(
+          label: '模型来源',
+          ok: coreReady,
+          detail: _source,
+        ),
+        'install_status': _Item(
+          label: '安装状态',
+          ok: coreReady,
+          detail: coreReady ? '已安装（可离线使用）' : '未安装',
+        ),
+        if (_installError.isNotEmpty)
+          'install_error': _Item(
+            label: '最后复制错误',
+            ok: false,
+            detail: _installError,
+          ),
+        'bundle_all': _Item(
+          label: 'App Bundle 资源完整性',
+          ok: bundleAllOk,
+          detail: bundleAllOk ? '三项资源均已随 App 打包' : '存在缺失资源',
+        ),
+      };
       _loading = false;
     });
   }
@@ -89,8 +139,7 @@ class _KokoroDiagnosticsScreenState extends State<KokoroDiagnosticsScreen> {
       appBar: AppBar(
         title: const Text('Kokoro 状态'),
         actions: [
-          IconButton(
-              icon: const Icon(Icons.refresh), onPressed: _refresh),
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _refresh),
         ],
       ),
       body: _loading
@@ -109,7 +158,7 @@ class _KokoroDiagnosticsScreenState extends State<KokoroDiagnosticsScreen> {
                 Card(
                   child: ListTile(
                     leading: const Icon(Icons.folder_open_outlined),
-                    title: const Text('下载目录'),
+                    title: const Text('本地安装目录'),
                     subtitle: Text(_dir,
                         style: TextStyle(
                             fontSize: 12,
@@ -127,13 +176,14 @@ class _KokoroDiagnosticsScreenState extends State<KokoroDiagnosticsScreen> {
                 ),
                 const SizedBox(height: 16),
                 FilledButton.icon(
-                  onPressed: _downloadDefault,
-                  icon: const Icon(Icons.download),
-                  label: const Text('下载默认模型与推荐音色'),
+                  onPressed: _reinstall,
+                  icon: const Icon(Icons.install_mobile_outlined),
+                  label: const Text('重新安装内置模型'),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '说明：Kokoro 使用 onnx-community/Kokoro-82M-v1.0-ONNX（sherpa-onnx 推理）。下载失败会显示具体 HTTP 状态码与错误正文。',
+                  '说明：Kokoro 模型（model.onnx + voices.bin + tokens.txt）已随 App 内置，'
+                  '首次启动自动从 Bundle 复制到本地，无需联网。飞行模式下也可正常试听与生成。',
                   style: TextStyle(
                       fontSize: 12,
                       color: cs.onSurface.withValues(alpha: 0.55)),
@@ -143,16 +193,15 @@ class _KokoroDiagnosticsScreenState extends State<KokoroDiagnosticsScreen> {
     );
   }
 
-  Future<void> _downloadDefault() async {
+  Future<void> _reinstall() async {
     setState(() => _loading = true);
     try {
-      // voices.bin 已含全部音色，下载核心模型即可
-      await AbogenLocalService.downloadCoreModel(
-          onProgress: (p, label) => setState(() {}));
+      await AbogenLocalService.installBundledModel(
+          onProgress: (p) => setState(() {}));
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('下载失败：$e')));
+            .showSnackBar(SnackBar(content: Text('安装失败：$e')));
       }
     } finally {
       await _refresh();
@@ -196,7 +245,9 @@ class _Banner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: ok ? AppTheme.success.withValues(alpha: 0.12) : AppTheme.danger.withValues(alpha: 0.12),
+        color: ok
+            ? AppTheme.success.withValues(alpha: 0.12)
+            : AppTheme.danger.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(AppTheme.radiusLg),
       ),
       child: Row(

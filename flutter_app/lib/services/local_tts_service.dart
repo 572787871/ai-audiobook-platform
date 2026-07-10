@@ -148,8 +148,8 @@ class LocalTtsService {
       {void Function(double progress, String label)? onProgress}) async {
     if (pack.isDownloaded || pack.downloadUrl.isEmpty) return;
     if (pack.packId == AbogenLocalService.kokoroPackId) {
-      // voices.bin 已含全部音色，下载核心模型即可（带进度回调）
-      await AbogenLocalService.downloadCoreModel(onProgress: onProgress);
+      // voices.bin 已含全部音色，从 App Bundle 安装核心模型（无需联网）
+      await AbogenLocalService.installBundledModel(onProgress: (_) {});
       return;
     }
     await _channel.invokeMethod("downloadVoicePack", pack.toJson());
@@ -157,16 +157,23 @@ class LocalTtsService {
 
   static Future<void> downloadVoice(TtsVoice voice) async {
     if (voice.backend == TtsBackend.kokoro) {
-      // Kokoro 音色已打包在 voices.bin 内，只需确保核心模型就绪
-      if (!await AbogenLocalService.isCoreModelDownloaded()) {
-        await AbogenLocalService.downloadCoreModel();
+      // Kokoro 音色已打包在 voices.bin 内，只需确保内置模型已安装（Bundle，不联网）
+      if (!await AbogenLocalService.isBundledInstalled()) {
+        await AbogenLocalService.installBundledModel();
       }
     }
   }
   static Future<bool> isKokoroCoreDownloaded() =>
-      AbogenLocalService.isCoreModelDownloaded();
+      AbogenLocalService.isBundledInstalled();
 
-  /// 首次启动自动下载 Kototo 默认模型（核心 + 推荐音色）。
+  /// 首次启动（或缺失时）从 App Bundle 安装内置 Kokoro 模型，无需联网。
+  static Future<void> installBundledModel({
+    void Function(double progress)? onProgress,
+  }) async {
+    await AbogenLocalService.installBundledModel(onProgress: onProgress);
+  }
+
+  /// 可选兜底：从网络下载 Kokoro 模型（默认不调用，仅用户手动触发）。
   static Future<void> downloadKokoroDefault({
     void Function(double progress, String label)? onProgress,
   }) async {
@@ -185,9 +192,9 @@ class LocalTtsService {
   /// 返回值：系统语音返回空字符串（原生已直接播放），Kokoro 返回 wav 路径。
   static Future<String> previewVoice(TtsVoice voice) async {
     if (voice.backend == TtsBackend.kokoro) {
-      // 试听前确保核心模型（.onnx/tokenizer/config）与音色都已就绪
-      if (!await AbogenLocalService.isCoreModelDownloaded()) {
-        await AbogenLocalService.downloadCoreModel();
+      // 试听前确保内置模型已安装（优先 Bundle，不联网）
+      if (!await AbogenLocalService.isBundledInstalled()) {
+        await AbogenLocalService.installBundledModel();
       }
       final dir = await _bookDir(0);
       final output = p.join(dir.path, "preview_${voice.voiceId}.wav");
