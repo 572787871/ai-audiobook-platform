@@ -46,9 +46,6 @@ jobs:
         run: |
           set -e
           flutter build ios --config-only
-          # config-only 完成后，再在 runner 本地禁用 pbxproj 签名
-          # （必须在 config-only 之后，否则 Flutter 会重新写回签名设置）
-          python3 tools/disable_signing.py
           xcodebuild archive \
             -workspace ios/Runner.xcworkspace \
             -scheme Runner \
@@ -57,7 +54,7 @@ jobs:
             -xcconfig /tmp/unsigned.xcconfig \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_IDENTITY="-" \
             DEVELOPMENT_TEAM="" \
             CODE_SIGN_STYLE=Manual
 
