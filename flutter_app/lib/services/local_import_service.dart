@@ -7,7 +7,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:archive/archive.dart';
 import 'package:path/path.dart' as p;
-import 'package:pdf_text/pdf_text.dart';
 import '../models/book.dart';
 import 'local_book_service.dart';
 
@@ -182,16 +181,74 @@ class LocalImportService {
     return _extractDocxText(xml);
   }
 
-  /// 解析 PDF：使用 pdf_text 提取文本。失败抛出明确错误。
+  /// 解析 PDF（纯 Dart，无原生依赖）：提取内容流中的文本操作符 (Tj/TJ)。
+  /// 支持文本型 PDF；扫描件/加密 PDF 会提示无法提取。
   static Future<String> parsePdf(File file) async {
-    try {
-      final pdf = await PDFText.getPDFtext(file.path);
-      if (pdf == null || pdf.trim().isEmpty) {
-        throw Exception('PDF 未提取到文本（可能是扫描件/图片型 PDF）');
+    final bytes = await file.readAsBytes();
+    // 1) 提取所有内容流（解压 FlateDecode 的 stream）
+    final raw = String.fromCharCodes(bytes);
+    final sb = StringBuffer();
+    // 处理未压缩流中的文本
+    sb.write(_extractPdfTextFromRaw(raw));
+    // 尝试解压 stream 中的 FlateDecode
+    final streamRe = RegExp(r'stream\r?\n(.*?)\r?\nendstream', dotAll: true);
+    for (final m in streamRe.allMatches(raw)) {
+      final chunk = m.group(1)!;
+      final decoded = _tryInflate(chunk);
+      if (decoded != null) {
+        sb.write(_extractPdfTextFromRaw(decoded));
       }
-      return pdf.trim();
-    } catch (e) {
-      throw Exception('PDF 解析失败：$e');
+    }
+    final text = sb.toString().replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (text.isEmpty) {
+      throw Exception('PDF 未提取到文本（可能是扫描件/加密 PDF，建议转成 txt 后导入）');
+    }
+    return text;
+  }
+
+  static String _extractPdfTextFromRaw(String raw) {
+    final out = StringBuffer();
+    // 匹配 (...) Tj 或 [(...)...] TJ 中的字符串
+    final tjRe = RegExp(r'\((?:[^()\\]|\\.)*\)\s*Tj');
+    for (final m in tjRe.allMatches(raw)) {
+      out.write(_unescapePdfString(m.group(0)!));
+      out.write(' ');
+    }
+    final tjArrayRe = RegExp(r'\[(.*?)\]\s*TJ', dotAll: true);
+    for (final m in tjArrayRe.allMatches(raw)) {
+      final inner = m.group(1) ?? '';
+      for (final s in RegExp(r'\((?:[^()\\]|\\.)*\)').allMatches(inner)) {
+        out.write(_unescapePdfString(s.group(0)!));
+      }
+      out.write(' ');
+    }
+    return out.toString();
+  }
+
+  static String _unescapePdfString(String token) {
+    // token 形如 (text) 或 [(text)...]
+    var s = token;
+    if (s.startsWith('(')) s = s.substring(1);
+    if (s.endsWith(')')) s = s.substring(0, s.length - 1);
+    // 去掉尾部的 Tj/TJ 标记
+    s = s.replaceAll(RegExp(r'\s*T[jJ]\s*$'), '');
+    return s
+        .replaceAll(r'\(', '(')
+        .replaceAll(r'\)', ')')
+        .replaceAll(r'\\', '\\')
+        .replaceAll(r'\n', ' ')
+        .replaceAll(r'\r', ' ')
+        .replaceAll(r'\t', ' ');
+  }
+
+  static String? _tryInflate(String chunk) {
+    try {
+      // 使用 archive 的 ZLibDecoder 解压 FlateDecode 流
+      final data = chunk.codeUnits.where((c) => c < 256).toList();
+      final inflated = const ZLibDecoder().decodeBytes(data);
+      return String.fromCharCodes(inflated);
+    } catch (_) {
+      return null;
     }
   }
 

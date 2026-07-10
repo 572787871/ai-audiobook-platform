@@ -30,7 +30,6 @@ dependencies:
   path_provider: ^2.1.5
   path: ^1.9.0
   archive: ^3.6.1
-  pdf_text: ^2.1.0
   sherpa_onnx: ^1.9.0
   charset: ^2.0.0
   permission_handler: ^11.3.1
