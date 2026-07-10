@@ -115,7 +115,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         color: Theme.of(context)
                             .colorScheme
                             .onSurface
-                            ..withValues(alpha: HOLDER__0.45))),
+                            ..withValues(alpha: 0.45))),
               ],
             ),
           ),

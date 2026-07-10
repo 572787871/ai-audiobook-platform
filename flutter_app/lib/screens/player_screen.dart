@@ -162,7 +162,7 @@ class _PlayerScreenState extends State<PlayerScreen>
             gradient: isDark
                 ? AppTheme.playerGradient
                 : LinearGradient(colors: [
-                    AppTheme.primaryLight..withValues(alpha: HOLDER__0.1),
+                    AppTheme.primaryLight..withValues(alpha: 0.1),
                     Colors.white
                   ], begin: Alignment.topCenter, end: Alignment.bottomCenter)),
         child: SafeArea(
@@ -194,7 +194,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     return Center(
         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
       Icon(Icons.error_outline_rounded,
-          size: 64, color: AppTheme.danger..withValues(alpha: HOLDER__0.5)),
+          size: 64, color: AppTheme.danger..withValues(alpha: 0.5)),
       const SizedBox(height: 16),
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -220,7 +220,7 @@ class _PlayerScreenState extends State<PlayerScreen>
           child: Row(children: [
             IconButton(
                 icon: Icon(Icons.keyboard_arrow_down_rounded,
-                    size: 32, color: cs.onSurface..withValues(alpha: HOLDER__0.6)),
+                    size: 32, color: cs.onSurface..withValues(alpha: 0.6)),
                 onPressed: () => Navigator.pop(context)),
             const Spacer(),
             Text(d.title,
@@ -230,7 +230,7 @@ class _PlayerScreenState extends State<PlayerScreen>
             const Spacer(),
             IconButton(
                 icon: Icon(Icons.more_horiz,
-                    color: cs.onSurface..withValues(alpha: HOLDER__0.6)),
+                    color: cs.onSurface..withValues(alpha: 0.6)),
                 onPressed: () => _showMoreSheet(context)),
           ])),
 
@@ -264,7 +264,7 @@ class _PlayerScreenState extends State<PlayerScreen>
               Text(d.author!,
                   style: TextStyle(
                       fontSize: 14,
-                      color: cs.onSurface..withValues(alpha: HOLDER__0.5))),
+                      color: cs.onSurface..withValues(alpha: 0.5))),
             ],
           ])),
 
@@ -276,7 +276,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 decoration: BoxDecoration(
-                    color: cs.primary..withValues(alpha: HOLDER__0.06),
+                    color: cs.primary..withValues(alpha: 0.06),
                     borderRadius: BorderRadius.circular(AppTheme.radiusMd)),
                 child: Text(currentLine.text,
                     maxLines: 2,
@@ -313,11 +313,11 @@ class _PlayerScreenState extends State<PlayerScreen>
                       Text(_fmtDuration(_position),
                           style: TextStyle(
                               fontSize: 11,
-                              color: cs.onSurface..withValues(alpha: HOLDER__0.4))),
+                              color: cs.onSurface..withValues(alpha: 0.4))),
                       Text(_fmtDuration(_totalDuration),
                           style: TextStyle(
                               fontSize: 11,
-                              color: cs.onSurface..withValues(alpha: HOLDER__0.4))),
+                              color: cs.onSurface..withValues(alpha: 0.4))),
                     ])),
           ])),
 
@@ -331,7 +331,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                 IconButton(
                     onPressed: () => _seek(-15),
                     icon: Icon(Icons.replay_10_rounded,
-                        size: 36, color: cs.onSurface..withValues(alpha: HOLDER__0.7))),
+                        size: 36, color: cs.onSurface..withValues(alpha: 0.7))),
                 IconButton(
                     onPressed: _previousChapter,
                     icon: Icon(Icons.skip_previous_rounded,
@@ -359,7 +359,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                 IconButton(
                     onPressed: () => _seek(15),
                     icon: Icon(Icons.forward_10_rounded,
-                        size: 36, color: cs.onSurface..withValues(alpha: HOLDER__0.7))),
+                        size: 36, color: cs.onSurface..withValues(alpha: 0.7))),
               ]))),
 
       // 工具栏
@@ -403,7 +403,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                 margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                    color: cs.surface..withValues(alpha: HOLDER__0.5),
+                    color: cs.surface..withValues(alpha: 0.5),
                     borderRadius: BorderRadius.circular(AppTheme.radiusMd)),
                 child: ListView.builder(
                     itemCount: transcript.length,
@@ -422,7 +422,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                                       fontSize: 14,
                                       color: isCurrent
                                           ? cs.primary
-                                          : cs.onSurface..withValues(alpha: HOLDER__0.5),
+                                          : cs.onSurface..withValues(alpha: 0.5),
                                       fontWeight: isCurrent
                                           ? FontWeight.w600
                                           : FontWeight.normal))));
@@ -465,7 +465,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                   color: Theme.of(context)
                       .colorScheme
                       .onSurface
-                      ..withValues(alpha: HOLDER__0.15),
+                      ..withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(2))),
           const SizedBox(height: 12),
           ListTile(
@@ -518,7 +518,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                       color: Theme.of(context)
                           .colorScheme
                           .onSurface
-                          ..withValues(alpha: HOLDER__0.15),
+                          ..withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(2))),
               const SizedBox(height: 16),
               Text("播放速度",
@@ -546,7 +546,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                                         : Theme.of(context)
                                             .colorScheme
                                             .onSurface
-                                            ..withValues(alpha: HOLDER__0.1)),
+                                            ..withValues(alpha: 0.1)),
                                 borderRadius:
                                     BorderRadius.circular(AppTheme.radiusFull)),
                             child: Text("${s}x",
@@ -580,7 +580,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                       color: Theme.of(context)
                           .colorScheme
                           .onSurface
-                          ..withValues(alpha: HOLDER__0.15),
+                          ..withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(2))),
               const SizedBox(height: 16),
               Text("定时关闭",
@@ -632,7 +632,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                           color: Theme.of(context)
                               .colorScheme
                               .onSurface
-                              ..withValues(alpha: HOLDER__0.15),
+                              ..withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(2))),
                   Text("目录",
                       style:
@@ -652,7 +652,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                                           : Theme.of(context)
                                               .colorScheme
                                               .primary
-                                              ..withValues(alpha: HOLDER__0.08),
+                                              ..withValues(alpha: 0.08),
                                       borderRadius: BorderRadius.circular(
                                           AppTheme.radiusSm)),
                                   child: Center(
@@ -728,13 +728,13 @@ class _ToolButton extends StatelessWidget {
         child: Column(children: [
           Icon(icon,
               size: 22,
-              color: active ? cs.primary : cs.onSurface..withValues(alpha: HOLDER__0.5)),
+              color: active ? cs.primary : cs.onSurface..withValues(alpha: 0.5)),
           const SizedBox(height: 2),
           Text(label,
               style: TextStyle(
                   fontSize: 11,
                   color:
-                      active ? cs.primary : cs.onSurface..withValues(alpha: HOLDER__0.4),
+                      active ? cs.primary : cs.onSurface..withValues(alpha: 0.4),
                   fontWeight: active ? FontWeight.w600 : FontWeight.normal)),
         ]));
   }

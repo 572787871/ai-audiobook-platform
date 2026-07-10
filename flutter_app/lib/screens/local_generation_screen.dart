@@ -131,7 +131,7 @@ class _LocalGenerationScreenState extends State<LocalGenerationScreen> {
                       style: TextStyle(
                           fontSize: 13,
                           height: 1.5,
-                          color: cs.onSurface..withValues(alpha: HOLDER__0.55)),
+                          color: cs.onSurface..withValues(alpha: 0.55)),
                     ),
                   ],
                 ),
@@ -228,7 +228,7 @@ class _BookHeader extends StatelessWidget {
                       fontSize: 20, fontWeight: FontWeight.w800)),
               const SizedBox(height: 6),
               Text(book.author?.isNotEmpty == true ? book.author! : "未知作者",
-                  style: TextStyle(color: cs.onSurface..withValues(alpha: HOLDER__0.5))),
+                  style: TextStyle(color: cs.onSurface..withValues(alpha: 0.5))),
               const SizedBox(height: 10),
               StatusTag(status: book.status),
             ],
@@ -329,7 +329,7 @@ class _FormulaCard extends StatelessWidget {
                   color: Theme.of(context)
                       .colorScheme
                       .onSurface
-                      ..withValues(alpha: HOLDER__0.56)),
+                      ..withValues(alpha: 0.56)),
             ),
             const SizedBox(height: 10),
             DropdownButtonFormField<String>(
@@ -412,7 +412,7 @@ class _SegmentModeCard extends StatelessWidget {
                 color: Theme.of(context)
                     .colorScheme
                     .onSurface
-                    ..withValues(alpha: HOLDER__0.56),
+                    ..withValues(alpha: 0.56),
               ),
             ),
           ],

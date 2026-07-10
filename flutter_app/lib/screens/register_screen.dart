@@ -141,7 +141,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         color: Theme.of(context)
                             .colorScheme
                             .onSurface
-                            ..withValues(alpha: HOLDER__0.45))),
+                            ..withValues(alpha: 0.45))),
               ],
             ),
           ),

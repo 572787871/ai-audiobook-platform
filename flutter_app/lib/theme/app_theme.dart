@@ -75,7 +75,7 @@ class AppTheme {
       double y = 4}) {
     return [
       BoxShadow(
-          color: color..withValues(alpha: HOLDER__opacity),
+          color: color..withValues(alpha: opacity),
           blurRadius: blur,
           spreadRadius: spread,
           offset: Offset(0, y))
@@ -86,7 +86,7 @@ class AppTheme {
       {double opacity = 0.3, double blur = 30}) {
     return [
       BoxShadow(
-          color: color..withValues(alpha: HOLDER__opacity),
+          color: color..withValues(alpha: opacity),
           blurRadius: blur,
           spreadRadius: 0)
     ];
@@ -177,7 +177,7 @@ class AppTheme {
         outlinedButtonTheme: OutlinedButtonThemeData(
           style: OutlinedButton.styleFrom(
             foregroundColor: primaryLight,
-            side: BorderSide(color: primaryLight..withValues(alpha: HOLDER__0.3)),
+            side: BorderSide(color: primaryLight..withValues(alpha: 0.3)),
             shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(radiusMd)),
             minimumSize: const Size.fromHeight(52),
@@ -187,7 +187,7 @@ class AppTheme {
             color: const Color(0xFFE5E8F5), thickness: 1, space: 1),
         chipTheme: ChipThemeData(
           backgroundColor: const Color(0xFFF0F2FF),
-          selectedColor: primaryLight..withValues(alpha: HOLDER__0.1),
+          selectedColor: primaryLight..withValues(alpha: 0.1),
           labelStyle: TextStyle(
               color: textSecondaryLight,
               fontSize: 12,
@@ -199,7 +199,7 @@ class AppTheme {
         navigationBarTheme: NavigationBarThemeData(
           backgroundColor: Colors.white,
           surfaceTintColor: Colors.white,
-          indicatorColor: primaryLight..withValues(alpha: HOLDER__0.1),
+          indicatorColor: primaryLight..withValues(alpha: 0.1),
           indicatorShape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(radiusMd)),
           labelTextStyle: WidgetStateProperty.all(
@@ -294,7 +294,7 @@ class AppTheme {
         outlinedButtonTheme: OutlinedButtonThemeData(
           style: OutlinedButton.styleFrom(
             foregroundColor: primaryDark,
-            side: BorderSide(color: primaryDark..withValues(alpha: HOLDER__0.3)),
+            side: BorderSide(color: primaryDark..withValues(alpha: 0.3)),
             shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(radiusMd)),
             minimumSize: const Size.fromHeight(52),
@@ -304,7 +304,7 @@ class AppTheme {
             color: Color(0xFF252840), thickness: 1, space: 1),
         chipTheme: ChipThemeData(
           backgroundColor: const Color(0xFF1A1D2E),
-          selectedColor: primaryDark..withValues(alpha: HOLDER__0.15),
+          selectedColor: primaryDark..withValues(alpha: 0.15),
           labelStyle: TextStyle(
               color: textSecondaryDark,
               fontSize: 12,
@@ -316,7 +316,7 @@ class AppTheme {
         navigationBarTheme: NavigationBarThemeData(
           backgroundColor: cardDark,
           surfaceTintColor: cardDark,
-          indicatorColor: primaryDark..withValues(alpha: HOLDER__0.15),
+          indicatorColor: primaryDark..withValues(alpha: 0.15),
           indicatorShape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(radiusMd)),
           labelTextStyle: WidgetStateProperty.all(
@@ -392,13 +392,13 @@ class GlassBox extends StatelessWidget {
           decoration: BoxDecoration(
             color: color ??
                 (isDark
-                    ? Colors.black..withValues(alpha: HOLDER__0.3)
-                    : Colors.white..withValues(alpha: HOLDER__0.6)),
+                    ? Colors.black..withValues(alpha: 0.3)
+                    : Colors.white..withValues(alpha: 0.6)),
             borderRadius: BorderRadius.circular(borderRadius),
             border: Border.all(
                 color: isDark
-                    ? Colors.white..withValues(alpha: HOLDER__0.1)
-                    : Colors.white..withValues(alpha: HOLDER__0.4),
+                    ? Colors.white..withValues(alpha: 0.1)
+                    : Colors.white..withValues(alpha: 0.4),
                 width: 0.5),
           ),
           child: child,
