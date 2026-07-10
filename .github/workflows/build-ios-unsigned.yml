@@ -42,15 +42,17 @@ jobs:
           printf 'CODE_SIGNING_ALLOWED = NO\nCODE_SIGNING_REQUIRED = NO\nCODE_SIGN_IDENTITY =\nDEVELOPMENT_TEAM =\nCODE_SIGN_STYLE = Manual\n' > /tmp/unsigned.xcconfig
           cat /tmp/unsigned.xcconfig
 
-      - name: Build unsigned archive (no code signing)
+      - name: Build unsigned .app (no code signing, build not archive)
         run: |
           set -e
           flutter build ios --config-only
-          xcodebuild archive \
+          # xcodebuild build 可配合禁用签名产出未签名 .app；
+          # archive 动作在 Xcode 16 下会强制签名，故用 build。
+          xcodebuild build \
             -workspace ios/Runner.xcworkspace \
             -scheme Runner \
             -configuration Release \
-            -archivePath build/ios/Runner.xcarchive \
+            -derivedDataPath build/ios \
             -xcconfig /tmp/unsigned.xcconfig \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
@@ -61,12 +63,13 @@ jobs:
       - name: Package unsigned IPA
         run: |
           set -e
-          APP="build/ios/Runner.xcarchive/Products/Applications/Runner.app"
-          if [ ! -d "$APP" ]; then
-            echo "Runner.app not found at $APP"
+          APP=$(find build/ios -name "Runner.app" -type d | head -n 1)
+          if [ -z "$APP" ] || [ ! -d "$APP" ]; then
+            echo "Runner.app not found under build/ios"
             find build/ios -name "*.app" -type d
             exit 1
           fi
+          echo "Found Runner.app at: $APP"
           WORKDIR=$(mktemp -d)
           mkdir -p "$WORKDIR/Payload"
           cp -R "$APP" "$WORKDIR/Payload/"
