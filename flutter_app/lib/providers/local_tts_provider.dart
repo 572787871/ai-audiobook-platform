@@ -28,6 +28,8 @@ class LocalTtsProvider extends ChangeNotifier {
       voicePacks = await LocalTtsService.getInstalledVoicePacks();
       voices = await LocalTtsService.getAvailableVoices();
       voiceFormulas = await LocalTtsService.getVoiceFormulas();
+      // 首次启动：若 Kokoro 核心模型未下载，后台自动下载默认模型（不阻塞进入 App）
+      _autoDownloadKokoroIfNeeded();
     } catch (e) {
       error = "本地语音初始化失败: $e";
       voices = LocalTtsService.fallbackVoices();
@@ -101,7 +103,14 @@ class LocalTtsProvider extends ChangeNotifier {
         .toList();
     notifyListeners();
     try {
-      await LocalTtsService.downloadVoicePack(pack);
+      await LocalTtsService.downloadVoicePack(pack,
+          onProgress: (progress, label) {
+        voicePacks = voicePacks
+            .map((p) =>
+                p.packId == pack.packId ? p.copyWith(progress: progress) : p)
+            .toList();
+        notifyListeners();
+      });
       voicePacks = await LocalTtsService.getInstalledVoicePacks();
       await _refreshVoices();
     } catch (e) {
@@ -197,6 +206,36 @@ class LocalTtsProvider extends ChangeNotifier {
     await LocalTtsService.deleteGeneratedAudio(bookId);
     bookSegments.remove(bookId);
     notifyListeners();
+  }
+
+  /// 首次启动自动下载 Kokoro 默认模型 + 推荐音色（后台进行，UI 显示进度）。
+  Future<void> _autoDownloadKokoroIfNeeded() async {
+    try {
+      final core = await LocalTtsService.isKokoroCoreDownloaded();
+      if (core) return;
+      // 标记下载中，便于 UI 提示
+      voicePacks = voicePacks
+          .map((p) => p.packId == AbogenLocalService.kokoroPackId
+              ? p.copyWith(progress: 0.01)
+              : p)
+          .toList();
+      notifyListeners();
+      await LocalTtsService.downloadKokoroDefault(
+        onProgress: (p, label) {
+          voicePacks = voicePacks
+              .map((pk) => pk.packId == AbogenLocalService.kokoroPackId
+                  ? pk.copyWith(progress: p)
+                  : pk)
+              .toList();
+          notifyListeners();
+        },
+      );
+    } catch (e) {
+      // 后台下载失败不阻塞主流程，用户可在诊断页/音色页手动重试
+      error = null;
+    } finally {
+      notifyListeners();
+    }
   }
 
   Future<void> _refreshVoices() async {

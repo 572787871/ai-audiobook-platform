@@ -34,6 +34,11 @@ class _VoiceSelectScreenState extends State<VoiceSelectScreen> {
 
   @override
   void dispose() {
+    _previewPlayer.playerStateStream.listen((state) {
+      if (state.processingState == ProcessingState.completed) {
+        if (mounted) setState(() => _playingVoiceId = null);
+      }
+    });
     _previewPlayer.dispose();
     super.dispose();
   }
@@ -86,7 +91,7 @@ class _VoiceSelectScreenState extends State<VoiceSelectScreen> {
                   voice: voice,
                   selected: selected,
                   playing: _playingVoiceId == voice.voiceId,
-                  onPreview: _playingVoiceId == voice.voiceId && voice.backend != TtsBackend.kokoro
+                  onPreview: _playingVoiceId == voice.voiceId
     ? () => _stopPreview()
     : () => _preview(provider, voice),
                   onDownload: () => provider.downloadVoice(voice),
@@ -133,7 +138,7 @@ class _VoiceSelectScreenState extends State<VoiceSelectScreen> {
       }
     } finally {
       if (mounted) {
-        // 系统语音为持续朗读，留出播放态；Kokoro 文件播放结束由 player 状态管理
+        // 系统语音为持续朗读，先复位；Kokoro 文件播放结束由 player 状态回调复位
         if (voice.backend != TtsBackend.kokoro) {
           setState(() => _playingVoiceId = null);
         }

@@ -101,7 +101,13 @@ class LocalTtsService {
 
   static Future<List<TtsVoice>> getAvailableVoices() async {
     final local = fallbackVoices();
-    final downloaded = await AbogenLocalService.downloadedVoiceIds();
+    // voices.bin 单一文件含全部音色：核心模型就绪即所有 Kokoro 音色可用
+    final coreReady = await AbogenLocalService.isCoreModelDownloaded();
+    final downloaded = coreReady
+        ? AbogenLocalService.kokoroVoices(downloaded: {})
+            .map((v) => v.voiceId)
+            .toSet()
+        : <String>{};
     final kokoro = AbogenLocalService.kokoroVoices(downloaded: downloaded);
     try {
       final raw =
@@ -138,11 +144,12 @@ class LocalTtsService {
     return [...kokoroPacks, ...defaultVoicePacks()];
   }
 
-  static Future<void> downloadVoicePack(VoicePack pack) async {
+  static Future<void> downloadVoicePack(VoicePack pack,
+      {void Function(double progress, String label)? onProgress}) async {
     if (pack.isDownloaded || pack.downloadUrl.isEmpty) return;
     if (pack.packId == AbogenLocalService.kokoroPackId) {
-      await AbogenLocalService.downloadCoreModel();
-      await AbogenLocalService.downloadRecommendedVoices();
+      // voices.bin 已含全部音色，下载核心模型即可（带进度回调）
+      await AbogenLocalService.downloadCoreModel(onProgress: onProgress);
       return;
     }
     await _channel.invokeMethod("downloadVoicePack", pack.toJson());
@@ -150,9 +157,22 @@ class LocalTtsService {
 
   static Future<void> downloadVoice(TtsVoice voice) async {
     if (voice.backend == TtsBackend.kokoro) {
-      await AbogenLocalService.downloadVoice(voice);
+      // Kokoro 音色已打包在 voices.bin 内，只需确保核心模型就绪
+      if (!await AbogenLocalService.isCoreModelDownloaded()) {
+        await AbogenLocalService.downloadCoreModel();
+      }
     }
   }
+  static Future<bool> isKokoroCoreDownloaded() =>
+      AbogenLocalService.isCoreModelDownloaded();
+
+  /// 首次启动自动下载 Kototo 默认模型（核心 + 推荐音色）。
+  static Future<void> downloadKokoroDefault({
+    void Function(double progress, String label)? onProgress,
+  }) async {
+    await AbogenLocalService.downloadCoreModel(onProgress: onProgress);
+  }
+
 
   static Future<List<VoiceFormula>> getVoiceFormulas() =>
       AbogenLocalService.loadFormulas();
@@ -165,8 +185,9 @@ class LocalTtsService {
   /// 返回值：系统语音返回空字符串（原生已直接播放），Kokoro 返回 wav 路径。
   static Future<String> previewVoice(TtsVoice voice) async {
     if (voice.backend == TtsBackend.kokoro) {
-      if (!voice.isDownloaded) {
-        await AbogenLocalService.downloadVoice(voice);
+      // 试听前确保核心模型（.onnx/tokenizer/config）与音色都已就绪
+      if (!await AbogenLocalService.isCoreModelDownloaded()) {
+        await AbogenLocalService.downloadCoreModel();
       }
       final dir = await _bookDir(0);
       final output = p.join(dir.path, "preview_${voice.voiceId}.wav");

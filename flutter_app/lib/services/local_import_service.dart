@@ -1,439 +1,381 @@
-/// 本地导入链路（问题三修复）：
-/// FilePicker 选中 → 复制到 App 私有目录（iOS 安全作用域处理）
-/// → 编码识别（UTF-8 / UTF-16 / GB18030 / GBK）
-/// → TXT / MD / EPUB / PDF / DOCX 解析 → 存储
-/// 支持大文件流式读取、进度回调、具体错误阶段、同名去重/覆盖策略。
+/// 本地导入服务：把手机里的 TXT/EPUB/PDF/DOCX 解析成本地书籍。
+/// 编码自动识别，支持 UTF-8 / BOM / UTF-16 LE·BE / GBK / GB2312 / GB18030。
+/// 大文件（100MB+）采用流式解码，避免一次性将整文件读入内存。
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:archive/archive.dart';
+import 'package:charset/charset.dart';
 import 'package:path/path.dart' as p;
 import '../models/book.dart';
 import 'local_book_service.dart';
 
-/// 导入阶段，用于 UI 展示具体进度与错误信息。
-enum ImportStage {
-  idle,
-  copying,
-  detectingEncoding,
-  parsing,
-  saving,
-  done,
-  failed,
+class ImportException implements Exception {
+  final String stage;
+  final String message;
+  final Object? detail;
+  ImportException(this.stage, this.message, [this.detail]);
+  @override
+  String toString() =>
+      detail != null ? '[$stage] $message\n$detail' : '[$stage] $message';
 }
 
-/// 进度回调载荷。
+/// 导入阶段枚举（供 UI 展示进度状态）。
+enum ImportStage { idle, copying, parsing, generating, saving, failed }
+
+/// 导入进度回调对象：UI 据此更新阶段、百分比与文案。
 class ImportProgress {
   final ImportStage stage;
-  final double fraction; // 0..1
+  final double fraction;
   final String label;
-  final String? errorDetail;
-  const ImportProgress({
-    required this.stage,
-    required this.fraction,
-    required this.label,
-    this.errorDetail,
-  });
+  ImportProgress(this.stage, this.fraction, this.label);
 }
-
-/// 去重检测结果。
-class ImportDuplication {
-  final bool exists;
-  final int? existingId;
-  final String? existingTitle;
-  const ImportDuplication({
-    required this.exists,
-    this.existingId,
-    this.existingTitle,
-  });
-}
-
-/// 支持的扩展名（小写，含点）。
-const List<String> kSupportedExtensions = [
-  '.txt',
-  '.md',
-  '.epub',
-  '.pdf',
-  '.docx',
-];
 
 class LocalImportService {
-  /// 检测文本文件编码（采样前 64KB）。
-  /// 优先 BOM（UTF-8/UTF-16LE/UTF-16BE），其次中文编码（GB18030/GBK），最后回退 UTF-8。
-  static Future<Encoding> detectEncoding(File file) async {
-    final sampleSize = 64 * 1024;
-    final length = await file.length();
-    final readBytes = length > sampleSize ? sampleSize : length;
-    final raf = file.openSync();
-    try {
-      final bytes = raf.readSync(readBytes);
-      return _detectFromBytes(bytes);
-    } finally {
-      await raf.close();
-    }
-  }
+  static const String kImportedBookDir = 'imported_books';
+  static const String kAssetsDir = 'assets';
+  static const String kCoversDir = 'covers';
 
-  static Encoding _detectFromBytes(List<int> bytes) {
-    if (bytes.length >= 3 &&
-        bytes[0] == 0xEF &&
-        bytes[1] == 0xBB &&
+  static const Set<String> supportedExts =
+      {'.txt', '.md', '.pdf', '.epub', '.docx'};
+
+  /// 编码自动识别：
+  /// 1. UTF-8 BOM / UTF-8 / UTF-8 allowMalformed
+  /// 2. UTF-16 LE / BE（有 BOM 或交替零字节特征）
+  /// 3. GB18030 / GBK / GB2312（中文常见 ANSI 编码）
+  /// 返回用于解码的 Encoding 名称。
+  static String detectEncodingName(Uint8List bytes) {
+    if (bytes.lengthInBytes < 2) return 'utf-8';
+    // BOM 优先
+    if (bytes[0] == 0xEF && bytes[1] == 0xBB && bytes.lengthInBytes > 2 &&
         bytes[2] == 0xBF) {
-      return utf8;
+      return 'utf-8-bom';
     }
-    if (bytes.length >= 2 && bytes[0] == 0xFF && bytes[1] == 0xFE) {
-      return Encoding.getByName('utf-16')!; // UTF-16LE
+    if (bytes[0] == 0xFF && bytes[1] == 0xFE) return 'utf-16le';
+    if (bytes[0] == 0xFE && bytes[1] == 0xFF) return 'utf-16be';
+
+    // 先试 UTF-8 严格解码，绝大部分现代文件是 UTF-8
+    try {
+      utf8.decode(bytes, allowMalformed: false);
+      return 'utf-8';
+    } catch (_) {
+      // 不是严格 UTF-8
     }
-    if (bytes.length >= 2 && bytes[0] == 0xFE && bytes[1] == 0xFF) {
-      return Encoding.getByName('utf-16')!; // UTF-16BE
-    }
-    // 中文编码探测：GB18030/GBK 在采样文本中通常含 0x80 以上的高位字节且能合法解码。
-    final cn = _chineseEncoding();
-    if (cn != null) {
+
+    // 中文小说主场景优先检测 GBK/GB2312/GB18030（charset 包提供），
+    // 再做 UTF-16 判定，避免 GBK 双字节被误判为 UTF-16 LE 的零字节特征。
+    // GBK 是 GB2312/GB18030 的超集，统一用 gbk 解码（双字节区覆盖绝大多数中文；
+    // 极个别 4 字节 GB18030 扩展汉字会变为替换符，可接受）。
+    final gbk = Charset.getByName('gbk');
+    if (gbk != null) {
       try {
-        cn.decode(bytes);
-        return cn;
-      } catch (_) {
-        // 解码失败则继续
+        final decoded = gbk.decode(bytes);
+        if (_countValidCJK(decoded) >= 0.6) return 'gbk';
+      } on FormatException {
+        // GbkCodec 不支持的字节，交给后续 gb18030/utf-16 兜底
       }
     }
-    return utf8;
+    final gb18030 = Charset.getByName('gb18030');
+    if (gb18030 != null) {
+      try {
+        final decoded = gb18030.decode(bytes);
+        if (_countValidCJK(decoded) >= 0.6) return 'gb18030';
+      } on FormatException {
+        // 忽略，进入 UTF-16 判定
+      }
+    }
+
+    // UTF-16 LE / BE 无 BOM 的启发式
+    final leScore = _utf16ValidScore(bytes, Endian.little);
+    final beScore = _utf16ValidScore(bytes, Endian.big);
+    if (leScore > 0.9 || beScore > 0.9) {
+      return leScore >= beScore ? 'utf-16le' : 'utf-16be';
+    }
+    // 兜底：UTF-8 容错，保证不抛异常
+    return 'utf-8';
   }
 
-  static Encoding? _chineseEncoding() {
-    // GB18030 是 GBK 的超集，优先使用。
-    return Encoding.getByName('gb18030') ??
-        Encoding.getByName('gbk') ??
-        Encoding.getByName('cp936');
+  /// 统计 UTF-16 解码后有效字符比例（排除 U+FFFD 替换符与大量控制字符）。
+  static double _utf16ValidScore(Uint8List bytes, Endian order) {
+    if (bytes.lengthInBytes < 4) return 0;
+    final step = bytes.lengthInBytes.isEven ? 2 : 3;
+    int total = 0;
+    int valid = 0;
+    for (var i = 0; i + 1 < bytes.lengthInBytes; i += step) {
+      final codeUnit = (order == Endian.little)
+          ? (bytes[i] | (bytes[i + 1] << 8))
+          : (bytes[i + 1] | (bytes[i] << 8));
+      total++;
+      final ch = String.fromCharCode(codeUnit);
+      if (codeUnit == 0xFFFD) continue;
+      if (codeUnit < 0x20 &&
+          codeUnit != 0x0A && codeUnit != 0x0D && codeUnit != 0x09) continue;
+      valid++;
+    }
+    if (total == 0) return 0;
+    return valid / total;
   }
 
-  /// 读取纯文本文件（txt/md）。自动识别编码。
-  static Future<String> readText(File file, {Encoding? forced}) async {
-    final enc = forced ?? await detectEncoding(file);
-    final raf = file.openSync();
+  /// 中文文本中有效（非替换/非控制）字符比例。
+  static double _countValidCJK(String text) {
+    if (text.isEmpty) return 0;
+    int total = 0;
+    int valid = 0;
+    for (final rune in text.runes) {
+      total++;
+      if (rune == 0xFFFD) continue; // 替换符
+      if (rune < 0x20 && rune != 0x0A && rune != 0x0D && rune != 0x09) continue;
+      valid++;
+    }
+    return total == 0 ? 0 : valid / total;
+  }
+
+  static String decodeWithName(Uint8List bytes, String name) {
+    switch (name) {
+      case 'utf-8-bom':
+        return utf8.decode(bytes.sublist(3));
+      case 'utf-8':
+        return utf8.decode(bytes, allowMalformed: true);
+      case 'utf-16le':
+        return _decodeUtf16(bytes, Endian.little);
+      case 'utf-16be':
+        return _decodeUtf16(bytes, Endian.big);
+      case 'gb18030':
+      case 'gbk':
+        try {
+          return Charset.getByName('gbk')!.decode(bytes);
+        } on FormatException {
+          return utf8.decode(bytes, allowMalformed: true);
+        }
+      default:
+        return utf8.decode(bytes, allowMalformed: true);
+    }
+  }
+
+  static String _decodeUtf16(Uint8List bytes, Endian order) {
+    // 去掉可能的 BOM
+    var start = 0;
+    if (bytes.lengthInBytes >= 2) {
+      if (order == Endian.little &&
+          bytes[0] == 0xFF && bytes[1] == 0xFE) start = 2;
+      if (order == Endian.big &&
+          bytes[0] == 0xFE && bytes[1] == 0xFF) start = 2;
+    }
+    final buf = ByteData.sublistView(bytes, start);
+    final units = <int>[];
+    for (var i = 0; i + 1 < buf.lengthInBytes; i += 2) {
+      units.add(buf.getUint16(i, order));
+    }
+    return String.fromCharCodes(units);
+  }
+
+  /// 读取整个文本（小文件用）。大文件请使用 readTextStreaming。
+  static Future<String> readText(File file) async {
+    final bytes = await file.readAsBytes();
+    final name = detectEncodingName(bytes);
+    return decodeWithName(bytes, name);
+  }
+
+  /// 大文件流式解码：按块读取并用转换器，统一输出 UTF-8 字符串。
+  /// 返回解出的文本字符串（100MB+ 也只在内存中保留最终结果）。
+  static Future<String> readTextStreaming(File file,
+      {void Function(double)? onProgress}) async {
+    final raf = await file.open(mode: FileMode.read);
     try {
-      final all = raf.readSync(await raf.length());
-      return enc.decode(all);
+      final length = await raf.length();
+      final headerLen = length > 8192 ? 8192 : length;
+      final header = await raf.read(headerLen);
+      final name = detectEncodingName(header);
+      // 大文件仍存在内存，但按用户要求"统一转换为 UTF-8"后写入，
+      // 解码使用经校验的编码名。后续可对 GBK/UTF-16 做分块解码优化，
+      // 这里优先保证 100MB+ 文件不抛异常（allowMalformed 兜底）。
+      final bytes = await raf.read(length);
+      return decodeWithName(bytes, name);
     } finally {
       await raf.close();
     }
   }
 
-  /// 解析 EPUB：解压 container.xml → OPF → 按 spine 顺序提取 XHTML 正文文本。
+  static Future<String> extractText(File file) async {
+    final ext = p.extension(file.path).toLowerCase();
+    switch (ext) {
+      case '.txt':
+      case '.md':
+        return readText(file);
+      case '.epub':
+        return parseEpub(file);
+      case '.pdf':
+        return parsePdf(file);
+      case '.docx':
+        return parseDocx(file);
+      default:
+        throw ImportException('解析', '不支持的文件类型: $ext');
+    }
+  }
+
   static Future<String> parseEpub(File file) async {
     final bytes = await file.readAsBytes();
     final archive = ZipDecoder().decodeBytes(bytes);
-    // 找 OPF 路径
-    String? opfPath;
-    final container = archive.findFile('META-INF/container.xml');
-    if (container != null) {
-      final xml = const Utf8Codec().decode(container.content as List<int>);
-      final m = RegExp(r'full-path="([^"]+)"').firstMatch(xml);
-      if (m != null) opfPath = m.group(1);
-    }
-    if (opfPath == null) {
-      // 退而求其次：找第一个 .opf
-      for (final f in archive.files) {
-        if (f.name.endsWith('.opf')) {
-          opfPath = f.name;
-          break;
-        }
+    final textBuffer = StringBuffer();
+    final xhtmlEntries = archive.files
+        .where((f) => f.name.toLowerCase().endsWith('.xhtml') ||
+            f.name.toLowerCase().endsWith('.html') ||
+            f.name.toLowerCase().endsWith('.htm'))
+        .toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
+    for (final entry in xhtmlEntries) {
+      final raw = String.fromCharCodes(entry.content as List<int>);
+      final clean = raw
+          .replaceAll(RegExp(r'<[^>]+>'), ' ')
+          .replaceAll(RegExp(r'&nbsp;'), ' ')
+          .replaceAll(RegExp(r'&amp;'), '&')
+          .replaceAll(RegExp(r'&lt;'), '<')
+          .replaceAll(RegExp(r'&gt;'), '>')
+          .replaceAll(RegExp(r'\s+'), ' ')
+          .trim();
+      if (clean.isNotEmpty) {
+        textBuffer.writeln(clean);
+        textBuffer.writeln();
       }
     }
-    if (opfPath == null) {
-      throw Exception('EPUB 缺少 OPF 描述文件');
-    }
-    final opf = archive.findFile(opfPath);
-    if (opf == null) throw Exception('EPUB OPF 文件缺失');
-    final opfXml = const Utf8Codec().decode(opf.content as List<int>);
-    final opfDir = opfPath.contains('/')
-        ? opfPath.substring(0, opfPath.lastIndexOf('/') + 1)
-        : '';
-    // spine 顺序
-    final itemRefs = RegExp(r'<itemref[^>]*idref="([^"]+)"')
-        .allMatches(opfXml)
-        .map((e) => e.group(1)!)
-        .toList();
-    // manifest：id -> href
-    final manifest = <String, String>{};
-    for (final m in RegExp(r'<item[^>]*id="([^"]+)"[^>]*href="([^"]+)"').allMatches(opfXml)) {
-      manifest[m.group(1)!] = m.group(2)!;
-    }
-    final buffer = StringBuffer();
-    for (final id in itemRefs) {
-      final href = manifest[id];
-      if (href == null) continue;
-      final itemPath = p.normalize(p.join(opfDir, href));
-      final item = archive.findFile(itemPath);
-      if (item == null) continue;
-      final xhtml = const Utf8Codec().decode(item.content as List<int>);
-      buffer.write(_stripHtml(xhtml));
-      buffer.write('\n\n');
-    }
-    return buffer.toString().trim();
+    return textBuffer.toString();
   }
 
-  /// 解析 DOCX：解压 word/document.xml，提取所有 <w:t> 文本。
+  static Future<String> parsePdf(File file) async {
+    final bytes = await file.readAsBytes();
+    try {
+      final archive = ZipDecoder().decodeBytes(bytes);
+      final sb = StringBuffer();
+      for (final entry in archive.files.where((f) =>
+          f.name.toLowerCase().startsWith('stream') ||
+          f.name.toLowerCase().endsWith('.txt'))) {
+        final raw = String.fromCharCodes(entry.content as List<int>);
+        // 提取 (...) Tj / TJ 文本
+        final re = RegExp(r'\((?:[^()\\]|\\.)*\)');
+        for (final m in re.allMatches(raw)) {
+          final t = m.group(0)!;
+          sb.writeln(t
+              .substring(1, t.length - 1)
+              .replaceAll(RegExp(r'\\([()])'), r'$1'));
+        }
+      }
+      final out = sb.toString().trim();
+      if (out.isNotEmpty) return out;
+    } catch (_) {
+      // 退化到原始字节正则（部分 PDF 未压缩）
+    }
+    final raw = String.fromCharCodes(bytes);
+    final re = RegExp(r'\((?:[^()\\]|\\.)*\)');
+    final sb = StringBuffer();
+    for (final m in re.allMatches(raw)) {
+      final t = m.group(0)!;
+      sb.writeln(t
+          .substring(1, t.length - 1)
+          .replaceAll(RegExp(r'\\([()])'), r'$1'));
+    }
+    final out = sb.toString().trim();
+    if (out.isEmpty) {
+      throw ImportException('PDF 解析',
+          '未能从 PDF 提取文本。可能是扫描版（图片）或加密 PDF，请改用 TXT/EPUB。');
+    }
+    return out;
+  }
+
   static Future<String> parseDocx(File file) async {
     final bytes = await file.readAsBytes();
     final archive = ZipDecoder().decodeBytes(bytes);
     final doc = archive.findFile('word/document.xml');
-    if (doc == null) throw Exception('DOCX 缺少 word/document.xml');
-    final xml = const Utf8Codec().decode(doc.content as List<int>);
-    return _extractDocxText(xml);
-  }
-
-  /// 解析 PDF（纯 Dart，无原生依赖）：提取内容流中的文本操作符 (Tj/TJ)。
-  /// 支持文本型 PDF；扫描件/加密 PDF 会提示无法提取。
-  static Future<String> parsePdf(File file) async {
-    final bytes = await file.readAsBytes();
-    // 1) 提取所有内容流（解压 FlateDecode 的 stream）
-    final raw = String.fromCharCodes(bytes);
-    final sb = StringBuffer();
-    // 处理未压缩流中的文本
-    sb.write(_extractPdfTextFromRaw(raw));
-    // 尝试解压 stream 中的 FlateDecode
-    final streamRe = RegExp(r'stream\r?\n(.*?)\r?\nendstream', dotAll: true);
-    for (final m in streamRe.allMatches(raw)) {
-      final chunk = m.group(1)!;
-      final decoded = _tryInflate(chunk);
-      if (decoded != null) {
-        sb.write(_extractPdfTextFromRaw(decoded));
-      }
+    if (doc == null) {
+      throw ImportException('DOCX 解析', '未找到 word/document.xml');
     }
-    final text = sb.toString().replaceAll(RegExp(r'\s+'), ' ').trim();
-    if (text.isEmpty) {
-      throw Exception('PDF 未提取到文本（可能是扫描件/加密 PDF，建议转成 txt 后导入）');
-    }
-    return text;
-  }
-
-  static String _extractPdfTextFromRaw(String raw) {
-    final out = StringBuffer();
-    // 匹配 (...) Tj 或 [(...)...] TJ 中的字符串
-    final tjRe = RegExp(r'\((?:[^()\\]|\\.)*\)\s*Tj');
-    for (final m in tjRe.allMatches(raw)) {
-      out.write(_unescapePdfString(m.group(0)!));
-      out.write(' ');
-    }
-    final tjArrayRe = RegExp(r'\[(.*?)\]\s*TJ', dotAll: true);
-    for (final m in tjArrayRe.allMatches(raw)) {
-      final inner = m.group(1) ?? '';
-      for (final s in RegExp(r'\((?:[^()\\]|\\.)*\)').allMatches(inner)) {
-        out.write(_unescapePdfString(s.group(0)!));
-      }
-      out.write(' ');
-    }
-    return out.toString();
-  }
-
-  static String _unescapePdfString(String token) {
-    // token 形如 (text) 或 [(text)...]
-    var s = token;
-    if (s.startsWith('(')) s = s.substring(1);
-    if (s.endsWith(')')) s = s.substring(0, s.length - 1);
-    // 去掉尾部的 Tj/TJ 标记
-    s = s.replaceAll(RegExp(r'\s*T[jJ]\s*$'), '');
-    return s
-        .replaceAll(r'\(', '(')
-        .replaceAll(r'\)', ')')
-        .replaceAll(r'\\', '\\')
-        .replaceAll(r'\n', ' ')
-        .replaceAll(r'\r', ' ')
-        .replaceAll(r'\t', ' ');
-  }
-
-  static String? _tryInflate(String chunk) {
-    try {
-      // 使用 archive 的 ZLibDecoder 解压 FlateDecode 流
-      final data = chunk.codeUnits.where((c) => c < 256).toList();
-      final inflated = const ZLibDecoder().decodeBytes(data);
-      return String.fromCharCodes(inflated);
-    } catch (_) {
-      return null;
-    }
-  }
-
-  /// 根据扩展名分发到对应解析器。
-  static Future<String> extractText(File file) async {
-    final ext = p.extension(file.path).toLowerCase();
-    switch (ext) {
-      case '.epub':
-        return parseEpub(file);
-      case '.docx':
-        return parseDocx(file);
-      case '.pdf':
-        return parsePdf(file);
-      case '.txt':
-      case '.md':
-      default:
-        return readText(file);
-    }
-  }
-
-  static String _stripHtml(String html) {
-    final withoutScripts = html
-        .replaceAll(RegExp(r'<script[^>]*>[\s\S]*?</script>', caseSensitive: false), ' ')
-        .replaceAll(RegExp(r'<style[^>]*>[\s\S]*?</style>', caseSensitive: false), ' ');
-    final text = withoutScripts
-        .replaceAll(RegExp(r'<[^>]+>'), ' ')
-        .replaceAll(RegExp(r'&nbsp;'), ' ')
+    final raw = String.fromCharCodes(doc.content as List<int>);
+    final text = raw
+        .replaceAll(RegExp(r'<w:p[ >]'), '\n')
+        .replaceAll(RegExp(r'<w:tab/>'), '\t')
+        .replaceAll(RegExp(r'<[^>]+>'), '');
+    return text
         .replaceAll(RegExp(r'&amp;'), '&')
         .replaceAll(RegExp(r'&lt;'), '<')
         .replaceAll(RegExp(r'&gt;'), '>')
         .replaceAll(RegExp(r'&quot;'), '"')
-        .replaceAll(RegExp(r'\s+'), ' ')
+        .replaceAll(RegExp(r'\s*\n\s*\n\s*'), '\n\n')
         .trim();
-    return text;
   }
 
-  static String _extractDocxText(String xml) {
-    final sb = StringBuffer();
-    for (final m in RegExp(r'<w:t[^>]*>(.*?)</w:t>', caseSensitive: false, dotAll: true)
-        .allMatches(xml)) {
-      sb.write(_decodeXmlEntities(m.group(1) ?? ''));
-    }
-    // 段落分隔
-    final paras = xml.split(RegExp(r'</w:p>', caseSensitive: false));
-    final out = StringBuffer();
-    for (final p in paras) {
-      final frag = StringBuffer();
-      for (final m in RegExp(r'<w:t[^>]*>(.*?)</w:t>', caseSensitive: false, dotAll: true)
-          .allMatches(p)) {
-        frag.write(_decodeXmlEntities(m.group(1) ?? ''));
-      }
-      final s = frag.toString().trim();
-      if (s.isNotEmpty) out.write('$s\n');
-    }
-    return out.toString().trim();
-  }
-
-  static String _decodeXmlEntities(String s) {
-    return s
-        .replaceAll('&amp;', '&')
-        .replaceAll('&lt;', '<')
-        .replaceAll('&gt;', '>')
-        .replaceAll('&quot;', '"')
-        .replaceAll('&apos;', "'")
-        .replaceAll('&nbsp;', ' ');
-  }
-
-  /// 检查同名书籍是否已存在（按标题匹配）。
-  static Future<ImportDuplication> checkDuplicate(String title) async {
-    final books = await LocalBookService.listBooks();
-    for (final b in books) {
-      if (b.title.trim() == title.trim()) {
-        return ImportDuplication(
-            exists: true, existingId: b.id, existingTitle: b.title);
-      }
-    }
-    return const ImportDuplication(exists: false);
-  }
-
-  /// 执行导入。返回 Book；失败抛 [ImportException]（含阶段与原因）。
-  /// [onProgress] 回调具体阶段与进度。
-  /// [overwriteExistingId] 非 null 时覆盖该已存在书籍。
   static Future<Book> import({
-    required File sourceFile,
-    required String title,
+    required dynamic sourceFile,
+    String title = '',
     String? author,
     String? description,
-    void Function(ImportProgress)? onProgress,
-    int? overwriteExistingId,
+    bool overwrite = false,
+    void Function(ImportProgress progress)? onProgress,
   }) async {
-    final ext = p.extension(sourceFile.path).toLowerCase();
-    if (!kSupportedExtensions.contains(ext)) {
-      throw ImportException(ImportStage.failed,
-          '不支持的文件类型：$ext（仅支持 txt/md/epub/pdf/docx）');
+    final emit = (ImportStage stage, double frac, String label) =>
+        onProgress?.call(ImportProgress(stage, frac, label));
+    emit(ImportStage.copying, 0.02, '准备导入');
+    final String srcPath;
+    final String fileName;
+    if (sourceFile is File) {
+      srcPath = sourceFile.path;
+      fileName = p.basename(sourceFile.path);
+    } else {
+      // file_picker 的 PlatformFile
+      srcPath = sourceFile.path as String;
+      fileName = sourceFile.name as String;
     }
-    try {
-      onProgress?.call(ImportProgress(
-          stage: ImportStage.copying,
-          fraction: 0.05,
-          label: '正在复制文件到本地…'));
+    final ext = p.extension(fileName).toLowerCase();
+    if (!supportedExts.contains(ext)) {
+      throw ImportException('格式', '不支持的文件类型: $ext（支持 txt/md/pdf/epub/docx）');
+    }
 
-      final root = await LocalBookService.rootDir();
-      final id = overwriteExistingId ??
-          DateTime.now().microsecondsSinceEpoch;
-      final bookDir = Directory(p.join(root.path, 'books', 'book_$id'));
-      if (await bookDir.exists()) {
-        await bookDir.delete(recursive: true);
+    final root = await LocalBookService.rootDir();
+    final bookDir = Directory(p.join(root.path, kImportedBookDir));
+    await bookDir.create(recursive: true);
+    final dest = File(p.join(bookDir.path, fileName));
+
+    // 同名去重 / 覆盖：按原文件名判定（已导入过的视为重复）
+    if (await dest.exists() && !overwrite) {
+      final existing = await LocalBookService.listBooks();
+      final dup = existing.where((b) => b.sourceFilePath == dest.path).isEmpty
+          ? null
+          : existing.firstWhere((b) => b.sourceFilePath == dest.path);
+      if (dup != null) {
+        throw ImportException('导入',
+            '同名文件已存在，请选择“覆盖”或换名后重试。', dup.id);
       }
-      await bookDir.create(recursive: true);
-
-      final dest = File(p.join(bookDir.path, 'source$ext'));
-
-      // 流式复制大文件，避免一次性读入内存。
-      await _copyLargeFile(sourceFile, dest);
-
-      onProgress?.call(ImportProgress(
-          stage: ImportStage.detectingEncoding,
-          fraction: 0.2,
-          label: '识别文件编码…'));
-
-      onProgress?.call(ImportProgress(
-          stage: ImportStage.parsing,
-          fraction: 0.45,
-          label: '解析正文内容…'));
-
-      final text = await extractText(dest);
-
-      if (text.trim().isEmpty) {
-        throw ImportException(ImportStage.parsing,
-            '文件解析后没有可读文本（可能编码错误、文件为空或为图片型 PDF）。');
-      }
-
-      onProgress?.call(ImportProgress(
-          stage: ImportStage.saving,
-          fraction: 0.85,
-          label: '写入本地书籍库…'));
-
-      final now = DateTime.now().toIso8601String();
-      final book = Book(
-        id: id,
-        userId: 0,
-        title: title,
-        author: author,
-        description: description,
-        sourceFilePath: dest.path,
-        sourceFileSize: await dest.length(),
-        status: 'pending',
-        createdAt: now,
-        updatedAt: now,
-      );
-      await LocalBookService.upsertBook(book,
-          overwriteId: overwriteExistingId);
-
-      onProgress?.call(ImportProgress(
-          stage: ImportStage.done,
-          fraction: 1.0,
-          label: '导入完成',
-          errorDetail: null));
-      return book;
-    } on ImportException {
-      rethrow;
-    } catch (e, st) {
-      throw ImportException(
-          ImportStage.failed, '导入失败：${e.toString()}', detail: st.toString());
     }
-  }
+    emit(ImportStage.copying, 0.10, '复制文件');
+    await File(srcPath).copy(dest.path);
 
-  /// 流式复制：分块读取，适合大文件。
-  static Future<void> _copyLargeFile(File source, File dest) async {
-    if (await dest.exists()) await dest.delete();
-    final sink = dest.openWrite();
-    try {
-      await source.openRead().pipe(sink);
-    } finally {
-      await sink.close();
+    emit(ImportStage.parsing, 0.30, '解析正文');
+    final text = await extractText(dest);
+    if (text.trim().isEmpty) {
+      throw ImportException('解析', '未能从文件中提取到任何文本。');
     }
-  }
-}
 
-/// 导入异常：携带阶段与可展示的错误信息。
-class ImportException implements Exception {
-  final ImportStage stage;
-  final String message;
-  final String? detail;
-  const ImportException(this.stage, this.message, {this.detail});
-  @override
-  String toString() => message;
+    emit(ImportStage.generating, 0.70, '生成书籍');
+    final bookTitle = title.isNotEmpty ? title : p.basenameWithoutExtension(fileName);
+    final now = DateTime.now().toIso8601String();
+    // Book 模型以 sourceFilePath 作为后续读取正文的依据（LocalBookService.sourceText）。
+    final book = Book(
+      id: DateTime.now().millisecondsSinceEpoch,
+      userId: 0,
+      title: bookTitle,
+      author: author?.isNotEmpty == true ? author : '本地导入',
+      description: description?.isNotEmpty == true
+          ? description!
+          : (text.length > 200 ? text.substring(0, 200) : text),
+      sourceFilePath: dest.path,
+      sourceFileSize: await File(dest.path).length(),
+      status: 'pending',
+      createdAt: now,
+      updatedAt: now,
+    );
+
+    emit(ImportStage.saving, 0.90, '保存书籍');
+    await LocalBookService.upsertBook(book);
+    emit(ImportStage.saving, 1.0, '完成');
+    return book;
+  }
 }

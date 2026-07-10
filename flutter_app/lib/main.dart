@@ -19,6 +19,7 @@ import "screens/upload_screen.dart";
 import "screens/voice_pack_manager_screen.dart";
 import "screens/voice_select_screen.dart";
 import "screens/local_generation_screen.dart";
+import "screens/kokoro_diagnostics_screen.dart";
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -129,6 +130,9 @@ class AiAudiobookApp extends StatelessWidget {
             final args = settings.arguments as LocalGenerationArgs;
             return MaterialPageRoute(
                 builder: (_) => LocalGenerationScreen(args: args));
+          case "/kokoro-diagnostics":
+            return MaterialPageRoute(
+                builder: (_) => const KokoroDiagnosticsScreen());
           default:
             return MaterialPageRoute(builder: (_) => const SplashScreen());
         }

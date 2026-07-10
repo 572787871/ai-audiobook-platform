@@ -1,197 +1,158 @@
-/// Kokoro 模型与音色管理：分别处理 ONNX 模型、config、voices.bin、具体 voice 文件，
-/// 使用可配置下载源（镜像 / GitHub Release / HuggingFace）与生产级断点续传下载器。
+/// Kokoro 本地模型管理：下载 sherpa-onnx 官方模型包（model.onnx + voices.bin + tokens.txt），
+/// 下载完成后自动校验与“注册”（无需重启 App，voices.bin 已含全部音色）。
 import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import '../models/local_tts.dart';
-import 'download_sources.dart';
 import 'abogen_local_service.dart';
+import 'download_sources.dart';
 import 'resumable_downloader.dart';
 
+class DownloadFailedException implements Exception {
+  final String message;
+  final int? statusCode;
+  final String? responseBody;
+  final String? url;
+  DownloadFailedException(this.message,
+      {this.statusCode, this.responseBody, this.url});
+  @override
+  String toString() {
+    final buf = StringBuffer(message);
+    if (statusCode != null) buf.write(' (HTTP $statusCode)');
+    if (url != null) buf.write('\n来源: ${toSafeString(url!)}');
+    if (responseBody != null && responseBody!.isNotEmpty) {
+      final body = responseBody!.length > 200
+          ? '${responseBody!.substring(0, 200)}…'
+          : responseBody!;
+      buf.write('\n响应: $body');
+    }
+    return buf.toString();
+  }
+}
+
 class KokoroModelManager {
-  KokoroModelManager._();
+  /// 语音包标识（前端展示与下载登记用）。
+  static const String packId = 'kokoro';
 
-  static const String packId = 'kokoro_82m_int8';
-  static const String version = 'Kokoro-82M';
+  /// 当前绑定的模型版本（对应 csukuangfj/kokoro-en-v0_19）。
+  static const String version = 'v0_19';
 
-  /// 各资产的文件名与（可选）完整/前缀 SHA256。
-  static const String modelFile = 'kokoro-v1_0.pth';
-  static const String configFile = 'config.json';
-  static const String voicesBinFile = 'voices.bin';
-
-  /// 内置已知 voice 的 SHA256 前缀（来自 Kokoro 官方仓库 voices 目录）。
-  /// 仅作校验提示，缺失时仍允许下载。
-  static const Map<String, String> voiceShaPrefix = {
-    'zf_xiaobei': '9b76be63',
-    'zf_xiaoni': '95b49f16',
-    'zf_xiaoxiao': 'cfaf6f2d',
-    'zf_xiaoyi': 'b5235dba',
-    'zm_yunjian': '76cbf8ba',
-    'zm_yunxi': 'dbe6e1ce',
-    'zm_yunxia': 'bb2b03b0',
-    'zm_yunyang': '5238ac22',
-    'af_heart': '0ab5709b',
-    'af_bella': '8cb64e02',
-    'af_nicole': 'c5561808',
-    'am_michael': '9a443b79',
-    'am_fenrir': '98e507ec',
-    'bf_emma': 'd0a423de',
-    'bm_fable': 'd44935f3',
-  };
+  /// sherpa_onnx 推理所需的三个核心文件。
+  static const String modelFile = 'model.onnx';
+  static const String voicesFile = 'voices.bin';
+  static const String tokensFile = 'tokens.txt';
 
   static Future<Directory> kokoroRoot() async {
-    final support = await getApplicationSupportDirectory();
-    final dir =
-        Directory(p.join(support.path, 'abogen', 'kokoro_82m'));
+    final base = await getApplicationDocumentsDirectory();
+    final dir = Directory(p.join(base.path, 'kokoro'));
     if (!await dir.exists()) await dir.create(recursive: true);
     return dir;
   }
 
-  /// 列出按顺序尝试的下载地址（多源回退）。
-  static Future<List<String>> _resolveUrls(
-      KokoroAssetKind kind, String fileName) async {
-    final sources = await DownloadSourceConfig.sources();
-    final out = <String>[];
-    for (final s in sources) {
-      out.add(s.resolve(kind, fileName));
+  /// 单个核心文件是否存在（用于诊断页，不抛异常）。
+  static Future<bool> _fileExists(String name) async {
+    final root = await kokoroRoot();
+    return File(p.join(root.path, name)).exists();
+  }
+
+  static Future<Map<String, bool>> checkCoreFiles() async {
+    final map = <String, bool>{};
+    for (final f in [
+      modelFile,
+      voicesFile,
+      tokensFile,
+      'config.json',
+      'tokenizer.json'
+    ]) {
+      map[f] = await _fileExists(f);
     }
-    return out;
-  }
-
-  static Future<Map<String, List<String>>> debugSources() async {
-    return {
-      'model': await _resolveUrls(KokoroAssetKind.model, modelFile),
-      'config': await _resolveUrls(KokoroAssetKind.config, configFile),
-    };
-  }
-
-  /// 下载核心模型（config + ONNX）。
-  /// 进度：前 15% 为 config，其余为模型。
-  static Future<void> downloadCoreModel({
-    void Function(double progress, String label)? onProgress,
-    DownloadHandle? handle,
-  }) async {
-    final root = await kokoroRoot();
-    final configUrls =
-        await _resolveUrls(KokoroAssetKind.config, configFile);
-    await ResumableDownloader.download(
-      urls: configUrls,
-      outputPath: p.join(root.path, configFile),
-      onProgress: (pr) =>
-          onProgress?.call(pr.fraction * 0.15, '下载 config.json'),
-      handle: handle,
-    );
-    final modelUrls = await _resolveUrls(KokoroAssetKind.model, modelFile);
-    await ResumableDownloader.download(
-      urls: modelUrls,
-      outputPath: p.join(root.path, modelFile),
-      onProgress: (pr) =>
-          onProgress?.call(0.15 + pr.fraction * 0.85, '下载 Kokoro 模型'),
-      handle: handle,
-    );
-  }
-
-  /// 下载单个音色 .pt 文件，并校验 SHA256（前缀或完整）。
-  static Future<void> downloadVoice(
-    TtsVoice voice, {
-    void Function(double progress, String label)? onProgress,
-    DownloadHandle? handle,
-  }) async {
-    if (voice.backend != TtsBackend.kokoro) return;
-    final root = await kokoroRoot();
-    final voicesDir = Directory(p.join(root.path, 'voices'));
-    if (!await voicesDir.exists()) await voicesDir.create(recursive: true);
-    final fileName = '${voice.voiceId}.pt';
-    final urls = await _resolveUrls(KokoroAssetKind.voiceFile, fileName);
-    final sha = voiceShaPrefix[voice.voiceId];
-    await ResumableDownloader.download(
-      urls: urls,
-      outputPath: p.join(voicesDir.path, fileName),
-      expectedSha256: sha,
-      onProgress: (pr) =>
-          onProgress?.call(pr.fraction, '下载音色 ${voice.voiceId}'),
-      handle: handle,
-    );
+    return map;
   }
 
   static Future<bool> isCoreModelDownloaded() async {
     final root = await kokoroRoot();
-    final model = File(p.join(root.path, modelFile));
-    final config = File(p.join(root.path, configFile));
-    return model.existsSync() &&
-        model.lengthSync() > 0 &&
-        config.existsSync() &&
-        config.lengthSync() > 0;
-  }
-
-  /// 返回缺失的核心文件清单（用于 UI 提示）。若全部就绪返回空列表。
-  static Future<List<String>> missingCoreFiles() async {
-    final root = await kokoroRoot();
-    final missing = <String>[];
-    final model = File(p.join(root.path, modelFile));
-    if (!model.existsSync() || model.lengthSync() == 0) {
-      missing.add('kokoro-v1_0.pth（ONNX 模型）');
+    for (final f in kokoroCoreFiles) {
+      if (!await File(p.join(root.path, f)).exists()) return false;
     }
-    final config = File(p.join(root.path, configFile));
-    if (!config.existsSync() || config.lengthSync() == 0) {
-      missing.add('config.json');
-    }
-    return missing;
+    return true;
   }
 
-  static Future<Set<String>> downloadedVoiceIds() async {
-    final root = await kokoroRoot();
-    final voicesDir = Directory(p.join(root.path, 'voices'));
-    if (!await voicesDir.exists()) return {};
-    return voicesDir
-        .listSync()
-        .whereType<File>()
-        .where((f) => p.extension(f.path) == '.pt')
-        .map((f) => p.basenameWithoutExtension(f.path))
-        .toSet();
-  }
-
-  static Future<void> downloadRecommendedVoices({
-    void Function(double progress, String label)? onProgress,
-    DownloadHandle? handle,
-  }) async {
-    final downloaded = await downloadedVoiceIds();
-    final voices = AbogenLocalService.kokoroVoices(downloaded: downloaded)
-        .where((v) => v.recommended)
-        .toList();
-    for (var i = 0; i < voices.length; i++) {
-      final v = voices[i];
-      await downloadVoice(v,
-          onProgress: (pg, label) => onProgress?.call(
-              (i + pg) / voices.length.clamp(1, 999), label),
-          handle: handle);
-    }
-  }
-
-  /// 校验已下载核心模型与指定音色文件的完整性。
-  /// 返回缺失或不完整的文件清单；为空表示完整。
+  /// 校验模型完整性，返回缺失/异常文件清单（空列表表示完整）。
+  /// [voiceIds] 可选：额外校验某些音色的可用性（voices.bin 已含全部，故仅校验 voices.bin 存在）。
   static Future<List<String>> verifyIntegrity(
       {Set<String>? voiceIds}) async {
-    final root = await kokoroRoot();
     final issues = <String>[];
-    final model = File(p.join(root.path, modelFile));
-    if (!model.existsSync() || model.lengthSync() < 1024 * 1024) {
-      issues.add('kokoro-v1_0.pth 缺失或过小（<1MB）');
-    }
-    final config = File(p.join(root.path, configFile));
-    if (!config.existsSync() || config.lengthSync() == 0) {
-      issues.add('config.json 缺失或为空');
-    }
-    final voicesDir = Directory(p.join(root.path, 'voices'));
-    if (voiceIds != null && voiceIds.isNotEmpty) {
-      for (final id in voiceIds) {
-        final vf = File(p.join(voicesDir.path, '$id.pt'));
-        if (!vf.existsSync() || vf.lengthSync() == 0) {
-          issues.add('音色 $id.pt 缺失或为空');
-        }
+    final root = await kokoroRoot();
+    for (final f in kokoroCoreFiles) {
+      final file = File(p.join(root.path, f));
+      if (!await file.exists()) {
+        issues.add('缺少核心文件: $f（未下载或下载失败）');
+        continue;
       }
+      final size = await file.length();
+      if (size < 1024) {
+        issues.add('文件异常: $f 过小（${size} 字节），可能下载不完整');
+      }
+    }
+    if (!issues.any((e) => e.contains(voicesFile)) && voiceIds != null) {
+      // voices.bin 已打包全部音色，无需逐一下载；仅当文件缺失时报错。
     }
     return issues;
   }
-}
 
+  /// 下载核心模型包（model.onnx + voices.bin + tokens.txt），
+  /// 带进度回调与断点续传，完成后自动“注册”（无需重启）。
+  static Future<void> downloadCoreModel({
+    void Function(double progress, String label)? onProgress,
+    bool Function()? shouldCancel,
+  }) async {
+    final root = await kokoroRoot();
+    // 文件大小估算（用于进度加权）：model.onnx ~75MB, voices.bin ~数 MB, tokens.txt 小。
+    const weights = <String, double>{
+      modelFile: 0.80,
+      voicesFile: 0.15,
+      tokensFile: 0.05,
+    };
+    double acc = 0;
+    for (final f in kokoroCoreFiles) {
+      if (shouldCancel?.call() == true) {
+        throw DownloadFailedException('下载已取消');
+      }
+      final dest = File(p.join(root.path, f));
+      final url = kokoroCoreUrl(f);
+      onProgress?.call(acc, '下载 $f');
+      await ResumableDownloader.download(
+        url,
+        dest.path,
+        onProgress: (frac, received, total) {
+          onProgress?.call(acc + weights[f]! * frac, '下载 $f');
+        },
+        shouldCancel: shouldCancel,
+      );
+      acc += weights[f]!;
+      onProgress?.call(acc, '校验 $f');
+      // 基础完整性校验
+      final size = await dest.length();
+      if (size < 1024) {
+        throw DownloadFailedException('$f 下载后文件过小，可能不完整',
+            url: url);
+      }
+    }
+    onProgress?.call(1.0, '完成');
+    // 下载完成：模型已就绪，无需额外注册步骤（voices.bin 含全部音色）。
+  }
+
+  /// 诊断信息：返回当前状态摘要。
+  static Future<Map<String, dynamic>> diagnostics() async {
+    final files = await checkCoreFiles();
+    final root = await kokoroRoot();
+    final voices = AbogenLocalService.kokoroVoices(
+        downloaded: {}); // 仅用于列出可用音色数量
+    return {
+      'root': root.path,
+      'files': files,
+      'coreReady': await isCoreModelDownloaded(),
+      'voiceCount': voices.length,
+    };
+  }
+}

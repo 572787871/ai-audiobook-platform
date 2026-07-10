@@ -1,5 +1,6 @@
 import "package:flutter/material.dart";
 import "package:just_audio/just_audio.dart";
+import "package:collection/collection.dart";
 import "package:provider/provider.dart";
 import "../models/local_tts.dart";
 import "../providers/local_tts_provider.dart";
@@ -38,6 +39,8 @@ class _VoicePackManagerScreenState extends State<VoicePackManagerScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          _KokoroStatusCard(provider: provider),
+          const SizedBox(height: 16),
           _ModeCard(mode: provider.mode, onChanged: provider.setMode),
           const SizedBox(height: 16),
           Text("已安装与可下载",
@@ -94,6 +97,78 @@ class _VoicePackManagerScreenState extends State<VoicePackManagerScreen> {
     } finally {
       if (mounted) setState(() => _playingVoiceId = null);
     }
+  }
+}
+
+class _KokoroStatusCard extends StatelessWidget {
+  final LocalTtsProvider provider;
+  const _KokoroStatusCard({required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final pack = provider.voicePacks
+        .where((p) => p.packId == AbogenLocalService.kokoroPackId)
+        .firstOrNull;
+    final progress = pack?.progress ?? 0;
+    final downloading = progress > 0 && progress < 1;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: cs.primary.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.recorded_voice_over_outlined, color: cs.primary),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text('Kokoro 本地模型',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context)
+                    .pushNamed('/kokoro-diagnostics'),
+                child: const Text('状态诊断'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (downloading) ...[
+            LinearProgressIndicator(value: progress),
+            const SizedBox(height: 6),
+            Text('下载中 ${(progress * 100).toInt()}%',
+                style: TextStyle(color: cs.primary, fontSize: 13)),
+          ] else if (pack?.isDownloaded ?? false) ...[
+            Text('模型已就绪，可离线推理。',
+                style: TextStyle(color: AppTheme.success, fontSize: 13)),
+          ] else ...[
+            Text('未下载：Kokoro 音色暂不可用，点击下载或首次启动自动下载。',
+                style: TextStyle(
+                    color: cs.onSurface.withValues(alpha: 0.6), fontSize: 13)),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: FilledButton.tonal(
+                onPressed: () => provider.downloadVoicePack(
+                    pack ?? AbogenLocalService.kokoroPack(isDownloaded: false)),
+                child: const Text('下载模型'),
+              ),
+            ),
+          ],
+          if (provider.error != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(provider.error!,
+                  style: TextStyle(color: AppTheme.danger, fontSize: 12)),
+            ),
+        ],
+      ),
+    );
   }
 }
 

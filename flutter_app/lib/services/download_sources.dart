@@ -1,121 +1,44 @@
-/// 下载源配置：支持可配置镜像、GitHub Release 备用、HuggingFace 官方最后。
-/// 不硬编码 UI，所有地址集中在配置层。
+/// 下载源配置：Kokoro 模型使用 sherpa-onnx 官方维护的 csukuangfj/kokoro-en-v0_19
+/// （含 model.onnx + voices.bin + tokens.txt，与 sherpa_onnx 的
+/// OfflineTtsKokoroModelConfig 三个必需字段完全对应）。
+/// 所有 URL 均不硬编码签名，使用公开 HuggingFace resolve 接口（带重定向）。
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
 
-/// Kokoro 资源类型，分别处理 ONNX 模型 / config / voices.bin / 具体 voice 文件。
-enum KokoroAssetKind { model, config, voicesBin, voiceFile, shaFile }
+/// HuggingFace 公开下载根（无需 token）。resolve 会 307 重定向到 CDN。
+const String _hfBase = 'https://huggingface.co';
 
-class DownloadSource {
-  final String id;
-  final String displayName;
-  /// 基础地址模板，{kind} 与 {file} 会被替换。
-  final String baseUrl;
-  /// 优先级，越小越优先。
-  final int priority;
-  final bool enabled;
+/// Kokoro 核心模型包（csukuangfj 官方，sherpa-onnx 兼容）。
+const String kokoroModelRepo = 'csukuangfj/kokoro-en-v0_19';
 
-  const DownloadSource({
-    required this.id,
-    required this.displayName,
-    required this.baseUrl,
-    this.priority = 100,
-    this.enabled = true,
-  });
+/// 核心文件清单：sherpa_onnx 推理 Kokoro 所必需。
+const List<String> kokoroCoreFiles = [
+  'model.onnx',
+  'voices.bin',
+  'tokens.txt',
+];
 
-  /// 解析某个资产的完整地址。
-  String resolve(KokoroAssetKind kind, String fileName, {String? mirror}) {
-    final base = mirror ?? baseUrl;
-    switch (kind) {
-      case KokoroAssetKind.model:
-        return '$base/kokoro-v1_0.pth';
-      case KokoroAssetKind.config:
-        return '$base/config.json';
-      case KokoroAssetKind.voicesBin:
-        return '$base/voices.bin';
-      case KokoroAssetKind.voiceFile:
-        return '$base/voices/$fileName';
-      case KokoroAssetKind.shaFile:
-        return '$base/voices/$fileName.sha256';
-    }
+/// 构造某个核心文件的下载 URL（不暴露任何密钥）。
+String kokoroCoreUrl(String fileName) =>
+    '$_hfBase/$kokoroModelRepo/resolve/main/$fileName';
+
+/// 把可能超长的 URL 转为不泄露的展示串（调试用）。
+String toSafeString(String url) {
+  try {
+    final uri = Uri.parse(url);
+    return '${uri.host}${uri.path}';
+  } catch (_) {
+    return url.length > 64 ? '${url.substring(0, 32)}…${url.substring(url.length - 16)}' : url;
   }
 }
 
-class DownloadSourceConfig {
-  DownloadSourceConfig._();
-
-  static const String _mirrorKey = 'kokoro_mirror_base_url';
-  static const String _githubReleaseKey = 'kokoro_github_release_url';
-  static const String _hfBaseUrl = 'https://huggingface.co/hexgrad/Kokoro-82M/resolve/main';
-
-  /// 默认按顺序：
-  /// 1) 用户可配置镜像（首选）
-  /// 2) GitHub Release 备用
-  /// 3) HuggingFace 官方（最后）
-  static Future<List<DownloadSource>> sources() async {
-    final prefs = await SharedPreferences.getInstance();
-    final mirror = prefs.getString(_mirrorKey);
-    final ghRelease = prefs.getString(_githubReleaseKey);
-
-    final list = <DownloadSource>[];
-    if (mirror != null && mirror.trim().isNotEmpty) {
-      list.add(DownloadSource(
-        id: 'user_mirror',
-        displayName: '用户镜像',
-        baseUrl: mirror.trim().replaceAll(RegExp(r'/+\$'), ''),
-        priority: 1,
-      ));
-    }
-    if (ghRelease != null && ghRelease.trim().isNotEmpty) {
-      list.add(DownloadSource(
-        id: 'github_release',
-        displayName: 'GitHub Release',
-        baseUrl: ghRelease.trim().replaceAll(RegExp(r'/+\$'), ''),
-        priority: 50,
-      ));
-    }
-    list.add(const DownloadSource(
-      id: 'huggingface',
-      displayName: 'HuggingFace 官方',
-      baseUrl: _hfBaseUrl,
-      priority: 100,
-    ));
-    list.sort((a, b) => a.priority.compareTo(b.priority));
-    return list;
-  }
-
-  /// 设置首选镜像地址（UI 调用）。
-  static Future<void> setMirror(String? url) async {
-    final prefs = await SharedPreferences.getInstance();
-    if (url == null || url.trim().isEmpty) {
-      await prefs.remove(_mirrorKey);
-    } else {
-      await prefs.setString(_mirrorKey, url.trim());
-    }
-  }
-
-  /// 设置 GitHub Release 备用地址（UI 调用）。
-  static Future<void> setGithubRelease(String? url) async {
-    final prefs = await SharedPreferences.getInstance();
-    if (url == null || url.trim().isEmpty) {
-      await prefs.remove(_githubReleaseKey);
-    } else {
-      await prefs.setString(_githubReleaseKey, url.trim());
-    }
-  }
-
-  static Future<String?> getMirror() async =>
-      (await SharedPreferences.getInstance()).getString(_mirrorKey);
-
-  static Future<String?> getGithubRelease() async =>
-      (await SharedPreferences.getInstance()).getString(_githubReleaseKey);
-
-  /// 序列化为可调试 JSON（UI 展示用，绝不打印超长签名 URL）。
-  static Map<String, dynamic> debugInfo(List<DownloadSource> sources) => {
-        'count': sources.length,
-        'order': sources.map((e) => '${e.id}(${e.displayName})').toList(),
-      };
-
-  static String toSafeString(List<DownloadSource> sources) =>
-      jsonEncode(debugInfo(sources));
+/// 把异常转成可展示的简短信息（避免泄漏响应正文中的长 URL/密钥）。
+String safeError(Object e) {
+  final s = e.toString();
+  // 截断过长的 URL
+  if (s.length > 300) return '${s.substring(0, 300)}…';
+  return s;
 }
+
+/// 统一 JSON 序列化入口（便于后续替换为加密存储）。
+String encodeMeta(Map<String, dynamic> m) => jsonEncode(m);
+Map<String, dynamic> decodeMeta(String s) => jsonDecode(s) as Map<String, dynamic>;

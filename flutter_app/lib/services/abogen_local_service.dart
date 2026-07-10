@@ -110,9 +110,6 @@ class AbogenLocalService {
   static Future<bool> isCoreModelDownloaded() =>
       KokoroModelManager.isCoreModelDownloaded();
 
-  static Future<Set<String>> downloadedVoiceIds() =>
-      KokoroModelManager.downloadedVoiceIds();
-
   static Future<List<VoicePack>> voicePacks() async {
     final root = await kokoroRoot();
     final downloaded = await isCoreModelDownloaded();
@@ -121,26 +118,8 @@ class AbogenLocalService {
 
   static Future<void> downloadCoreModel({
     void Function(double progress, String label)? onProgress,
-    DownloadHandle? handle,
   }) =>
-      KokoroModelManager.downloadCoreModel(
-          onProgress: onProgress, handle: handle);
-
-  static Future<void> downloadVoice(TtsVoice voice,
-      {void Function(double progress, String label)? onProgress,
-      DownloadHandle? handle}) {
-    if (voice.backend != TtsBackend.kokoro) {
-      return Future.value();
-    }
-    return KokoroModelManager.downloadVoice(voice,
-        onProgress: onProgress, handle: handle);
-  }
-
-  static Future<void> downloadRecommendedVoices(
-          {void Function(double progress, String label)? onProgress,
-          DownloadHandle? handle}) =>
-      KokoroModelManager.downloadRecommendedVoices(
-          onProgress: onProgress, handle: handle);
+      KokoroModelManager.downloadCoreModel(onProgress: onProgress);
 
   static Future<List<VoiceFormula>> loadFormulas() async {
     final file = await _formulaJson();
@@ -259,22 +238,62 @@ class AbogenLocalService {
   /// 任何缺失/不完整都会抛出带明确信息的异常。
   /// Kokoro voiceId -> sherpa-onnx sid（voices.bin 内整数索引）。
   /// 顺序与 Kokoro 官方 voices 列表一致；真机首次运行可按试听结果校准。
+  // sid 映射：严格匹配 sherpa-onnx 官方生成 voices.bin 的 id2speaker 顺序
+  // （scripts/kokoro/v1.0/generate_voices_bin.py）。错误会导致选错音色。
   static const Map<String, int> _kokoroSid = {
-    'zf_xiaobei': 0,
-    'zf_xiaoni': 1,
-    'zf_xiaoxiao': 2,
-    'zf_xiaoyi': 3,
-    'zm_yunjian': 4,
-    'zm_yunxi': 5,
-    'zm_yunxia': 6,
-    'zm_yunyang': 7,
-    'af_heart': 8,
-    'af_bella': 9,
-    'af_nicole': 10,
-    'am_michael': 11,
-    'am_fenrir': 12,
-    'bf_emma': 13,
-    'bm_fable': 14,
+    'af_alloy': 0,
+    'af_aoede': 1,
+    'af_bella': 2,
+    'af_heart': 3,
+    'af_jessica': 4,
+    'af_kore': 5,
+    'af_nicole': 6,
+    'af_nova': 7,
+    'af_river': 8,
+    'af_sarah': 9,
+    'af_sky': 10,
+    'am_adam': 11,
+    'am_echo': 12,
+    'am_eric': 13,
+    'am_fenrir': 14,
+    'am_liam': 15,
+    'am_michael': 16,
+    'am_onyx': 17,
+    'am_puck': 18,
+    'am_santa': 19,
+    'bf_alice': 20,
+    'bf_emma': 21,
+    'bf_isabella': 22,
+    'bf_lily': 23,
+    'bm_daniel': 24,
+    'bm_fable': 25,
+    'bm_george': 26,
+    'bm_lewis': 27,
+    'ef_dora': 28,
+    'em_alex': 29,
+    'ff_siwis': 30,
+    'hf_alpha': 31,
+    'hf_beta': 32,
+    'hm_omega': 33,
+    'hm_psi': 34,
+    'if_sara': 35,
+    'im_nicola': 36,
+    'jf_alpha': 37,
+    'jf_gongitsune': 38,
+    'jf_nezumi': 39,
+    'jf_tebukuro': 40,
+    'jm_kumo': 41,
+    'pf_dora': 42,
+    'pm_alex': 43,
+    'pm_santa': 44,
+    'zf_xiaobei': 45,
+    'zf_xiaoni': 46,
+    'zf_xiaoxiao': 47,
+    'zf_xiaoyi': 48,
+    'zm_yunjian': 49,
+    'zm_yunxi': 50,
+    'zm_yunxia': 51,
+    'zm_yunyang': 52,
   };
 
   /// 使用 sherpa-onnx 进行真实 Kokoro 本地推理。
@@ -294,9 +313,20 @@ class AbogenLocalService {
     }
     final root = await KokoroModelManager.kokoroRoot();
     final modelPath = p.join(root.path, KokoroModelManager.modelFile);
-    final voicesPath = p.join(root.path, KokoroModelManager.voicesBinFile);
+    final voicesPath = p.join(root.path, KokoroModelManager.voicesFile);
+    final tokensPath = p.join(root.path, KokoroModelManager.tokensFile);
+    if (!await File(modelPath).exists()) {
+      throw Exception('Kokoro 模型不存在: model.onnx（请先下载核心模型）');
+    }
+    if (!await File(voicesPath).exists()) {
+      throw Exception('Kokoro 音色包不存在: voices.bin（请先下载核心模型）');
+    }
+    if (!await File(tokensPath).exists()) {
+      throw Exception('Kokoro 词表不存在: tokens.txt（请先下载核心模型）');
+    }
 
-    // sid 映射：Kokoro 用 voices.bin 内整数索引选择音色
+    // sid 映射：voices.bin 内整数索引选择音色（与 Kokoro 官方 voices 顺序一致）。
+    // 若 voiceId 未在表中，回退到 0（af_heart）。
     final sid = _kokoroSid[voiceId] ?? 0;
 
     try {
@@ -310,6 +340,7 @@ class AbogenLocalService {
         kokoro: OfflineTtsKokoroModelConfig(
           model: modelPath,
           voices: voicesPath,
+          tokens: tokensPath,
           dataDir: '',
         ),
         numThreads: 2,
