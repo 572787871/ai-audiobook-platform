@@ -126,7 +126,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                AppTheme.primaryLight.withOpacity(0.3),
+                AppTheme.primaryLight..withValues(alpha: HOLDER__0.3),
                 isDark ? AppTheme.bgDark : AppTheme.bgLight
               ],
               begin: Alignment.topCenter,
@@ -173,7 +173,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
               Text(d.author!,
                   style: TextStyle(
                       fontSize: 15,
-                      color: cs.onSurface.withOpacity(0.5))),
+                      color: cs.onSurface..withValues(alpha: HOLDER__0.5))),
             ],
             const SizedBox(height: 12),
             StatusTag(status: d.status),
@@ -220,7 +220,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
                 Text(s.$1,
                     style: TextStyle(
                         fontSize: 12,
-                        color: cs.onSurface.withOpacity(0.4))),
+                        color: cs.onSurface..withValues(alpha: HOLDER__0.4))),
               ]);
             }).toList(),
           ),
@@ -258,7 +258,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
                           strokeWidth: 2, color: cs.primary)),
                   label: Text("合成中...",
                       style: TextStyle(
-                          color: cs.onSurface.withOpacity(0.5))),
+                          color: cs.onSurface..withValues(alpha: HOLDER__0.5))),
                 ),
               )
             else if (d.status == "failed")
@@ -276,10 +276,10 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
                 child: OutlinedButton.icon(
                   onPressed: null,
                   icon: Icon(Icons.hourglass_top_rounded,
-                      color: cs.onSurface.withOpacity(0.4)),
+                      color: cs.onSurface..withValues(alpha: HOLDER__0.4)),
                   label: Text("等待中",
                       style: TextStyle(
-                          color: cs.onSurface.withOpacity(0.4))),
+                          color: cs.onSurface..withValues(alpha: HOLDER__0.4))),
                 ),
               ),
             const SizedBox(height: 12),
@@ -387,7 +387,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
                     width: 36,
                     height: 36,
                     decoration: BoxDecoration(
-                      color: cs.primary.withOpacity(0.08),
+                      color: cs.primary..withValues(alpha: HOLDER__0.08),
                       borderRadius: BorderRadius.circular(AppTheme.radiusSm),
                     ),
                     child: Center(
@@ -407,7 +407,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
                   subtitle: Text(_formatSec(ch.end - ch.start),
                       style: TextStyle(
                           fontSize: 12,
-                          color: cs.onSurface.withOpacity(0.4))),
+                          color: cs.onSurface..withValues(alpha: HOLDER__0.4))),
                   trailing: Icon(Icons.play_arrow_rounded,
                       size: 22, color: cs.primary),
                   onTap: () => Navigator.pushNamed(context, "/player",
@@ -544,13 +544,13 @@ class _SecondaryBtn extends StatelessWidget {
           children: [
             Icon(icon,
                 size: 22,
-                color: disabled ? cs.onSurface.withOpacity(0.2) : c),
+                color: disabled ? cs.onSurface..withValues(alpha: HOLDER__0.2) : c),
             const SizedBox(height: 4),
             Text(label,
                 style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w500,
-                    color: disabled ? cs.onSurface.withOpacity(0.2) : c)),
+                    color: disabled ? cs.onSurface..withValues(alpha: HOLDER__0.2) : c)),
           ],
         ),
       ),

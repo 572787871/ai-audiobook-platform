@@ -95,7 +95,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
           actions: [
             IconButton(
                 icon: Icon(Icons.refresh,
-                    size: 20, color: cs.onSurface.withOpacity(0.4)),
+                    size: 20, color: cs.onSurface..withValues(alpha: HOLDER__0.4)),
                 onPressed: () => tp.loadTasks()),
           ],
         ),
@@ -174,7 +174,7 @@ class _TaskCard extends StatelessWidget {
                         child: LinearProgressIndicator(
                             value: (task.progress ?? 0) / 100,
                             minHeight: 4,
-                            backgroundColor: statusColor.withOpacity(0.1),
+                            backgroundColor: statusColor..withValues(alpha: HOLDER__0.1),
                             valueColor:
                                 AlwaysStoppedAnimation<Color>(statusColor)))),
               if (task.status == "failed" && task.errorMessage != null)
@@ -189,11 +189,11 @@ class _TaskCard extends StatelessWidget {
                 Text(task.createdAt,
                     style: TextStyle(
                         fontSize: 11,
-                        color: cs.onSurface.withOpacity(0.3))),
+                        color: cs.onSurface..withValues(alpha: HOLDER__0.3))),
                 const Spacer(),
                 PopupMenuButton<String>(
                   icon: Icon(Icons.more_vert,
-                      size: 18, color: cs.onSurface.withOpacity(0.4)),
+                      size: 18, color: cs.onSurface..withValues(alpha: HOLDER__0.4)),
                   itemBuilder: (ctx) {
                     final items = <PopupMenuItem<String>>[];
                     if (task.status == "failed")

@@ -125,7 +125,7 @@ class _ModeCard extends StatelessWidget {
                   color: Theme.of(context)
                       .colorScheme
                       .onSurface
-                      .withOpacity(0.55))),
+                      ..withValues(alpha: HOLDER__0.55))),
           const SizedBox(height: 10),
           ...options.map((item) {
             final selected = mode == item.$1;
@@ -208,7 +208,7 @@ class _VoiceTile extends StatelessWidget {
       child: ListTile(
         leading: CircleAvatar(
           backgroundColor:
-              selected ? cs.primary : cs.primary.withOpacity(0.08),
+              selected ? cs.primary : cs.primary..withValues(alpha: HOLDER__0.08),
           child: Icon(Icons.record_voice_over_rounded,
               color: selected ? Colors.white : cs.primary),
         ),

@@ -28,7 +28,7 @@ class TaskDetailScreen extends StatelessWidget {
                     color: Theme.of(context)
                         .colorScheme
                         .onSurface
-                        .withOpacity(0.65)),
+                        ..withValues(alpha: HOLDER__0.65)),
               ),
               const SizedBox(height: 24),
               FilledButton(

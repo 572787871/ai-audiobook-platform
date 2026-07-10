@@ -172,13 +172,13 @@ class _VoiceCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppTheme.radiusLg),
         border: Border.all(
             color:
-                selected ? cs.primary : cs.onSurface.withOpacity(0.06)),
+                selected ? cs.primary : cs.onSurface..withValues(alpha: HOLDER__0.06)),
       ),
       child: Row(
         children: [
           CircleAvatar(
             radius: 24,
-            backgroundColor: cs.primary.withOpacity(0.1),
+            backgroundColor: cs.primary..withValues(alpha: HOLDER__0.1),
             child: Icon(Icons.graphic_eq_rounded, color: cs.primary),
           ),
           const SizedBox(width: 12),
@@ -197,14 +197,14 @@ class _VoiceCard extends StatelessWidget {
                     "$gender · ${voice.language} · $backend · ${voice.modelVersion}",
                     style: TextStyle(
                         fontSize: 12,
-                        color: cs.onSurface.withOpacity(0.55))),
+                        color: cs.onSurface..withValues(alpha: HOLDER__0.55))),
                 const SizedBox(height: 4),
                 Text(voice.description,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                         fontSize: 13,
-                        color: cs.onSurface.withOpacity(0.75))),
+                        color: cs.onSurface..withValues(alpha: HOLDER__0.75))),
               ],
             ),
           ),
@@ -236,7 +236,7 @@ class _Badge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-          color: AppTheme.success.withOpacity(0.12),
+          color: AppTheme.success..withValues(alpha: HOLDER__0.12),
           borderRadius: BorderRadius.circular(AppTheme.radiusFull)),
       child: Text(label,
           style: const TextStyle(

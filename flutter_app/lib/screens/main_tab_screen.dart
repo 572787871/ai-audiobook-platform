@@ -123,7 +123,7 @@ class _TabItem extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
           color: isActive
-              ? AppTheme.primaryLight.withOpacity(0.1)
+              ? AppTheme.primaryLight..withValues(alpha: HOLDER__0.1)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(AppTheme.radiusFull),
         ),

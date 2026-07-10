@@ -70,7 +70,7 @@ class _MembershipScreenState extends State<MembershipScreen> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                            color: Color(0xFFE94B78).withOpacity(0.2),
+                            color: Color(0xFFE94B78)..withValues(alpha: HOLDER__0.2),
                             borderRadius:
                                 BorderRadius.circular(AppTheme.radiusFull)),
                         child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -86,7 +86,7 @@ class _MembershipScreenState extends State<MembershipScreen> {
                     const Spacer(),
                     Icon(Icons.workspace_premium,
                         size: 32,
-                        color: Color(0xFFFFB800).withOpacity(0.5)),
+                        color: Color(0xFFFFB800)..withValues(alpha: HOLDER__0.5)),
                   ]),
                   const SizedBox(height: 16),
                   Text("解锁全部能力",
@@ -146,7 +146,7 @@ class _MembershipScreenState extends State<MembershipScreen> {
                       Text(b.$3,
                           style: TextStyle(
                               fontSize: 12,
-                              color: cs.onSurface.withOpacity(0.5))),
+                              color: cs.onSurface..withValues(alpha: HOLDER__0.5))),
                     ]),
               );
             }, childCount: _benefits.length),
@@ -177,7 +177,7 @@ class _MembershipScreenState extends State<MembershipScreen> {
                                 vertical: 20, horizontal: 8),
                             decoration: BoxDecoration(
                               color: _selectedPlan == p.id
-                                  ? cs.primary.withOpacity(0.05)
+                                  ? cs.primary..withValues(alpha: HOLDER__0.05)
                                   : (isDark ? AppTheme.cardDark : Colors.white),
                               borderRadius:
                                   BorderRadius.circular(AppTheme.radiusLg),
@@ -221,7 +221,7 @@ class _MembershipScreenState extends State<MembershipScreen> {
                                           fontSize: 14,
                                           fontWeight: FontWeight.w600,
                                           color: cs.onSurface
-                                              .withOpacity(0.7))),
+                                              ..withValues(alpha: HOLDER__0.7))),
                                   const SizedBox(height: 8),
                                   Text(p.price,
                                       style: TextStyle(
@@ -237,7 +237,7 @@ class _MembershipScreenState extends State<MembershipScreen> {
                                       style: TextStyle(
                                           fontSize: 11,
                                           color: cs.onSurface
-                                              .withOpacity(0.4))),
+                                              ..withValues(alpha: HOLDER__0.4))),
                                 ]),
                               ],
                             ),
@@ -293,7 +293,7 @@ class _MembershipScreenState extends State<MembershipScreen> {
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                          color: AppTheme.primaryLight.withOpacity(0.08),
+                          color: AppTheme.primaryLight..withValues(alpha: HOLDER__0.08),
                           borderRadius:
                               BorderRadius.circular(AppTheme.radiusSm)),
                       child: Icon(Icons.receipt_long,
@@ -311,7 +311,7 @@ class _MembershipScreenState extends State<MembershipScreen> {
                         Text("2026-0${i + 1}-01",
                             style: TextStyle(
                                 fontSize: 12,
-                                color: cs.onSurface.withOpacity(0.4))),
+                                color: cs.onSurface..withValues(alpha: HOLDER__0.4))),
                       ])),
                   Text("-¥128",
                       style: TextStyle(

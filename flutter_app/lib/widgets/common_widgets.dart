@@ -98,7 +98,7 @@ class _PatternPainter extends CustomPainter {
       final cx = ((seed * (i + 1)) % size.width.toInt().max(1)).toDouble();
       final cy = ((seed * (i + 3)) % size.height.toInt().max(1)).toDouble();
       final paint = Paint()
-        ..color = Colors.white.withOpacity(0.06)
+        ..color = Colors.white..withValues(alpha: HOLDER__0.06)
         ..style = PaintingStyle.fill;
       canvas.drawCircle(Offset(cx, cy), r, paint);
     }
@@ -208,7 +208,7 @@ class StatusTag extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-          color: c.withOpacity(0.12),
+          color: c..withValues(alpha: HOLDER__0.12),
           borderRadius: BorderRadius.circular(AppTheme.radiusFull)),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -255,10 +255,10 @@ class EmptyState extends StatelessWidget {
               height: 80,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: cs.primary.withOpacity(0.06),
+                color: cs.primary..withValues(alpha: HOLDER__0.06),
               ),
               child: Icon(icon,
-                  size: 36, color: cs.primary.withOpacity(0.4)),
+                  size: 36, color: cs.primary..withValues(alpha: HOLDER__0.4)),
             ),
             const SizedBox(height: 16),
             Text(title,
@@ -271,7 +271,7 @@ class EmptyState extends StatelessWidget {
               const SizedBox(height: 8),
               Text(subtitle!,
                   style: TextStyle(
-                      fontSize: 13, color: cs.onSurface.withOpacity(0.5)),
+                      fontSize: 13, color: cs.onSurface..withValues(alpha: HOLDER__0.5)),
                   textAlign: TextAlign.center),
             ],
             if (actionLabel != null && onAction != null) ...[

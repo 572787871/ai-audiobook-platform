@@ -109,7 +109,7 @@ class _UploadScreenState extends State<UploadScreen> {
               color: isDark ? AppTheme.bgDark : AppTheme.bgLight,
               border: Border(
                   bottom: BorderSide(
-                      color: cs.onSurface.withOpacity(0.06), width: 0.5)),
+                      color: cs.onSurface..withValues(alpha: HOLDER__0.06), width: 0.5)),
             ),
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             child: Row(children: [
@@ -142,7 +142,7 @@ class _UploadScreenState extends State<UploadScreen> {
                       ? AppTheme.danger
                       : (_selectedFile != null
                           ? AppTheme.success
-                          : cs.primary.withOpacity(0.2)),
+                          : cs.primary..withValues(alpha: HOLDER__0.2)),
                   width: 1.5,
                 ),
                 boxShadow:
@@ -156,8 +156,8 @@ class _UploadScreenState extends State<UploadScreen> {
                       height: 56,
                       decoration: BoxDecoration(
                         color: _selectedFile != null
-                            ? AppTheme.success.withOpacity(0.1)
-                            : cs.primary.withOpacity(0.08),
+                            ? AppTheme.success..withValues(alpha: HOLDER__0.1)
+                            : cs.primary..withValues(alpha: HOLDER__0.08),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
@@ -177,12 +177,12 @@ class _UploadScreenState extends State<UploadScreen> {
                             fontWeight: FontWeight.w500,
                             color: _selectedFile != null
                                 ? cs.onSurface
-                                : cs.onSurface.withOpacity(0.4))),
+                                : cs.onSurface..withValues(alpha: HOLDER__0.4))),
                     const SizedBox(height: 6),
                     Text("支持 txt / md / pdf / epub",
                         style: TextStyle(
                             fontSize: 12,
-                            color: cs.onSurface.withOpacity(0.3))),
+                            color: cs.onSurface..withValues(alpha: HOLDER__0.3))),
                   ]),
             ),
           ),
@@ -220,7 +220,7 @@ class _UploadScreenState extends State<UploadScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                  color: AppTheme.danger.withOpacity(0.06),
+                  color: AppTheme.danger..withValues(alpha: HOLDER__0.06),
                   borderRadius: BorderRadius.circular(AppTheme.radiusMd)),
               child: Row(children: [
                 Icon(Icons.error_outline_rounded,
@@ -262,12 +262,12 @@ class _UploadScreenState extends State<UploadScreen> {
                     Text(_modeLabel(tts.mode),
                         style: TextStyle(
                             fontSize: 13,
-                            color: cs.onSurface.withOpacity(0.65))),
+                            color: cs.onSurface..withValues(alpha: HOLDER__0.65))),
                     const SizedBox(height: 6),
                     Text("默认音色：${_voiceName(tts)}",
                         style: TextStyle(
                             fontSize: 13,
-                            color: cs.onSurface.withOpacity(0.65))),
+                            color: cs.onSurface..withValues(alpha: HOLDER__0.65))),
                   ]),
             ),
           ),

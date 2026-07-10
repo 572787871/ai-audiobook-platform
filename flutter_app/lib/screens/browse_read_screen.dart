@@ -203,7 +203,7 @@ class _BrowseReadScreenState extends State<BrowseReadScreen> {
                       decoration: BoxDecoration(
                         color: isCurrent
                             ? cs.primary
-                                .withOpacity(_nightMode ? 0.15 : 0.08)
+                                ..withValues(alpha: HOLDER___nightMode ? 0.15 : 0.08)
                             : Colors.transparent,
                         borderRadius: BorderRadius.circular(AppTheme.radiusSm),
                       ),
@@ -277,7 +277,7 @@ class _BrowseReadScreenState extends State<BrowseReadScreen> {
                           fontSize: 11,
                           color: _nightMode
                               ? Colors.white54
-                              : cs.onSurface.withOpacity(0.4))),
+                              : cs.onSurface..withValues(alpha: HOLDER__0.4))),
                 ])),
             IconButton(
                 onPressed: _previousLine,
@@ -328,7 +328,7 @@ class _BrowseReadScreenState extends State<BrowseReadScreen> {
                               color: Theme.of(context)
                                   .colorScheme
                                   .onSurface
-                                  .withOpacity(0.15),
+                                  ..withValues(alpha: HOLDER__0.15),
                               borderRadius: BorderRadius.circular(2))),
                       const SizedBox(height: 16),
                       Text("阅读设置",
