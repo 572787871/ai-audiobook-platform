@@ -317,7 +317,7 @@ class KokoroModelManager {
     // 网络下载成功后也写入版本标记，避免重复下载
     final marker = File(p.join(root.path, versionMarker));
     await marker.writeAsString(version);
-    onProgress?.call(1.0);
+    onProgress?.call(1.0, '完成');
   }
 
   /// 诊断信息：返回当前状态摘要（含 Bundle 来源与大小）。
