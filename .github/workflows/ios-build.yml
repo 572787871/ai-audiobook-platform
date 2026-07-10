@@ -61,17 +61,17 @@ jobs:
         env:
           CODE_SIGNING_ALLOWED: "NO"
         run: |
-          flutter build ios --release --no-codesign --build-name=1.0.0
-          APP=build/ios/iphoneos/Runner.app
-          if [ ! -d "$APP" ]; then
-            echo "::error::Runner.app not found after build"
+          # flutter build ipa --no-codesign 在 Flutter 3.44 下可跳过签名，
+          # 产出未签名 IPA（Runner.ipa），可用企业证书后续自签。
+          flutter build ipa --release --no-codesign --build-name=1.0.0
+          IPA=build/ios/ipa/Runner.ipa
+          if [ ! -f "$IPA" ]; then
+            echo "::error::Runner.ipa not found after build"
+            ls -la build/ios/ipa/ 2>&1 || true
             exit 1
           fi
-          echo "Unsigned Runner.app built: $APP ($(du -sh "$APP" | cut -f1))"
-          mkdir -p build/ios/ipa/Payload
-          cp -R "$APP" build/ios/ipa/Payload/
-          cd build/ios/ipa
-          zip -r "$GITHUB_WORKSPACE/flutter_app/build/ios/Runner-unsigned.ipa" Payload
+          echo "Unsigned IPA built: $IPA ($(du -sh "$IPA" | cut -f1))"
+          cp "$IPA" "$GITHUB_WORKSPACE/flutter_app/build/ios/Runner-unsigned.ipa"
           echo "Unsigned IPA: $GITHUB_WORKSPACE/flutter_app/build/ios/Runner-unsigned.ipa"
 
       - name: Upload unsigned IPA artifact
