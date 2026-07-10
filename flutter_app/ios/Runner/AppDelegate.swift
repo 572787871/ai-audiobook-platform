@@ -16,8 +16,9 @@ import AVFoundation
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
-    let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "LocalTtsPlugin")
-    LocalTtsPlugin.register(with: registrar.messenger())
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "LocalTtsPlugin") {
+      LocalTtsPlugin.register(with: registrar.messenger())
+    }
   }
 }
 
