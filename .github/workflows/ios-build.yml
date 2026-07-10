@@ -21,11 +21,6 @@ jobs:
           channel: stable
           cache: true
 
-      # GitHub macos-latest 默认 Xcode 26 对 device build 强制 Provisioning Profile，
-      # 导致未签名构建失败。切到 Xcode 15.4（不强制 device provisioning）。
-      - uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: '15.4'
 
       - name: Install dependencies
         working-directory: flutter_app
@@ -67,17 +62,42 @@ jobs:
         env:
           CODE_SIGNING_ALLOWED: "NO"
         run: |
-          # Xcode 15.4 不强制 device provisioning，flutter build ipa --no-codesign 可完整
-          # 生成未签名 Runner.ipa，后续用企业证书自签。
-          flutter build ipa --release --no-codesign --build-name=1.0.0
-          IPA=build/ios/ipa/Runner.ipa
-          if [ ! -f "$IPA" ]; then
-            echo "::error::Runner.ipa not found after build"
-            ls -la build/ios/ipa/ 2>&1 || true
+          set -e
+          # 1) 仅生成 iOS 工程（不编译），避免 Flutter 的 device provisioning 检查
+          flutter build ios --release --no-codesign --config-only --build-name=1.0.0
+
+          # 2) 用 xcodebuild 直接 archive，显式禁用签名（绕过 Flutter 的 profile 强制）
+          ARCHIVE="$PWD/build/Runner.xcarchive"
+          rm -rf "$ARCHIVE"
+          xcodebuild archive \
+            -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath "$ARCHIVE" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            ONLY_ACTIVE_ARCH=NO \
+            -quiet || {
+              echo "::error::xcodebuild archive 失败"
+              exit 1
+            }
+
+          APP="$ARCHIVE/Products/Applications/Runner.app"
+          if [ ! -d "$APP" ]; then
+            echo "::error::Runner.app 未在 xcarchive 中生成"
+            find build -name "Runner.app" -type d 2>/dev/null
             exit 1
           fi
-          echo "Unsigned IPA built: $IPA ($(du -sh "$IPA" | cut -f1))"
-          cp "$IPA" "$GITHUB_WORKSPACE/flutter_app/build/ios/Runner-unsigned.ipa"
+          echo "Unsigned Runner.app archived: $APP ($(du -sh "$APP" | cut -f1))"
+
+          # 3) 手动打包为未签名 IPA：Payload/Runner.app
+          mkdir -p build/ios/ipa/Payload
+          rm -rf build/ios/ipa/Payload/Runner.app
+          cp -R "$APP" build/ios/ipa/Payload/
+          cd build/ios/ipa
+          zip -r "$GITHUB_WORKSPACE/flutter_app/build/ios/Runner-unsigned.ipa" Payload
           echo "Unsigned IPA: $GITHUB_WORKSPACE/flutter_app/build/ios/Runner-unsigned.ipa"
 
       - name: Upload unsigned IPA artifact
