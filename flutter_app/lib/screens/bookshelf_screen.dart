@@ -92,12 +92,12 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
                     _showGrid
                         ? Icons.view_list_rounded
                         : Icons.grid_view_rounded,
-                    color: cs.onSurface..withValues(alpha: 0.5)),
+                    color: cs.onSurface.withValues(alpha: 0.5)),
                 onPressed: () => setState(() => _showGrid = !_showGrid),
               ),
               IconButton(
                 icon: Icon(Icons.upload_outlined,
-                    color: cs.onSurface..withValues(alpha: 0.5)),
+                    color: cs.onSurface.withValues(alpha: 0.5)),
                 onPressed: () => Navigator.push<bool>(context,
                         MaterialPageRoute(builder: (_) => const UploadScreen()))
                     .then((r) {
@@ -116,11 +116,11 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
                 decoration: InputDecoration(
                   hintText: "搜索书名或作者...",
                   prefixIcon: Icon(Icons.search,
-                      color: cs.onSurface..withValues(alpha: 0.3)),
+                      color: cs.onSurface.withValues(alpha: 0.3)),
                   suffixIcon: _searchCtrl.text.isNotEmpty
                       ? IconButton(
                           icon: Icon(Icons.close,
-                              color: cs.onSurface..withValues(alpha: 0.3),
+                              color: cs.onSurface.withValues(alpha: 0.3),
                               size: 18),
                           onPressed: () {
                             _searchCtrl.clear();
@@ -247,7 +247,7 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
                     color: Theme.of(context)
                         .colorScheme
                         .onSurface
-                        ..withValues(alpha: 0.15),
+                        .withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(2))),
             const SizedBox(height: 16),
             Text("排序方式",
@@ -313,7 +313,7 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
                     color: Theme.of(context)
                         .colorScheme
                         .onSurface
-                        ..withValues(alpha: 0.15),
+                        .withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(2))),
             const SizedBox(height: 16),
             Text("筛选状态",
@@ -360,7 +360,7 @@ class _SortChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.primary..withValues(alpha: 0.08),
+          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(AppTheme.radiusFull),
         ),
         child: Row(
@@ -401,12 +401,12 @@ class _FilterChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: active ? cs.primary..withValues(alpha: 0.08) : cs.surface,
+          color: active ? cs.primary.withValues(alpha: 0.08) : cs.surface,
           borderRadius: BorderRadius.circular(AppTheme.radiusFull),
           border: Border.all(
               color: active
-                  ? cs.primary..withValues(alpha: 0.2)
-                  : cs.onSurface..withValues(alpha: 0.06)),
+                  ? cs.primary.withValues(alpha: 0.2)
+                  : cs.onSurface.withValues(alpha: 0.06)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -414,7 +414,7 @@ class _FilterChip extends StatelessWidget {
             Icon(icon,
                 size: 16,
                 color:
-                    active ? cs.primary : cs.onSurface..withValues(alpha: 0.4)),
+                    active ? cs.primary : cs.onSurface.withValues(alpha: 0.4)),
             const SizedBox(width: 6),
             Text(label,
                 style: TextStyle(
@@ -422,7 +422,7 @@ class _FilterChip extends StatelessWidget {
                     fontWeight: FontWeight.w500,
                     color: active
                         ? cs.primary
-                        : cs.onSurface..withValues(alpha: 0.6))),
+                        : cs.onSurface.withValues(alpha: 0.6))),
             const Icon(Icons.arrow_drop_down, size: 16),
           ],
         ),
@@ -476,7 +476,7 @@ class _BookGridItem extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                           fontSize: 11,
-                          color: cs.onSurface..withValues(alpha: 0.4)))),
+                          color: cs.onSurface.withValues(alpha: 0.4)))),
             ],
           ),
         ],
@@ -533,7 +533,7 @@ class _BookListItem extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                             fontSize: 12,
-                            color: cs.onSurface..withValues(alpha: 0.4))),
+                            color: cs.onSurface.withValues(alpha: 0.4))),
                   ],
                   const SizedBox(height: 8),
                   Row(
@@ -549,7 +549,7 @@ class _BookListItem extends StatelessWidget {
                                 horizontal: 12, vertical: 6),
                             decoration: BoxDecoration(
                                 color: AppTheme.primaryLight
-                                    ..withValues(alpha: 0.1),
+                                    .withValues(alpha: 0.1),
                                 borderRadius:
                                     BorderRadius.circular(AppTheme.radiusFull)),
                             child:

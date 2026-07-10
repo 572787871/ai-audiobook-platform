@@ -44,8 +44,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   colors: isPro
                       ? [const Color(0xFFE94B78), const Color(0xFF9B6BFF)]
                       : [
-                          AppTheme.primaryLight..withValues(alpha: 0.8),
-                          AppTheme.accent..withValues(alpha: 0.6)
+                          AppTheme.primaryLight.withValues(alpha: 0.8),
+                          AppTheme.accent.withValues(alpha: 0.6)
                         ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight),
@@ -58,7 +58,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   height: 72,
                   decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: Colors.white..withValues(alpha: 0.3),
+                      color: Colors.white.withValues(alpha: 0.3),
                       border: Border.all(color: Colors.white, width: 2)),
                   child: Center(
                       child: Text(
@@ -79,14 +79,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Text(email,
                     style: TextStyle(
                         fontSize: 13,
-                        color: Colors.white..withValues(alpha: 0.8))),
+                        color: Colors.white.withValues(alpha: 0.8))),
                 const SizedBox(height: 12),
                 if (isPro)
                   Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 4),
                       decoration: BoxDecoration(
-                          color: Colors.white..withValues(alpha: 0.2),
+                          color: Colors.white.withValues(alpha: 0.2),
                           borderRadius:
                               BorderRadius.circular(AppTheme.radiusFull)),
                       child:
@@ -105,7 +105,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 4),
                       decoration: BoxDecoration(
-                          color: Colors.white..withValues(alpha: 0.15),
+                          color: Colors.white.withValues(alpha: 0.15),
                           borderRadius:
                               BorderRadius.circular(AppTheme.radiusFull)),
                       child: const Text("免费用户",
@@ -218,7 +218,7 @@ class _StatGrid extends StatelessWidget {
                   Text(s.$2,
                       style: TextStyle(
                           fontSize: 11,
-                          color: cs.onSurface..withValues(alpha: 0.4))),
+                          color: cs.onSurface.withValues(alpha: 0.4))),
                 ]))
             .toList(),
       ),
@@ -243,7 +243,7 @@ class _MenuSection extends StatelessWidget {
               child: Text(title,
                   style: TextStyle(
                       fontSize: 14,
-                      color: cs.onSurface..withValues(alpha: 0.5),
+                      color: cs.onSurface.withValues(alpha: 0.5),
                       fontWeight: FontWeight.w500))),
           Container(
             decoration: BoxDecoration(
@@ -262,7 +262,7 @@ class _MenuSection extends StatelessWidget {
                       padding: const EdgeInsets.only(left: 52),
                       child: Divider(
                           height: 1,
-                          color: cs.onSurface..withValues(alpha: 0.06))),
+                          color: cs.onSurface.withValues(alpha: 0.06))),
               ]);
             }).toList()),
           ),
@@ -300,7 +300,7 @@ class _MenuRow extends StatelessWidget {
               width: 32,
               height: 32,
               decoration: BoxDecoration(
-                  color: cs.primary..withValues(alpha: 0.08),
+                  color: cs.primary.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(AppTheme.radiusSm)),
               child: Icon(item.icon, size: 18, color: cs.primary)),
           const SizedBox(width: 12),
@@ -313,10 +313,10 @@ class _MenuRow extends StatelessWidget {
           if (item.value != null)
             Text(item.value!,
                 style: TextStyle(
-                    fontSize: 13, color: cs.onSurface..withValues(alpha: 0.4))),
+                    fontSize: 13, color: cs.onSurface.withValues(alpha: 0.4))),
           const SizedBox(width: 8),
           Icon(Icons.chevron_right,
-              size: 20, color: cs.onSurface..withValues(alpha: 0.2)),
+              size: 20, color: cs.onSurface.withValues(alpha: 0.2)),
         ]),
       ),
     );

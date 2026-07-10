@@ -138,7 +138,7 @@ class _HomeScreenState extends State<HomeScreen>
                         color: Theme.of(context)
                             .colorScheme
                             .onSurface
-                            ..withValues(alpha: 0.3))),
+                            .withValues(alpha: 0.3))),
               ),
             ),
           ),
@@ -190,7 +190,7 @@ class _HomeScreenState extends State<HomeScreen>
                   Text(greeting,
                       style: TextStyle(
                           fontSize: 13,
-                          color: cs.onSurface..withValues(alpha: 0.5))),
+                          color: cs.onSurface.withValues(alpha: 0.5))),
                   Text(userName,
                       style: const TextStyle(
                           fontSize: 18,
@@ -212,7 +212,7 @@ class _HomeScreenState extends State<HomeScreen>
             ),
             child: IconButton(
               icon: Icon(Icons.notifications_outlined,
-                  color: cs.onSurface..withValues(alpha: 0.6), size: 22),
+                  color: cs.onSurface.withValues(alpha: 0.6), size: 22),
               onPressed: () {
                 ScaffoldMessenger.of(context)
                     .showSnackBar(const SnackBar(content: Text("暂无新通知")));
@@ -240,14 +240,14 @@ class _HomeScreenState extends State<HomeScreen>
           children: [
             const SizedBox(width: 16),
             Icon(Icons.search,
-                color: cs.onSurface..withValues(alpha: 0.3), size: 20),
+                color: cs.onSurface.withValues(alpha: 0.3), size: 20),
             const SizedBox(width: 10),
             Text("搜索有声书...",
                 style: TextStyle(
-                    color: cs.onSurface..withValues(alpha: 0.35), fontSize: 14)),
+                    color: cs.onSurface.withValues(alpha: 0.35), fontSize: 14)),
             const Spacer(),
             Icon(Icons.mic_outlined,
-                color: cs.onSurface..withValues(alpha: 0.2), size: 20),
+                color: cs.onSurface.withValues(alpha: 0.2), size: 20),
             const SizedBox(width: 16),
           ],
         ),
@@ -297,7 +297,7 @@ class _HomeScreenState extends State<HomeScreen>
               boxShadow:
                   AppTheme.cardShadow(cs.onSurface, opacity: 0.05, blur: 8),
               border: Border.all(
-                  color: cs.primary..withValues(alpha: 0.1), width: 0.5),
+                  color: cs.primary.withValues(alpha: 0.1), width: 0.5),
             ),
             child: Icon(a.icon, color: cs.primary, size: 26),
           ),
@@ -306,7 +306,7 @@ class _HomeScreenState extends State<HomeScreen>
               style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
-                  color: cs.onSurface..withValues(alpha: 0.7))),
+                  color: cs.onSurface.withValues(alpha: 0.7))),
         ],
       ),
     );
@@ -362,7 +362,7 @@ class _HomeScreenState extends State<HomeScreen>
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                           fontSize: 12,
-                          color: cs.onSurface..withValues(alpha: 0.4))),
+                          color: cs.onSurface.withValues(alpha: 0.4))),
                   const Spacer(),
                   StatusTag(status: task.status),
                   if (task.status == "processing") ...[
@@ -372,7 +372,7 @@ class _HomeScreenState extends State<HomeScreen>
                       child: LinearProgressIndicator(
                         value: task.progress / 100,
                         minHeight: 4,
-                        backgroundColor: cs.primary..withValues(alpha: 0.1),
+                        backgroundColor: cs.primary.withValues(alpha: 0.1),
                       ),
                     ),
                   ],
@@ -486,7 +486,7 @@ class _BookCardWide extends StatelessWidget {
                 Text(AppTheme.statusLabel(book.status),
                     style: TextStyle(
                         fontSize: 11,
-                        color: cs.onSurface..withValues(alpha: 0.4))),
+                        color: cs.onSurface.withValues(alpha: 0.4))),
               ],
             ),
           ],
