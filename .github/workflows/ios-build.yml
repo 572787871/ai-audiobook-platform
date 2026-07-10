@@ -61,78 +61,96 @@ jobs:
       - name: Build unsigned iOS app
         shell: bash
         run: |
-          set -o pipefail
+          set -euxo pipefail
 
           flutter build ios \
             --release \
             --no-codesign \
             --verbose 2>&1 | tee flutter-ios-build.log
 
-          APP_PATH="build/ios/iphoneos/Runner.app"
+          echo "===== Searching for generated Runner.app ====="
 
-          echo "Checking expected app path:"
-          echo "$APP_PATH"
+          APP_PATH="$(find build/ios \
+            -type d \
+            -name 'Runner.app' \
+            -not -path '*/Payload/*' \
+            -print \
+            -quit 2>/dev/null || true)"
 
-          if [ ! -d "$APP_PATH" ]; then
-            echo "::error::Runner.app was not generated."
+          if [ -z "$APP_PATH" ] || [ ! -d "$APP_PATH" ]; then
+            echo "::error::Flutter command completed, but no real Runner.app directory was found."
 
-            echo "===== Available build files ====="
-            find build -maxdepth 8 -print 2>/dev/null | sort || true
+            echo "===== build/ios tree ====="
+            find build/ios -maxdepth 8 -print 2>/dev/null | sort || true
 
-            echo "===== Xcode signing settings ====="
-            xcodebuild \
-              -workspace ios/Runner.xcworkspace \
-              -scheme Runner \
-              -configuration Release \
-              -showBuildSettings \
-              CODE_SIGNING_ALLOWED=NO \
-              CODE_SIGNING_REQUIRED=NO \
-              DEVELOPMENT_TEAM="" || true
+            echo "===== Last 300 lines of Flutter build log ====="
+            tail -n 300 flutter-ios-build.log || true
+
+            echo "===== First relevant build errors ====="
+            grep -nEi \
+              '(^|[[:space:]])error:|fatal error|Provisioning|Signing|CompileSwift|SwiftCompile|PhaseScriptExecution|Undefined symbols|ld:|Command .* failed' \
+              flutter-ios-build.log | head -n 200 || true
 
             exit 1
           fi
 
-          echo "Runner.app found:"
+          APP_PATH="$(cd "$(dirname "$APP_PATH")" && pwd)/$(basename "$APP_PATH")"
+
+          echo "APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
+
+          echo "Runner.app really exists at:"
+          echo "$APP_PATH"
+
+          test -d "$APP_PATH"
           du -sh "$APP_PATH"
-          ls -la "$APP_PATH"
+          find "$APP_PATH" -maxdepth 2 -print | head -n 100
 
       - name: Package unsigned IPA
         shell: bash
         run: |
           set -euxo pipefail
 
-          APP_PATH="build/ios/iphoneos/Runner.app"
+          APP_PATH="${APP_PATH:?APP_PATH was not exported by the build step}"
           IPA_DIR="$PWD/build/ios/ipa"
           IPA_PATH="$IPA_DIR/AI-Audiobook-unsigned.ipa"
+
+          test -d "$APP_PATH"
+          test -f "$APP_PATH/Info.plist"
 
           rm -rf "$IPA_DIR"
           mkdir -p "$IPA_DIR/Payload"
 
-          cp -R "$APP_PATH" "$IPA_DIR/Payload/Runner.app"
+          ditto "$APP_PATH" "$IPA_DIR/Payload/Runner.app"
 
           cd "$IPA_DIR"
           /usr/bin/zip -qry "AI-Audiobook-unsigned.ipa" Payload
 
-          test -f "$IPA_PATH"
+          test -s "$IPA_PATH"
+
+          echo "IPA generated:"
           ls -lh "$IPA_PATH"
-          unzip -l "$IPA_PATH" | head -50
+
+          echo "IPA structure:"
+          unzip -l "$IPA_PATH" | head -n 100
+
+          unzip -l "$IPA_PATH" | grep -q 'Payload/Runner.app/Info.plist'
 
       - name: Upload unsigned IPA
         uses: actions/upload-artifact@v4
         with:
           name: AI-Audiobook-unsigned-IPA
-          path: build/ios/ipa/AI-Audiobook-unsigned.ipa
+          path: flutter_app/build/ios/ipa/AI-Audiobook-unsigned.ipa
           if-no-files-found: error
           retention-days: 30
 
-      - name: Upload build logs
+      - name: Upload build diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: iOS-build-diagnostics
+          name: iOS-build-diagnostics-${{ github.run_id }}
           path: |
-            flutter-ios-build.log
-            ios/Podfile.lock
-            ios/Runner.xcodeproj/project.pbxproj
+            flutter_app/flutter-ios-build.log
+            flutter_app/ios/Podfile.lock
+            flutter_app/ios/Runner.xcodeproj/project.pbxproj
           if-no-files-found: warn
           retention-days: 7
