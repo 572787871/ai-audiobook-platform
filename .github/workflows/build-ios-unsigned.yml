@@ -40,8 +40,21 @@ jobs:
         run: |
           set -e
           printf 'CODE_SIGNING_ALLOWED = NO\nCODE_SIGNING_REQUIRED = NO\nCODE_SIGN_IDENTITY =\nDEVELOPMENT_TEAM =\nCODE_SIGN_STYLE = Manual\n' > /tmp/unsigned.xcconfig
-          echo "Created /tmp/unsigned.xcconfig:"
           cat /tmp/unsigned.xcconfig
+
+      - name: Disable signing in pbxproj (runner only, not committed)
+        run: |
+          set -e
+          python3 - <<'PY'
+          p = 'ios/Runner.xcodeproj/project.pbxproj'
+          s = open(p).read()
+          # 移除带 [sdk=iphoneos*] 条件签名身份（优先级最高，会盖过 xcconfig）
+          s = s.replace('"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";\n', '')
+          # Automatic -> Manual（配合无 team/identity 即禁用签名）
+          s = s.replace('CODE_SIGN_STYLE = Automatic;', 'CODE_SIGN_STYLE = Manual;')
+          open(p, 'w').write(s)
+          print('pbxproj patched for unsigned build (local only)')
+          PY
 
       - name: Build unsigned archive (no code signing)
         run: |
