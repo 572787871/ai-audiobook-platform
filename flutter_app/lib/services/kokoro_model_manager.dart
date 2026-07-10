@@ -202,7 +202,7 @@ class KokoroModelManager {
       for (var i = 0; i < total; i++) {
         final asset = bundledAssetPaths[i];
         final name = kokoroCoreFiles[i];
-        onProgress?.call(done / total, '安装 $name');
+        onProgress?.call(done / total);
 
         final data = await rootBundle.load(asset);
         final bytes = data.buffer.asUint8List(
@@ -234,7 +234,7 @@ class KokoroModelManager {
         }
 
         done++;
-        onProgress?.call(done / total, '已安装 $name');
+        onProgress?.call(done / total);
       }
 
       // 写版本标记（最后一步，标志安装完成）
@@ -246,7 +246,7 @@ class KokoroModelManager {
         throw Exception('安装后校验失败：文件大小或版本不匹配');
       }
 
-      onProgress?.call(1.0, '完成');
+      onProgress?.call(1.0);
     } catch (e) {
       lastError = e.toString();
       // 清理不完整文件，避免下次误判为已安装
@@ -317,7 +317,7 @@ class KokoroModelManager {
     // 网络下载成功后也写入版本标记，避免重复下载
     final marker = File(p.join(root.path, versionMarker));
     await marker.writeAsString(version);
-    onProgress?.call(1.0, '完成');
+    onProgress?.call(1.0);
   }
 
   /// 诊断信息：返回当前状态摘要（含 Bundle 来源与大小）。
