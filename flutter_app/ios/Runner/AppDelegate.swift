@@ -92,8 +92,26 @@ final class LocalTtsPlugin: NSObject {
       result(synthesizer.pauseSpeaking(at: .word))
     case "resumeGeneration":
       result(synthesizer.continueSpeaking())
+    case "previewVoice":
+      // 系统语音试听：直接 speak 出声（不走写文件），立即发声、可停止。
+      guard let args = call.arguments as? [String: Any],
+            let text = args["text"] as? String else {
+        result(FlutterError(code: "bad_args", message: "缺少 text", details: nil))
+        return
+      }
+      let voiceId = args["voiceId"] as? String ?? "zh_female_warm"
+      let backend = args["backend"] as? String ?? "system"
+      if backend == "kokoro" {
+        // Kokoro 试听仍需生成文件后由 Dart 侧 just_audio 播放
+        let dir = self.kokoroCacheDir()
+        let out = (dir as NSString).appendingPathComponent("preview_\(voiceId).wav")
+        self.generateSpeech(text: text, voiceId: voiceId, speed: 1.0, volume: 1.0, pitch: 1.0, outputPath: out, result: result)
+      } else {
+        self.previewSpeak(text: text, voiceId: voiceId, result: result)
+      }
     case "downloadVoicePack":
-      result(FlutterError(code: "pack_url_required", message: "Kokoro 语音包下载地址尚未配置", details: nil))
+      // Kokoro 模型/音色下载：由 Dart 侧 KokoroModelManager 实现（含 HTTP 状态码与 SHA 校验）。
+      result(FlutterError(code: "use_dart_downloader", message: "请使用 Dart 侧 KokoroModelManager 下载", details: nil))
     default:
       result(FlutterMethodNotImplemented)
     }
@@ -220,6 +238,30 @@ final class LocalTtsPlugin: NSObject {
         }
       }
     }
+  }
+
+  // 直接朗读试听，立即从扬声器发声。
+  private func previewSpeak(text: String, voiceId: String, result: @escaping FlutterResult) {
+    cancelled = false
+    configureAudioSession()
+    let utterance = AVSpeechUtterance(string: text)
+    utterance.voice = resolveVoice(voiceId: voiceId)
+    utterance.rate = 0.5
+    utterance.volume = 1.0
+    utterance.pitchMultiplier = 1.0
+    synthesizer.stopSpeaking(at: .immediate)
+    synthesizer.speak(utterance)
+    DispatchQueue.main.async {
+      result(["engine": "ios-avspeech", "previewing": true])
+    }
+  }
+
+  // Kokoro 模型缓存目录（Documents/kokoro）。
+  private func kokoroCacheDir() -> String {
+    let base = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true).first!
+    let dir = (base as NSString).appendingPathComponent("kokoro")
+    try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+    return dir
   }
 
   private func resolveVoice(voiceId: String) -> AVSpeechSynthesisVoice? {

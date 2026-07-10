@@ -131,7 +131,18 @@ class ResumableDownloader {
       } on ShaMismatchException {
         rethrow; // 校验失败不可重试
       } on DioException catch (e) {
+        final status = e.response?.statusCode;
+        final body = e.response?.data?.toString();
         lastError = e;
+        if (status != null && status >= 400) {
+          // HTTP 错误：明确抛出状态码与响应正文（不再盲目重试所有源）
+          throw DownloadFailedException(
+            '服务器返回错误（${e.message ?? "HTTP 请求失败"}）',
+            statusCode: status,
+            responseBody: body,
+            url: url,
+          );
+        }
         // 尝试下一个源。
         continue;
       } catch (e) {
@@ -178,7 +189,7 @@ class ResumableDownloader {
           ),
         );
         final stream = response.data;
-        if (stream == null) throw const DownloadFailedException('空响应');
+        if (stream == null) throw DownloadFailedException('空响应', url: url);
 
         // 确定总大小：优先 Content-Range，其次 Content-Length。
         final contentLength =
@@ -288,9 +299,24 @@ class ResumableDownloader {
 
 class DownloadFailedException implements Exception {
   final String message;
-  const DownloadFailedException(this.message);
+  final int? statusCode;
+  final String? responseBody;
+  final String? url;
+  const DownloadFailedException(this.message,
+      {this.statusCode, this.responseBody, this.url});
   @override
-  String toString() => '下载失败: $message';
+  String toString() {
+    final buf = StringBuffer('下载失败: $message');
+    if (statusCode != null) buf.write(' [HTTP $statusCode]');
+    if (responseBody != null && responseBody!.isNotEmpty) {
+      final body = responseBody!.length > 500
+          ? '${responseBody!.substring(0, 500)}…'
+          : responseBody!;
+      buf.write('\n响应正文: $body');
+    }
+    if (url != null) buf.write('\n地址: $url');
+    return buf.toString();
+  }
 }
 
 /// SHA256 校验失败：不可重试，直接终止。

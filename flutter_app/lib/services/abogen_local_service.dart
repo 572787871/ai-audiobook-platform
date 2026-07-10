@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 import '../models/local_tts.dart';
 import 'kokoro_model_manager.dart';
 import 'resumable_downloader.dart';
+import 'package:sherpa_onnx/sherpa_onnx.dart';
 
 class AbogenLocalService {
   AbogenLocalService._();
@@ -250,6 +251,86 @@ class AbogenLocalService {
         voiceId: settings.voiceId,
       )
     ];
+  }
+
+  /// 使用 sherpa-onnx 进行真实 Kokoro 本地推理。
+  /// 返回生成的 wav 文件。要求核心模型与音色已下载且完整。
+  /// 任何缺失/不完整都会抛出带明确信息的异常。
+  static Future<File> synthesizeKokoro({
+    required String text,
+    required String voiceId,
+    required String outputPath,
+    double speed = 1.0,
+  }) async {
+    final issues = await KokoroModelManager.verifyIntegrity(voiceIds: {voiceId});
+    if (issues.isNotEmpty) {
+      throw Exception('Kokoro 模型不完整，无法生成：\n- ${issues.join("\n- ")}');
+    }
+    final root = await KokoroModelManager.kokoroRoot();
+    final modelPath = p.join(root.path, KokoroModelManager.modelFile);
+    final voicesPath = p.join(root.path, KokoroModelManager.voicesBinFile);
+    final voicePath = p.join(root.path, 'voices', '$voiceId.pt');
+
+    final ttsConfig = OfflineTtsConfig(
+      model: OfflineTtsModelConfig(
+        modelType: 'kokoro',
+        kokoroModel: modelPath,
+        kokoroVoices: voicesPath,
+        numThreads: 2,
+      ),
+    );
+    final tts = OfflineTts(ttsConfig);
+    try {
+      final sid = tts.addSpeaker(voicePath);
+      if (sid == null) {
+        throw Exception('音色加载失败：$voiceId（voices.bin 或 .pt 不匹配）');
+      }
+      final audio = tts.generate(text: text, sid: sid, speed: speed);
+      if (audio == null || audio.samples.isEmpty) {
+        throw Exception('Kokoro 推理返回空音频（文本可能为空或模型异常）');
+      }
+      final outFile = File(outputPath);
+      await outFile.parent.create(recursive: true);
+      // 写 16-bit PCM WAV
+      final bytes = _encodeWav(audio.samples, audio.sampleRate);
+      await outFile.writeAsBytes(bytes);
+      return outFile;
+    } finally {
+      tts.free();
+    }
+  }
+
+  static List<int> _encodeWav(List<double> samples, int sampleRate) {
+    final byteData = BytesBuilder();
+    const channels = 1;
+    const bitsPerSample = 16;
+    final dataSize = samples.length * 2;
+    final buffer = ByteData(44);
+    final ascii = 'RIFF'.codeUnits;
+    for (var i = 0; i < 4; i++) buffer.setUint8(i, ascii[i]);
+    buffer.setUint32(4, 36 + dataSize, Endian.little);
+    final wave = 'WAVE'.codeUnits;
+    for (var i = 0; i < 4; i++) buffer.setUint8(8 + i, wave[i]);
+    final fmt = 'fmt '.codeUnits;
+    for (var i = 0; i < 4; i++) buffer.setUint8(12 + i, fmt[i]);
+    buffer.setUint32(16, 16, Endian.little);
+    buffer.setUint16(20, 1, Endian.little);
+    buffer.setUint16(22, channels, Endian.little);
+    buffer.setUint32(24, sampleRate, Endian.little);
+    buffer.setUint32(28, sampleRate * channels * bitsPerSample ~/ 8, Endian.little);
+    buffer.setUint16(32, channels * bitsPerSample ~/ 8, Endian.little);
+    buffer.setUint16(34, bitsPerSample, Endian.little);
+    final data = 'data'.codeUnits;
+    for (var i = 0; i < 4; i++) buffer.setUint8(36 + i, data[i]);
+    buffer.setUint32(40, dataSize, Endian.little);
+    byteData.add(buffer.buffer.asUint8List());
+    for (final s in samples) {
+      final v = (s.clamp(-1.0, 1.0) * 32767).round();
+      final bd = ByteData(2);
+      bd.setInt16(0, v, Endian.little);
+      byteData.add(bd.buffer.asUint8List());
+    }
+    return byteData.toBytes();
   }
 
   static Future<File> _formulaJson() async {

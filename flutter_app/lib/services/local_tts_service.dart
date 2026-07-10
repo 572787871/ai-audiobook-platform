@@ -160,23 +160,34 @@ class LocalTtsService {
   static Future<void> saveVoiceFormulas(List<VoiceFormula> formulas) =>
       AbogenLocalService.saveFormulas(formulas);
 
+  /// 试听：系统语音直接由原生 speak 出声（立即发声、可停止）；
+  /// Kokoro 走 ONNX 推理生成 wav 文件后由 just_audio 播放。
+  /// 返回值：系统语音返回空字符串（原生已直接播放），Kokoro 返回 wav 路径。
   static Future<String> previewVoice(TtsVoice voice) async {
-    if (voice.backend == TtsBackend.kokoro && !voice.isDownloaded) {
-      await AbogenLocalService.downloadVoice(voice);
+    if (voice.backend == TtsBackend.kokoro) {
+      if (!voice.isDownloaded) {
+        await AbogenLocalService.downloadVoice(voice);
+      }
+      final dir = await _bookDir(0);
+      final output = p.join(dir.path, "preview_${voice.voiceId}.wav");
+      return _generateSpeechNative(
+        text: voice.previewText,
+        voiceId: voice.voiceId,
+        speed: 1,
+        volume: 1,
+        pitch: 1,
+        outputPath: output,
+        chapterId: 0,
+        segmentId: "preview_${voice.voiceId}",
+      );
     }
-    final dir = await _bookDir(0);
-    final output = p.join(dir.path, "preview_${voice.voiceId}.wav");
-    final path = await _generateSpeechNative(
-      text: voice.previewText,
-      voiceId: voice.voiceId,
-      speed: 1,
-      volume: 1,
-      pitch: 1,
-      outputPath: output,
-      chapterId: 0,
-      segmentId: "preview_${voice.voiceId}",
-    );
-    return path;
+    // 系统语音：原生直接 speak 出声
+    await _channel.invokeMethod<Map<dynamic, dynamic>>("previewVoice", {
+      "text": voice.previewText,
+      "voiceId": voice.voiceId,
+      "backend": "system",
+    });
+    return "";
   }
 
   static Future<List<TtsSegment>> generateBook({
@@ -363,6 +374,13 @@ class LocalTtsService {
     }
   }
 
+  // Kokoro 音色 id 前缀
+  static const Set<String> _kokoroPrefixes = {
+    'zf_', 'zm_', 'af_', 'am_', 'bf_', 'bm_', 'en_'
+  };
+  static bool _isKokoroVoice(String voiceId) =>
+      _kokoroPrefixes.any((p) => voiceId.toLowerCase().startsWith(p));
+
   static Future<String> _generateSpeechNative({
     required String text,
     required String voiceId,
@@ -373,6 +391,24 @@ class LocalTtsService {
     required int chapterId,
     required String segmentId,
   }) async {
+    // Kokoro 本地推理走 Dart 侧 sherpa-onnx（跨平台统一）
+    if (_isKokoroVoice(voiceId)) {
+      if (!await AbogenLocalService.isCoreModelDownloaded()) {
+        throw Exception(
+            'Kokoro 核心模型尚未下载，请先在「音色包」页下载模型与音色后再生成。');
+      }
+      final file = await AbogenLocalService.synthesizeKokoro(
+        text: text,
+        voiceId: voiceId,
+        outputPath: outputPath,
+        speed: speed,
+      );
+      if (!file.existsSync() || file.lengthSync() == 0) {
+        throw StateError('Kokoro 推理未生成音频文件: ${file.path}');
+      }
+      return file.path;
+    }
+    // 系统语音走原生 AVSpeech
     final result =
         await _channel.invokeMethod<Map<dynamic, dynamic>>("generateSpeech", {
       "text": text,

@@ -167,5 +167,31 @@ class KokoroModelManager {
           handle: handle);
     }
   }
+
+  /// 校验已下载核心模型与指定音色文件的完整性。
+  /// 返回缺失或不完整的文件清单；为空表示完整。
+  static Future<List<String>> verifyIntegrity(
+      {Set<String>? voiceIds}) async {
+    final root = await kokoroRoot();
+    final issues = <String>[];
+    final model = File(p.join(root.path, modelFile));
+    if (!model.existsSync() || model.lengthSync() < 1024 * 1024) {
+      issues.add('kokoro-v1_0.pth 缺失或过小（<1MB）');
+    }
+    final config = File(p.join(root.path, configFile));
+    if (!config.existsSync() || config.lengthSync() == 0) {
+      issues.add('config.json 缺失或为空');
+    }
+    final voicesDir = Directory(p.join(root.path, 'voices'));
+    if (voiceIds != null && voiceIds.isNotEmpty) {
+      for (final id in voiceIds) {
+        final vf = File(p.join(voicesDir.path, '$id.pt'));
+        if (!vf.existsSync() || vf.lengthSync() == 0) {
+          issues.add('音色 $id.pt 缺失或为空');
+        }
+      }
+    }
+    return issues;
+  }
 }
 

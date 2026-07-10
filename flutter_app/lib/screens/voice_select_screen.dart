@@ -86,7 +86,9 @@ class _VoiceSelectScreenState extends State<VoiceSelectScreen> {
                   voice: voice,
                   selected: selected,
                   playing: _playingVoiceId == voice.voiceId,
-                  onPreview: () => _preview(provider, voice),
+                  onPreview: _playingVoiceId == voice.voiceId && voice.backend != TtsBackend.kokoro
+    ? () => _stopPreview()
+    : () => _preview(provider, voice),
                   onDownload: () => provider.downloadVoice(voice),
                   onSelect: () => _select(provider, voice),
                 );
@@ -115,15 +117,37 @@ class _VoiceSelectScreenState extends State<VoiceSelectScreen> {
   }
 
   Future<void> _preview(LocalTtsProvider provider, TtsVoice voice) async {
+    setState(() => _playingVoiceId = voice.voiceId);
     try {
-      setState(() => _playingVoiceId = voice.voiceId);
       final path = await provider.previewVoice(voice);
-      if (path == null) return;
-      await _previewPlayer.setFilePath(path);
-      await _previewPlayer.play();
+      if (path.isNotEmpty) {
+        // Kokoro：本地推理生成的 wav 文件，用 just_audio 播放
+        await _previewPlayer.setFilePath(path);
+        await _previewPlayer.play();
+      }
+      // 系统语音：原生 previewVoice 已直接 speak 出声，无需文件播放
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('试听失败：$e')));
+      }
     } finally {
-      if (mounted) setState(() => _playingVoiceId = null);
+      if (mounted) {
+        // 系统语音为持续朗读，留出播放态；Kokoro 文件播放结束由 player 状态管理
+        if (voice.backend != TtsBackend.kokoro) {
+          setState(() => _playingVoiceId = null);
+        }
+      }
     }
+  }
+
+  Future<void> _stopPreview() async {
+    try {
+      final provider = context.read<LocalTtsProvider>();
+      await provider.cancelGeneration(0);
+    } catch (_) {}
+    _previewPlayer.stop();
+    if (mounted) setState(() => _playingVoiceId = null);
   }
 
   Future<void> _select(LocalTtsProvider provider, TtsVoice voice) async {
