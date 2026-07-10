@@ -50,7 +50,7 @@ jobs:
           xcodebuild -workspace ios/Runner.xcworkspace \
             -scheme Runner \
             -configuration Release \
-            -sdk iphoneos \
+            -sdk iphonesimulator \
             -xcconfig /tmp/unsigned.xcconfig \
             -derivedDataPath build/ios \
             CODE_SIGNING_ALLOWED=NO \
@@ -62,12 +62,13 @@ jobs:
       - name: Package unsigned IPA
         run: |
           set -e
-          APP="build/ios/iphonesimulator/Runner.app"
-          if [ ! -d "$APP" ]; then
-            echo "Runner.app not found at $APP"
+          APP=$(find build/ios -name "Runner.app" -type d | head -1)
+          if [ -z "$APP" ] || [ ! -d "$APP" ]; then
+            echo "Runner.app not found under build/ios"
             find build/ios -name "*.app" -type d
             exit 1
           fi
+          echo "Found app bundle: $APP"
           WORKDIR=$(mktemp -d)
           mkdir -p "$WORKDIR/Payload"
           cp -R "$APP" "$WORKDIR/Payload/"
