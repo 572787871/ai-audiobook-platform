@@ -75,13 +75,15 @@ class ApiService {
   }
 
   /// 通用 POST
-  static Future<Map<String, dynamic>> _post(String path, Map<String, dynamic> body) async {
+  static Future<Map<String, dynamic>> _post(
+      String path, Map<String, dynamic> body) async {
     final resp = await _client.post(path, data: body);
     return resp.data as Map<String, dynamic>;
   }
 
   /// 通用 PATCH
-  static Future<Map<String, dynamic>> _patch(String path, Map<String, dynamic> body) async {
+  static Future<Map<String, dynamic>> _patch(
+      String path, Map<String, dynamic> body) async {
     final resp = await _client.patch(path, data: body);
     return resp.data as Map<String, dynamic>;
   }
@@ -98,7 +100,10 @@ class ApiService {
     Map<String, String> fields,
   ) async {
     final form = FormData();
-    form.files.add(MapEntry("file", await MultipartFile.fromFile(file.path, filename: file.path.split("/").last)));
+    form.files.add(MapEntry(
+        "file",
+        await MultipartFile.fromFile(file.path,
+            filename: file.path.split("/").last)));
     fields.forEach((k, v) => form.fields.add(MapEntry(k, v)));
     final resp = await _client.post(path, data: form);
     return resp.data as Map<String, dynamic>;
@@ -106,7 +111,8 @@ class ApiService {
 
   // ========== Auth ==========
 
-  static Future<AuthToken> register(String email, String username, String password) async {
+  static Future<AuthToken> register(
+      String email, String username, String password) async {
     final json = await _post("/api/auth/register", {
       "email": email,
       "username": username,
@@ -138,7 +144,8 @@ class ApiService {
 
   // ========== Users ==========
 
-  static Future<User> updateProfile({String? username, String? avatarUrl}) async {
+  static Future<User> updateProfile(
+      {String? username, String? avatarUrl}) async {
     final body = <String, dynamic>{};
     if (username != null) body["username"] = username;
     if (avatarUrl != null) body["avatar_url"] = avatarUrl;
@@ -153,7 +160,8 @@ class ApiService {
 
   // ========== Books ==========
 
-  static Future<Book> uploadBook(File file, String title, {String? author, String? description}) async {
+  static Future<Book> uploadBook(File file, String title,
+      {String? author, String? description}) async {
     final fields = <String, String>{"title": title};
     if (author != null) fields["author"] = author;
     if (description != null) fields["description"] = description;
@@ -174,7 +182,8 @@ class ApiService {
 
   static Future<BookDetail> fetchBookDetail(int id) => getBook(id);
 
-  static Future<Book> updateBook(int id, {String? title, String? author, String? description}) async {
+  static Future<Book> updateBook(int id,
+      {String? title, String? author, String? description}) async {
     final body = <String, dynamic>{};
     if (title != null) body["title"] = title;
     if (author != null) body["author"] = author;
@@ -193,7 +202,8 @@ class ApiService {
 
   static Future<File> downloadBook(int id, String audioUrl) async {
     final dir = await getApplicationDocumentsDirectory();
-    final safeName = "book_$id${p.extension(Uri.parse(audioUrl).path).isNotEmpty ? p.extension(Uri.parse(audioUrl).path) : ".mp3"}";
+    final safeName =
+        "book_$id${p.extension(Uri.parse(audioUrl).path).isNotEmpty ? p.extension(Uri.parse(audioUrl).path) : ".mp3"}";
     final dest = File(p.join(dir.path, safeName));
     await _client.download("/api/books/$id/download", dest.path);
     return dest;
@@ -201,7 +211,8 @@ class ApiService {
 
   // ========== Tasks ==========
 
-  static Future<Task> createTask(int bookId, {String taskType = "tts", Map<String, dynamic>? params}) async {
+  static Future<Task> createTask(int bookId,
+      {String taskType = "tts", Map<String, dynamic>? params}) async {
     final body = <String, dynamic>{
       "book_id": bookId,
       "task_type": taskType,
@@ -211,7 +222,8 @@ class ApiService {
     return Task.fromJson(json);
   }
 
-  static Future<List<Task>> listTasks({String? statusFilter, int page = 1, int pageSize = 20}) async {
+  static Future<List<Task>> listTasks(
+      {String? statusFilter, int page = 1, int pageSize = 20}) async {
     var path = "/api/tasks?page=$page&page_size=$pageSize";
     if (statusFilter != null) path += "&status_filter=$statusFilter";
     final json = await _get(path);

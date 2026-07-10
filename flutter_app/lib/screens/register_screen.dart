@@ -58,25 +58,38 @@ class _RegisterScreenState extends State<RegisterScreen> {
             key: _formKey,
             child: Column(
               children: [
-                Icon(Icons.person_add, size: 64, color: Theme.of(context).colorScheme.primary),
+                Icon(Icons.person_add,
+                    size: 64, color: Theme.of(context).colorScheme.primary),
                 const SizedBox(height: 12),
-                Text("创建账号", style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+                Text("创建账号",
+                    style: Theme.of(context)
+                        .textTheme
+                        .headlineSmall
+                        ?.copyWith(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 32),
                 TextFormField(
                   controller: _emailCtrl,
-                  decoration: const InputDecoration(labelText: "邮箱", prefixIcon: Icon(Icons.email), border: OutlineInputBorder()),
+                  decoration: const InputDecoration(
+                      labelText: "邮箱",
+                      prefixIcon: Icon(Icons.email),
+                      border: OutlineInputBorder()),
                   keyboardType: TextInputType.emailAddress,
                   validator: (v) {
                     if (v == null || v.isEmpty) return "请输入邮箱";
-                    if (!RegExp(r"^[^@\s]+@[^@\s]+\.[^@\s]+$").hasMatch(v)) return "邮箱格式不正确";
+                    if (!RegExp(r"^[^@\s]+@[^@\s]+\.[^@\s]+$").hasMatch(v))
+                      return "邮箱格式不正确";
                     return null;
                   },
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _usernameCtrl,
-                  decoration: const InputDecoration(labelText: "用户名", prefixIcon: Icon(Icons.person), border: OutlineInputBorder()),
-                  validator: (v) => (v == null || v.length < 2) ? "用户名至少2个字符" : null,
+                  decoration: const InputDecoration(
+                      labelText: "用户名",
+                      prefixIcon: Icon(Icons.person),
+                      border: OutlineInputBorder()),
+                  validator: (v) =>
+                      (v == null || v.length < 2) ? "用户名至少2个字符" : null,
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
@@ -85,15 +98,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     labelText: "密码",
                     prefixIcon: const Icon(Icons.lock),
                     border: const OutlineInputBorder(),
-                    suffixIcon: IconButton(icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off), onPressed: () => setState(() => _obscure = !_obscure)),
+                    suffixIcon: IconButton(
+                        icon: Icon(
+                            _obscure ? Icons.visibility : Icons.visibility_off),
+                        onPressed: () => setState(() => _obscure = !_obscure)),
                   ),
                   obscureText: _obscure,
-                  validator: (v) => (v == null || v.length < 6) ? "密码至少6位" : null,
+                  validator: (v) =>
+                      (v == null || v.length < 6) ? "密码至少6位" : null,
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _confirmCtrl,
-                  decoration: const InputDecoration(labelText: "确认密码", prefixIcon: Icon(Icons.lock), border: OutlineInputBorder()),
+                  decoration: const InputDecoration(
+                      labelText: "确认密码",
+                      prefixIcon: Icon(Icons.lock),
+                      border: OutlineInputBorder()),
                   obscureText: true,
                   validator: (v) => v != _passwordCtrl.text ? "两次密码不一致" : null,
                 ),
@@ -103,11 +123,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   height: 50,
                   child: FilledButton(
                     onPressed: auth.isLoading ? null : _submit,
-                    child: auth.isLoading ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(strokeWidth: 2)) : const Text("注册"),
+                    child: auth.isLoading
+                        ? const SizedBox(
+                            height: 24,
+                            width: 24,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Text("注册"),
                   ),
                 ),
                 const SizedBox(height: 16),
-                TextButton(onPressed: () => Navigator.pop(context), child: const Text("已有账号？去登录")),
+                TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text("已有账号？去登录")),
                 const SizedBox(height: 8),
                 TextButton.icon(
                   icon: const Icon(Icons.settings, size: 16),
@@ -137,16 +164,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("取消")),
-          FilledButton(onPressed: () async {
-            await ApiService.setBaseUrl(ctrl.text.trim());
-            if (ctx.mounted) {
-              Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("服务器地址已更新")),
-              );
-            }
-          }, child: const Text("保存")),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text("取消")),
+          FilledButton(
+              onPressed: () async {
+                await ApiService.setBaseUrl(ctrl.text.trim());
+                if (ctx.mounted) {
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("服务器地址已更新")),
+                  );
+                }
+              },
+              child: const Text("保存")),
         ],
       ),
     );

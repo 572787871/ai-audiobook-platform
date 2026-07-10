@@ -39,9 +39,9 @@ class TaskProvider extends ChangeNotifier {
     }
   }
 
-  Future<Task?> createTask(int bookId) async {
+  Future<Task?> createTask(int bookId, {Map<String, dynamic>? params}) async {
     try {
-      final task = await ApiService.createTask(bookId);
+      final task = await ApiService.createTask(bookId, params: params);
       _tasks.insert(0, task);
       notifyListeners();
       return task;

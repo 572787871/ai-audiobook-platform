@@ -38,12 +38,14 @@ class BookProvider extends ChangeNotifier {
   }
 
   /// 上传有声书
-  Future<Book?> uploadBook(File file, String title, {String? author, String? description}) async {
+  Future<Book?> uploadBook(File file, String title,
+      {String? author, String? description}) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
     try {
-      final book = await ApiService.uploadBook(file, title, author: author, description: description);
+      final book = await ApiService.uploadBook(file, title,
+          author: author, description: description);
       _books.insert(0, book);
       _isLoading = false;
       notifyListeners();

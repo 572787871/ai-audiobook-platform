@@ -14,7 +14,8 @@ class MainTabScreen extends StatefulWidget {
   State<MainTabScreen> createState() => _MainTabScreenState();
 }
 
-class _MainTabScreenState extends State<MainTabScreen> with TickerProviderStateMixin {
+class _MainTabScreenState extends State<MainTabScreen>
+    with TickerProviderStateMixin {
   late TabController _tabCtrl;
   int _index = 0;
 
@@ -63,7 +64,8 @@ class _MainTabScreenState extends State<MainTabScreen> with TickerProviderStateM
         child: Container(
           decoration: BoxDecoration(
             color: isDark ? AppTheme.cardDark : Colors.white,
-            boxShadow: AppTheme.cardShadow(Colors.black, opacity: 0.08, blur: 20, y: -2),
+            boxShadow: AppTheme.cardShadow(Colors.black,
+                opacity: 0.08, blur: 20, y: -2),
           ),
           child: SafeArea(
             top: false,
@@ -72,13 +74,30 @@ class _MainTabScreenState extends State<MainTabScreen> with TickerProviderStateM
               indicatorSize: TabBarIndicatorSize.label,
               indicatorColor: Colors.transparent,
               labelColor: AppTheme.primaryLight,
-              unselectedLabelColor: isDark ? AppTheme.textTertiaryDark : AppTheme.textTertiaryLight,
+              unselectedLabelColor: isDark
+                  ? AppTheme.textTertiaryDark
+                  : AppTheme.textTertiaryLight,
               tabs: [
-                _TabItem(icon: Icons.home_rounded, label: "首页", isActive: _index == 0),
-                _TabItem(icon: Icons.library_books_rounded, label: "书架", isActive: _index == 1),
-                _TabItem(icon: Icons.task_alt_rounded, label: "任务", isActive: _index == 2),
-                _TabItem(icon: Icons.workspace_premium_rounded, label: "会员", isActive: _index == 3),
-                _TabItem(icon: Icons.person_rounded, label: "我的", isActive: _index == 4),
+                _TabItem(
+                    icon: Icons.home_rounded,
+                    label: "首页",
+                    isActive: _index == 0),
+                _TabItem(
+                    icon: Icons.library_books_rounded,
+                    label: "书架",
+                    isActive: _index == 1),
+                _TabItem(
+                    icon: Icons.task_alt_rounded,
+                    label: "任务",
+                    isActive: _index == 2),
+                _TabItem(
+                    icon: Icons.workspace_premium_rounded,
+                    label: "会员",
+                    isActive: _index == 3),
+                _TabItem(
+                    icon: Icons.person_rounded,
+                    label: "我的",
+                    isActive: _index == 4),
               ],
             ),
           ),
@@ -93,7 +112,8 @@ class _TabItem extends StatelessWidget {
   final String label;
   final bool isActive;
 
-  const _TabItem({required this.icon, required this.label, required this.isActive});
+  const _TabItem(
+      {required this.icon, required this.label, required this.isActive});
 
   @override
   Widget build(BuildContext context) {
@@ -102,7 +122,9 @@ class _TabItem extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: isActive ? AppTheme.primaryLight.withValues(alpha: 0.1) : Colors.transparent,
+          color: isActive
+              ? AppTheme.primaryLight.withValues(alpha: 0.1)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(AppTheme.radiusFull),
         ),
         child: Icon(icon, size: 22),

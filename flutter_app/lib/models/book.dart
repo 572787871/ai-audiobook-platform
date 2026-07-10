@@ -133,7 +133,8 @@ class BookDetail extends Book {
           .map((e) => TranscriptLine.fromJson(e as Map<String, dynamic>))
           .toList(),
       wordCount: json["word_count"] as int?,
-      totalDuration: json["total_duration"] as String? ?? (json["audio_duration"]?.toString()),
+      totalDuration: json["total_duration"] as String? ??
+          (json["audio_duration"]?.toString()),
     );
   }
 }

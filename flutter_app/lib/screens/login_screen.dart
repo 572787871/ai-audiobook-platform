@@ -53,18 +53,21 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("取消")),
-          FilledButton(onPressed: () async {
-            await ApiService.setBaseUrl(ctrl.text.trim());
-            if (ctx.mounted) {
-              Navigator.pop(ctx);
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("服务器地址已更新")),
-                );
-              }
-            }
-          }, child: const Text("保存")),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text("取消")),
+          FilledButton(
+              onPressed: () async {
+                await ApiService.setBaseUrl(ctrl.text.trim());
+                if (ctx.mounted) {
+                  Navigator.pop(ctx);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("服务器地址已更新")),
+                    );
+                  }
+                }
+              },
+              child: const Text("保存")),
         ],
       ),
     );
@@ -82,13 +85,21 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.headphones, size: 64, color: Theme.of(context).colorScheme.primary),
+                Icon(Icons.headphones,
+                    size: 64, color: Theme.of(context).colorScheme.primary),
                 const SizedBox(height: 12),
-                Text("欢迎回来", style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+                Text("欢迎回来",
+                    style: Theme.of(context)
+                        .textTheme
+                        .headlineSmall
+                        ?.copyWith(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 32),
                 TextFormField(
                   controller: _emailCtrl,
-                  decoration: const InputDecoration(labelText: "邮箱", prefixIcon: Icon(Icons.email), border: OutlineInputBorder()),
+                  decoration: const InputDecoration(
+                      labelText: "邮箱",
+                      prefixIcon: Icon(Icons.email),
+                      border: OutlineInputBorder()),
                   keyboardType: TextInputType.emailAddress,
                   validator: (v) => (v == null || v.isEmpty) ? "请输入邮箱" : null,
                 ),
@@ -99,11 +110,14 @@ class _LoginScreenState extends State<LoginScreen> {
                     labelText: "密码",
                     prefixIcon: const Icon(Icons.lock),
                     border: const OutlineInputBorder(),
-                    suffixIcon: IconButton(icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
-                      onPressed: () => setState(() => _obscure = !_obscure)),
+                    suffixIcon: IconButton(
+                        icon: Icon(
+                            _obscure ? Icons.visibility : Icons.visibility_off),
+                        onPressed: () => setState(() => _obscure = !_obscure)),
                   ),
                   obscureText: _obscure,
-                  validator: (v) => (v == null || v.length < 6) ? "密码至少6位" : null,
+                  validator: (v) =>
+                      (v == null || v.length < 6) ? "密码至少6位" : null,
                 ),
                 const SizedBox(height: 24),
                 SizedBox(
@@ -112,7 +126,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: FilledButton(
                     onPressed: auth.isLoading ? null : _submit,
                     child: auth.isLoading
-                        ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(strokeWidth: 2))
+                        ? const SizedBox(
+                            height: 24,
+                            width: 24,
+                            child: CircularProgressIndicator(strokeWidth: 2))
                         : const Text("登录"),
                   ),
                 ),
@@ -121,7 +138,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const Text("还没有账号？"),
-                    TextButton(onPressed: () => Navigator.pushNamed(context, "/register"), child: const Text("注册")),
+                    TextButton(
+                        onPressed: () =>
+                            Navigator.pushNamed(context, "/register"),
+                        child: const Text("注册")),
                   ],
                 ),
                 const SizedBox(height: 8),

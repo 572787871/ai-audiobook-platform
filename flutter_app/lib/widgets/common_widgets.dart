@@ -13,7 +13,13 @@ class BookCover extends StatelessWidget {
   final double height;
   final double radius;
 
-  const BookCover({super.key, this.coverUrl, required this.title, this.width = 100, this.height = 140, this.radius = AppTheme.radiusMd});
+  const BookCover(
+      {super.key,
+      this.coverUrl,
+      required this.title,
+      this.width = 100,
+      this.height = 140,
+      this.radius = AppTheme.radiusMd});
 
   @override
   Widget build(BuildContext context) {
@@ -49,7 +55,8 @@ class BookCover extends StatelessWidget {
       height: height,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(radius),
-        gradient: LinearGradient(colors: p, begin: Alignment.topLeft, end: Alignment.bottomRight),
+        gradient: LinearGradient(
+            colors: p, begin: Alignment.topLeft, end: Alignment.bottomRight),
       ),
       child: Stack(
         children: [
@@ -67,7 +74,11 @@ class BookCover extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13, shadows: [Shadow(color: Colors.black38, blurRadius: 4)]),
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                    shadows: [Shadow(color: Colors.black38, blurRadius: 4)]),
               ),
             ),
           ),
@@ -86,7 +97,9 @@ class _PatternPainter extends CustomPainter {
       final r = (seed % 40 + i * 15 + 20.0);
       final cx = ((seed * (i + 1)) % size.width.toInt().max(1)).toDouble();
       final cy = ((seed * (i + 3)) % size.height.toInt().max(1)).toDouble();
-      final paint = Paint()..color = Colors.white.withValues(alpha: 0.06)..style = PaintingStyle.fill;
+      final paint = Paint()
+        ..color = Colors.white.withValues(alpha: 0.06)
+        ..style = PaintingStyle.fill;
       canvas.drawCircle(Offset(cx, cy), r, paint);
     }
   }
@@ -101,13 +114,18 @@ class SkeletonBox extends StatelessWidget {
   final double height;
   final double radius;
 
-  const SkeletonBox({super.key, this.width = double.infinity, required this.height, this.radius = AppTheme.radiusSm});
+  const SkeletonBox(
+      {super.key,
+      this.width = double.infinity,
+      required this.height,
+      this.radius = AppTheme.radiusSm});
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final base = isDark ? const Color(0xFF1A1D2E) : const Color(0xFFE5E8F5);
-    final highlight = isDark ? const Color(0xFF252840) : const Color(0xFFF5F7FA);
+    final highlight =
+        isDark ? const Color(0xFF252840) : const Color(0xFFF5F7FA);
 
     return Shimmer.fromColors(
       baseColor: base,
@@ -115,7 +133,8 @@ class SkeletonBox extends StatelessWidget {
       child: Container(
         width: width,
         height: height,
-        decoration: BoxDecoration(color: base, borderRadius: BorderRadius.circular(radius)),
+        decoration: BoxDecoration(
+            color: base, borderRadius: BorderRadius.circular(radius)),
       ),
     );
   }
@@ -129,7 +148,13 @@ class GradientButton extends StatelessWidget {
   final VoidCallback onPressed;
   final double height;
 
-  const GradientButton({super.key, required this.label, this.icon, this.gradient, required this.onPressed, this.height = 52});
+  const GradientButton(
+      {super.key,
+      required this.label,
+      this.icon,
+      this.gradient,
+      required this.onPressed,
+      this.height = 52});
 
   @override
   Widget build(BuildContext context) {
@@ -142,7 +167,8 @@ class GradientButton extends StatelessWidget {
           decoration: BoxDecoration(
             gradient: gradient ?? AppTheme.primaryGradient,
             borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-            boxShadow: AppTheme.cardShadow(AppTheme.primaryLight, opacity: 0.3, blur: 12),
+            boxShadow: AppTheme.cardShadow(AppTheme.primaryLight,
+                opacity: 0.3, blur: 12),
           ),
           child: SizedBox(
             height: height,
@@ -154,7 +180,11 @@ class GradientButton extends StatelessWidget {
                     Icon(icon, color: Colors.white, size: 20),
                     const SizedBox(width: 8),
                   ],
-                  Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16)),
+                  Text(label,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 16)),
                 ],
               ),
             ),
@@ -177,13 +207,17 @@ class StatusTag extends StatelessWidget {
     final c = AppTheme.statusColor(status);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(color: c.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(AppTheme.radiusFull)),
+      decoration: BoxDecoration(
+          color: c.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(AppTheme.radiusFull)),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(AppTheme.statusIcon(status), size: 10, color: c),
           const SizedBox(width: 3),
-          Text(AppTheme.statusLabel(status), style: TextStyle(color: c, fontSize: fontSize, fontWeight: FontWeight.w600)),
+          Text(AppTheme.statusLabel(status),
+              style: TextStyle(
+                  color: c, fontSize: fontSize, fontWeight: FontWeight.w600)),
         ],
       ),
     );
@@ -223,13 +257,22 @@ class EmptyState extends StatelessWidget {
                 shape: BoxShape.circle,
                 color: cs.primary.withValues(alpha: 0.06),
               ),
-              child: Icon(icon, size: 36, color: cs.primary.withValues(alpha: 0.4)),
+              child: Icon(icon,
+                  size: 36, color: cs.primary.withValues(alpha: 0.4)),
             ),
             const SizedBox(height: 16),
-            Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: cs.onSurface), textAlign: TextAlign.center),
+            Text(title,
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: cs.onSurface),
+                textAlign: TextAlign.center),
             if (subtitle != null) ...[
               const SizedBox(height: 8),
-              Text(subtitle!, style: TextStyle(fontSize: 13, color: cs.onSurface.withValues(alpha: 0.5)), textAlign: TextAlign.center),
+              Text(subtitle!,
+                  style: TextStyle(
+                      fontSize: 13, color: cs.onSurface.withValues(alpha: 0.5)),
+                  textAlign: TextAlign.center),
             ],
             if (actionLabel != null && onAction != null) ...[
               const SizedBox(height: 24),

@@ -24,7 +24,8 @@ class _TaskListScreenState extends State<TaskListScreen> {
     _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) {
       if (mounted) {
         final tp = context.read<TaskProvider>();
-        final hasActive = tp.tasks.any((t) => t.status == "processing" || t.status == "pending");
+        final hasActive = tp.tasks
+            .any((t) => t.status == "processing" || t.status == "pending");
         if (hasActive) tp.loadTasks();
       }
     });
@@ -40,13 +41,18 @@ class _TaskListScreenState extends State<TaskListScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusLg)),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppTheme.radiusLg)),
         title: const Text("删除任务"),
         content: const Text("确定要删除此任务吗？"),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text("取消")),
-          FilledButton(style: FilledButton.styleFrom(backgroundColor: AppTheme.danger),
-            onPressed: () => Navigator.pop(c, true), child: const Text("删除")),
+          TextButton(
+              onPressed: () => Navigator.pop(c, false),
+              child: const Text("取消")),
+          FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: AppTheme.danger),
+              onPressed: () => Navigator.pop(c, true),
+              child: const Text("删除")),
         ],
       ),
     );
@@ -54,14 +60,16 @@ class _TaskListScreenState extends State<TaskListScreen> {
     final ok = await context.read<TaskProvider>().deleteTask(task.id);
     if (!ok && mounted) {
       final err = context.read<TaskProvider>().error ?? "删除失败";
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err), backgroundColor: AppTheme.danger));
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(err), backgroundColor: AppTheme.danger));
     }
   }
 
   Future<void> _retryTask(dynamic task) async {
     final ok = await context.read<TaskProvider>().retryTask(task.bookId);
     if (!ok && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("重试失败"), backgroundColor: AppTheme.danger));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text("重试失败"), backgroundColor: AppTheme.danger));
     }
   }
 
@@ -79,9 +87,16 @@ class _TaskListScreenState extends State<TaskListScreen> {
           floating: true,
           backgroundColor: isDark ? AppTheme.bgDark : AppTheme.bgLight,
           surfaceTintColor: Colors.transparent,
-          title: Text("任务", style: TextStyle(fontWeight: FontWeight.w700, fontSize: 22, letterSpacing: -0.3)),
+          title: Text("任务",
+              style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 22,
+                  letterSpacing: -0.3)),
           actions: [
-            IconButton(icon: Icon(Icons.refresh, size: 20, color: cs.onSurface.withValues(alpha: 0.4)), onPressed: () => tp.loadTasks()),
+            IconButton(
+                icon: Icon(Icons.refresh,
+                    size: 20, color: cs.onSurface.withValues(alpha: 0.4)),
+                onPressed: () => tp.loadTasks()),
           ],
         ),
         if (tasks.isEmpty)
@@ -91,18 +106,22 @@ class _TaskListScreenState extends State<TaskListScreen> {
               title: "暂无任务",
               subtitle: "上传小说后将自动创建生成任务",
               actionLabel: "去上传",
-              onAction: () => Navigator.push<bool>(context, MaterialPageRoute(builder: (_) => const UploadScreen())).then((r) {
+              onAction: () => Navigator.push<bool>(context,
+                      MaterialPageRoute(builder: (_) => const UploadScreen()))
+                  .then((r) {
                 if (r == true) tp.loadTasks();
               }),
             ),
           )
         else
           SliverList(
-            delegate: SliverChildBuilderDelegate((ctx, i) => _TaskCard(
-              task: tasks[i],
-              onDelete: () => _deleteTask(tasks[i]),
-              onRetry: () => _retryTask(tasks[i]),
-            ), childCount: tasks.length),
+            delegate: SliverChildBuilderDelegate(
+                (ctx, i) => _TaskCard(
+                      task: tasks[i],
+                      onDelete: () => _deleteTask(tasks[i]),
+                      onRetry: () => _retryTask(tasks[i]),
+                    ),
+                childCount: tasks.length),
           ),
         const SliverToBoxAdapter(child: SizedBox(height: 80)),
       ]),
@@ -114,7 +133,8 @@ class _TaskCard extends StatelessWidget {
   final dynamic task;
   final VoidCallback onDelete;
   final VoidCallback onRetry;
-  const _TaskCard({required this.task, required this.onDelete, required this.onRetry});
+  const _TaskCard(
+      {required this.task, required this.onDelete, required this.onRetry});
 
   @override
   Widget build(BuildContext context) {
@@ -130,39 +150,95 @@ class _TaskCard extends StatelessWidget {
         boxShadow: AppTheme.cardShadow(cs.onSurface, opacity: 0.03, blur: 8),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Padding(padding: const EdgeInsets.fromLTRB(16, 14, 16, 12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Expanded(child: Text("书籍 #${task.bookId} · 任务 #${task.id}", maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: cs.onSurface))),
-            StatusTag(status: task.status),
-          ]),
-          if (task.status == "processing")
-            Padding(padding: const EdgeInsets.only(top: 12), child: ClipRRect(borderRadius: BorderRadius.circular(AppTheme.radiusFull), child: LinearProgressIndicator(value: (task.progress ?? 0) / 100, minHeight: 4, backgroundColor: statusColor.withValues(alpha: 0.1), valueColor: AlwaysStoppedAnimation<Color>(statusColor)))),
-          if (task.status == "failed" && task.errorMessage != null)
-            Padding(padding: const EdgeInsets.only(top: 8), child: Text(task.errorMessage!, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: AppTheme.danger))),
-          Row(children: [
-            Text(task.createdAt, style: TextStyle(fontSize: 11, color: cs.onSurface.withValues(alpha: 0.3))),
-            const Spacer(),
-            PopupMenuButton<String>(
-              icon: Icon(Icons.more_vert, size: 18, color: cs.onSurface.withValues(alpha: 0.4)),
-              itemBuilder: (ctx) {
-                final items = <PopupMenuItem<String>>[];
-                if (task.status == "failed") items.add(const PopupMenuItem(value: "retry", child: Row(children: [Icon(Icons.refresh, size: 16), SizedBox(width: 8), Text("重试")])));
-                items.add(const PopupMenuItem(value: "delete", child: Row(children: [Icon(Icons.delete_outline, size: 16, color: Colors.red), SizedBox(width: 8), Text("删除", style: TextStyle(color: Colors.red))])));
-                return items;
-              },
-              onSelected: (v) async {
-                if (v == "retry") onRetry();
-                if (v == "delete") onDelete();
-              },
-            )
-          ]),
-        ])),
+        Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Expanded(
+                    child: Text("书籍 #${task.bookId} · 任务 #${task.id}",
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: cs.onSurface))),
+                StatusTag(status: task.status),
+              ]),
+              if (task.status == "processing")
+                Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: ClipRRect(
+                        borderRadius:
+                            BorderRadius.circular(AppTheme.radiusFull),
+                        child: LinearProgressIndicator(
+                            value: (task.progress ?? 0) / 100,
+                            minHeight: 4,
+                            backgroundColor: statusColor.withValues(alpha: 0.1),
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(statusColor)))),
+              if (task.status == "failed" && task.errorMessage != null)
+                Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(task.errorMessage!,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style:
+                            TextStyle(fontSize: 12, color: AppTheme.danger))),
+              Row(children: [
+                Text(task.createdAt,
+                    style: TextStyle(
+                        fontSize: 11,
+                        color: cs.onSurface.withValues(alpha: 0.3))),
+                const Spacer(),
+                PopupMenuButton<String>(
+                  icon: Icon(Icons.more_vert,
+                      size: 18, color: cs.onSurface.withValues(alpha: 0.4)),
+                  itemBuilder: (ctx) {
+                    final items = <PopupMenuItem<String>>[];
+                    if (task.status == "failed")
+                      items.add(const PopupMenuItem(
+                          value: "retry",
+                          child: Row(children: [
+                            Icon(Icons.refresh, size: 16),
+                            SizedBox(width: 8),
+                            Text("重试")
+                          ])));
+                    items.add(const PopupMenuItem(
+                        value: "delete",
+                        child: Row(children: [
+                          Icon(Icons.delete_outline,
+                              size: 16, color: Colors.red),
+                          SizedBox(width: 8),
+                          Text("删除", style: TextStyle(color: Colors.red))
+                        ])));
+                    return items;
+                  },
+                  onSelected: (v) async {
+                    if (v == "retry") onRetry();
+                    if (v == "delete") onDelete();
+                  },
+                )
+              ]),
+            ])),
         if (task.status == "completed")
-          Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 12), child: Row(children: [
-            Expanded(child: OutlinedButton.icon(onPressed: () => Navigator.pushNamed(context, "/book", arguments: task.bookId), icon: Icon(Icons.library_books, size: 16), label: Text("查看书籍"))),
-            const SizedBox(width: 8),
-            Expanded(child: FilledButton.icon(onPressed: () => Navigator.pushNamed(context, "/player", arguments: task.bookId), icon: Icon(Icons.play_arrow_rounded, size: 16), label: Text("播放"))),
-          ])),
+          Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: Row(children: [
+                Expanded(
+                    child: OutlinedButton.icon(
+                        onPressed: () => Navigator.pushNamed(context, "/book",
+                            arguments: task.bookId),
+                        icon: Icon(Icons.library_books, size: 16),
+                        label: Text("查看书籍"))),
+                const SizedBox(width: 8),
+                Expanded(
+                    child: FilledButton.icon(
+                        onPressed: () => Navigator.pushNamed(context, "/player",
+                            arguments: task.bookId),
+                        icon: Icon(Icons.play_arrow_rounded, size: 16),
+                        label: Text("播放"))),
+              ])),
       ]),
     );
   }

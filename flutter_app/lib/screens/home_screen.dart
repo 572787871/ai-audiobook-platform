@@ -15,7 +15,8 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen>
+    with SingleTickerProviderStateMixin {
   bool _isPicking = false;
 
   @override
@@ -31,7 +32,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     debugPrint("UPLOAD_BUTTON_TAPPED_FROM_REAL_HOME");
     if (_isPicking) return;
     setState(() => _isPicking = true);
-    final result = await Navigator.push<bool>(context, MaterialPageRoute(builder: (_) => const UploadScreen()));
+    final result = await Navigator.push<bool>(
+        context, MaterialPageRoute(builder: (_) => const UploadScreen()));
     if (mounted) setState(() => _isPicking = false);
     if (result == true) {
       context.read<BookProvider>().loadBooks();
@@ -44,9 +46,14 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     final auth = context.watch<AuthProvider>();
     final books = context.watch<BookProvider>().books;
     final recent = books.take(6).toList();
-    final processingTasks = context.watch<TaskProvider>().tasks.where((t) => t.status == "processing" || t.status == "pending").toList();
+    final processingTasks = context
+        .watch<TaskProvider>()
+        .tasks
+        .where((t) => t.status == "processing" || t.status == "pending")
+        .toList();
     final greeting = _greeting();
-    final userName = auth.user?.username ?? auth.user?.email.split("@").first ?? "用户";
+    final userName =
+        auth.user?.username ?? auth.user?.email.split("@").first ?? "用户";
 
     return Scaffold(
       body: CustomScrollView(
@@ -77,7 +84,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   scrollDirection: Axis.horizontal,
                   itemCount: processingTasks.length,
-                  itemBuilder: (ctx, i) => _buildTaskCard(context, processingTasks[i], books),
+                  itemBuilder: (ctx, i) =>
+                      _buildTaskCard(context, processingTasks[i], books),
                 ),
               ),
             ),
@@ -124,7 +132,13 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             child: Center(
               child: Padding(
                 padding: const EdgeInsets.only(bottom: 16, top: 8),
-                child: Text("build: ui-v2-20260709", style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3))),
+                child: Text("build: ui-v2-20260709",
+                    style: TextStyle(
+                        fontSize: 10,
+                        color: Theme.of(context)
+                            .colorScheme
+                            .onSurface
+                            .withValues(alpha: 0.3))),
               ),
             ),
           ),
@@ -133,11 +147,16 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     );
   }
 
-  Widget _buildHeader(BuildContext context, String greeting, String userName, AuthProvider auth) {
+  Widget _buildHeader(BuildContext context, String greeting, String userName,
+      AuthProvider auth) {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
-      padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 16, left: 16, right: 16, bottom: 8),
+      padding: EdgeInsets.only(
+          top: MediaQuery.of(context).padding.top + 16,
+          left: 16,
+          right: 16,
+          bottom: 8),
       child: Row(
         children: [
           Row(
@@ -151,11 +170,16 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   gradient: AppTheme.primaryGradient,
                 ),
                 child: auth.user?.avatarUrl != null
-                    ? ClipOval(child: Image.network(auth.user!.avatarUrl!, fit: BoxFit.cover))
+                    ? ClipOval(
+                        child: Image.network(auth.user!.avatarUrl!,
+                            fit: BoxFit.cover))
                     : Center(
                         child: Text(
                           userName.isNotEmpty ? userName[0].toUpperCase() : "U",
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 20),
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 20),
                         ),
                       ),
               ),
@@ -163,9 +187,15 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(greeting, style: TextStyle(fontSize: 13, color: cs.onSurface.withValues(alpha: 0.5))),
+                  Text(greeting,
+                      style: TextStyle(
+                          fontSize: 13,
+                          color: cs.onSurface.withValues(alpha: 0.5))),
                   Text(userName,
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: -0.3)),
+                      style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.3)),
                 ],
               ),
             ],
@@ -177,12 +207,15 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             decoration: BoxDecoration(
               color: isDark ? AppTheme.cardDark : Colors.white,
               borderRadius: BorderRadius.circular(AppTheme.radiusFull),
-              boxShadow: AppTheme.cardShadow(cs.onSurface, opacity: 0.06, blur: 8),
+              boxShadow:
+                  AppTheme.cardShadow(cs.onSurface, opacity: 0.06, blur: 8),
             ),
             child: IconButton(
-              icon: Icon(Icons.notifications_outlined, color: cs.onSurface.withValues(alpha: 0.6), size: 22),
+              icon: Icon(Icons.notifications_outlined,
+                  color: cs.onSurface.withValues(alpha: 0.6), size: 22),
               onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("暂无新通知")));
+                ScaffoldMessenger.of(context)
+                    .showSnackBar(const SnackBar(content: Text("暂无新通知")));
               },
             ),
           ),
@@ -206,11 +239,15 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         child: Row(
           children: [
             const SizedBox(width: 16),
-            Icon(Icons.search, color: cs.onSurface.withValues(alpha: 0.3), size: 20),
+            Icon(Icons.search,
+                color: cs.onSurface.withValues(alpha: 0.3), size: 20),
             const SizedBox(width: 10),
-            Text("搜索有声书...", style: TextStyle(color: cs.onSurface.withValues(alpha: 0.35), fontSize: 14)),
+            Text("搜索有声书...",
+                style: TextStyle(
+                    color: cs.onSurface.withValues(alpha: 0.35), fontSize: 14)),
             const Spacer(),
-            Icon(Icons.mic_outlined, color: cs.onSurface.withValues(alpha: 0.2), size: 20),
+            Icon(Icons.mic_outlined,
+                color: cs.onSurface.withValues(alpha: 0.2), size: 20),
             const SizedBox(width: 16),
           ],
         ),
@@ -220,10 +257,20 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   Widget _buildQuickActions(BuildContext context) {
     final actions = [
-      _QuickAction(icon: Icons.upload_file_rounded, label: "上传小说", onTap: _goUpload),
-      _QuickAction(icon: Icons.library_books_rounded, label: "我的书库", onTap: () => _switchTab(1)),
-      _QuickAction(icon: Icons.play_circle_outline_rounded, label: "最近播放", onTap: () => _switchTab(1)),
-      _QuickAction(icon: Icons.graphic_eq_rounded, label: "AI 配音", onTap: () => _switchTab(3)),
+      _QuickAction(
+          icon: Icons.upload_file_rounded, label: "上传小说", onTap: _goUpload),
+      _QuickAction(
+          icon: Icons.library_books_rounded,
+          label: "我的书库",
+          onTap: () => _switchTab(1)),
+      _QuickAction(
+          icon: Icons.play_circle_outline_rounded,
+          label: "最近播放",
+          onTap: () => _switchTab(1)),
+      _QuickAction(
+          icon: Icons.graphic_eq_rounded,
+          label: "AI 配音",
+          onTap: () => _switchTab(3)),
     ];
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -247,13 +294,19 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             decoration: BoxDecoration(
               color: isDark ? AppTheme.cardDark : Colors.white,
               borderRadius: BorderRadius.circular(AppTheme.radiusLg),
-              boxShadow: AppTheme.cardShadow(cs.onSurface, opacity: 0.05, blur: 8),
-              border: Border.all(color: cs.primary.withValues(alpha: 0.1), width: 0.5),
+              boxShadow:
+                  AppTheme.cardShadow(cs.onSurface, opacity: 0.05, blur: 8),
+              border: Border.all(
+                  color: cs.primary.withValues(alpha: 0.1), width: 0.5),
             ),
             child: Icon(a.icon, color: cs.primary, size: 26),
           ),
           const SizedBox(height: 8),
-          Text(a.label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: cs.onSurface.withValues(alpha: 0.7))),
+          Text(a.label,
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: cs.onSurface.withValues(alpha: 0.7))),
         ],
       ),
     );
@@ -285,7 +338,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       ),
       child: Row(
         children: [
-          BookCover(title: book.title, coverUrl: book.coverUrl, width: 70, height: 100, radius: AppTheme.radiusSm),
+          BookCover(
+              title: book.title,
+              coverUrl: book.coverUrl,
+              width: 70,
+              height: 100,
+              radius: AppTheme.radiusSm),
           const SizedBox(width: 12),
           Expanded(
             child: Padding(
@@ -293,9 +351,18 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(book.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                  Text(book.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w600, fontSize: 14)),
                   const SizedBox(height: 4),
-                  Text(book.author ?? "未知", maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.4))),
+                  Text(book.author ?? "未知",
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: cs.onSurface.withValues(alpha: 0.4))),
                   const Spacer(),
                   StatusTag(status: task.status),
                   if (task.status == "processing") ...[
@@ -318,7 +385,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     );
   }
 
-  Widget _buildSectionHeader(String title, String action, VoidCallback onAction) {
+  Widget _buildSectionHeader(
+      String title, String action, VoidCallback onAction) {
     final cs = Theme.of(context).colorScheme;
     return SliverToBoxAdapter(
       child: Padding(
@@ -326,13 +394,21 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: cs.onSurface)),
+            Text(title,
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: cs.onSurface)),
             GestureDetector(
               onTap: onAction,
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(action, style: TextStyle(fontSize: 13, color: cs.primary, fontWeight: FontWeight.w500)),
+                  Text(action,
+                      style: TextStyle(
+                          fontSize: 13,
+                          color: cs.primary,
+                          fontWeight: FontWeight.w500)),
                   Icon(Icons.chevron_right, size: 16, color: cs.primary),
                 ],
               ),
@@ -382,19 +458,35 @@ class _BookCardWide extends StatelessWidget {
           children: [
             Hero(
               tag: "book_cover_${book.id}",
-              child: BookCover(title: book.title, coverUrl: book.coverUrl, width: 140, height: 180, radius: AppTheme.radiusMd),
+              child: BookCover(
+                  title: book.title,
+                  coverUrl: book.coverUrl,
+                  width: 140,
+                  height: 180,
+                  radius: AppTheme.radiusMd),
             ),
             const SizedBox(height: 10),
-            Text(book.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: cs.onSurface)),
+            Text(book.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: cs.onSurface)),
             const SizedBox(height: 4),
             Row(
               children: [
                 if (book.status == "completed")
-                  Icon(Icons.play_circle_filled, size: 12, color: AppTheme.success)
+                  Icon(Icons.play_circle_filled,
+                      size: 12, color: AppTheme.success)
                 else
-                  Icon(AppTheme.statusIcon(book.status), size: 12, color: AppTheme.statusColor(book.status)),
+                  Icon(AppTheme.statusIcon(book.status),
+                      size: 12, color: AppTheme.statusColor(book.status)),
                 const SizedBox(width: 4),
-                Text(AppTheme.statusLabel(book.status), style: TextStyle(fontSize: 11, color: cs.onSurface.withValues(alpha: 0.4))),
+                Text(AppTheme.statusLabel(book.status),
+                    style: TextStyle(
+                        fontSize: 11,
+                        color: cs.onSurface.withValues(alpha: 0.4))),
               ],
             ),
           ],
