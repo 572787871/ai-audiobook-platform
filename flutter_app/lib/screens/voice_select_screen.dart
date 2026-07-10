@@ -120,7 +120,7 @@ class _VoiceSelectScreenState extends State<VoiceSelectScreen> {
     setState(() => _playingVoiceId = voice.voiceId);
     try {
       final path = await provider.previewVoice(voice);
-      if (path.isNotEmpty) {
+      if (path != null && path.isNotEmpty) {
         // Kokoro：本地推理生成的 wav 文件，用 just_audio 播放
         await _previewPlayer.setFilePath(path!);
         await _previewPlayer.play();

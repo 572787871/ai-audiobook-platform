@@ -7,6 +7,7 @@ import '../providers/local_tts_provider.dart';
 import '../services/local_import_service.dart';
 import '../services/local_tts_service.dart';
 import 'local_generation_screen.dart';
+import '../models/local_tts.dart';
 
 class UploadScreen extends StatefulWidget {
   const UploadScreen({super.key});
