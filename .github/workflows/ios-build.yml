@@ -3,105 +3,136 @@ name: iOS Build
 on:
   workflow_dispatch:
   push:
-    branches: [main]
-    paths:
-      - "flutter_app/**"
-      - ".github/workflows/ios-build.yml"
-  pull_request:
-    branches: [main]
+    branches:
+      - main
+
+concurrency:
+  group: ios-build-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
+  build-ios:
+    runs-on: macos-15
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: flutter_app
 
-      - uses: subosito/flutter-action@v2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode 16.4
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '16.4'
+
+      - name: Show environment
+        run: |
+          set -euxo pipefail
+          sw_vers
+          xcodebuild -version
+          flutter --version || true
+          ls -la /Applications | grep Xcode || true
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
 
+      - name: Flutter doctor
+        run: flutter doctor -v
 
       - name: Install dependencies
-        working-directory: flutter_app
-        run: flutter pub get
-
-      - name: Patch Info.plist for ATS and background audio
-        working-directory: flutter_app
         run: |
-          INFO=ios/Runner/Info.plist
-          if [ -f "$INFO" ]; then
-            /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" "$INFO" 2>/dev/null || true
-            /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string audio" "$INFO" 2>/dev/null || true
-            /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity dict" "$INFO" 2>/dev/null || true
-            /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity:NSAllowsArbitraryLoads bool true" "$INFO" 2>/dev/null || true
-            /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string 需要麦克风权限用于有声书录音" "$INFO" 2>/dev/null || true
-            echo "Patched Info.plist with ATS exception"
-          fi
+          set -euxo pipefail
+          flutter clean
+          flutter pub get
 
-      - name: Ensure dummy DEVELOPMENT_TEAM in pbxproj (unsigned build)
-        working-directory: flutter_app
+      - name: Install CocoaPods (仅当存在 Podfile 时)
+        if: hashFiles('flutter_app/ios/Podfile') != ''
         run: |
-          PBX=ios/Runner.xcodeproj/project.pbxproj
-          if [ -f "$PBX" ] && ! grep -q "DEVELOPMENT_TEAM" "$PBX"; then
-            # 本地 pbxproj 未含 team 时，注入虚拟 team + 禁用签名
-            awk '
-              /CODE_SIGN_STYLE = Automatic;/ {
-                print
-                print "\t\t\t\tDEVELOPMENT_TEAM = AAAAAAAAAA;"
-                print "\t\t\t\tCODE_SIGNING_ALLOWED = NO;"
-                next
-              }
-              { print }
-            ' "$PBX" > "$PBX.tmp" && mv "$PBX.tmp" "$PBX"
-          fi
-          echo "pbxproj team check done"
+          set -euxo pipefail
+          cd ios
+          pod install --repo-update
+          cd ..
 
-      - name: Build unsigned release IPA (no Apple 账号, 供企业证书自签)
-        working-directory: flutter_app
-        env:
-          CODE_SIGNING_ALLOWED: "NO"
+      - name: Build unsigned iOS app
+        shell: bash
         run: |
-          set -e
-          # 1) 仅生成 iOS 工程（不编译），避免 Flutter 的 device provisioning 检查
-          flutter build ios --release --no-codesign --config-only --build-name=1.0.0
+          set -o pipefail
 
-          # 2) 用 xcodebuild 直接 archive，显式禁用签名（绕过 Flutter 的 profile 强制）
-          ARCHIVE="$PWD/build/Runner.xcarchive"
-          rm -rf "$ARCHIVE"
-          xcodebuild archive \
-            -workspace ios/Runner.xcworkspace \
-            -scheme Runner \
-            -configuration Release \
-            -sdk iphoneos \
-            -archivePath "$ARCHIVE" \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGN_IDENTITY="" \
-            DEVELOPMENT_TEAM="" \
-            ONLY_ACTIVE_ARCH=NO \
-            -quiet || {
-              echo "::error::xcodebuild archive 失败"
-              exit 1
-            }
+          flutter build ios \
+            --release \
+            --no-codesign \
+            --verbose 2>&1 | tee flutter-ios-build.log
 
-          APP="$ARCHIVE/Products/Applications/Runner.app"
-          if [ ! -d "$APP" ]; then
-            echo "::error::Runner.app 未在 xcarchive 中生成"
-            find build -name "Runner.app" -type d 2>/dev/null
+          APP_PATH="build/ios/iphoneos/Runner.app"
+
+          echo "Checking expected app path:"
+          echo "$APP_PATH"
+
+          if [ ! -d "$APP_PATH" ]; then
+            echo "::error::Runner.app was not generated."
+
+            echo "===== Available build files ====="
+            find build -maxdepth 8 -print 2>/dev/null | sort || true
+
+            echo "===== Xcode signing settings ====="
+            xcodebuild \
+              -workspace ios/Runner.xcworkspace \
+              -scheme Runner \
+              -configuration Release \
+              -showBuildSettings \
+              CODE_SIGNING_ALLOWED=NO \
+              CODE_SIGNING_REQUIRED=NO \
+              DEVELOPMENT_TEAM="" || true
+
             exit 1
           fi
-          echo "Unsigned Runner.app archived: $APP ($(du -sh "$APP" | cut -f1))"
 
-          # 3) 手动打包为未签名 IPA：Payload/Runner.app
-          mkdir -p build/ios/ipa/Payload
-          rm -rf build/ios/ipa/Payload/Runner.app
-          cp -R "$APP" build/ios/ipa/Payload/
-          cd build/ios/ipa
-          zip -r "$GITHUB_WORKSPACE/flutter_app/build/ios/Runner-unsigned.ipa" Payload
-          echo "Unsigned IPA: $GITHUB_WORKSPACE/flutter_app/build/ios/Runner-unsigned.ipa"
+          echo "Runner.app found:"
+          du -sh "$APP_PATH"
+          ls -la "$APP_PATH"
 
-      - name: Upload unsigned IPA artifact
+      - name: Package unsigned IPA
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          APP_PATH="build/ios/iphoneos/Runner.app"
+          IPA_DIR="$PWD/build/ios/ipa"
+          IPA_PATH="$IPA_DIR/AI-Audiobook-unsigned.ipa"
+
+          rm -rf "$IPA_DIR"
+          mkdir -p "$IPA_DIR/Payload"
+
+          cp -R "$APP_PATH" "$IPA_DIR/Payload/Runner.app"
+
+          cd "$IPA_DIR"
+          /usr/bin/zip -qry "AI-Audiobook-unsigned.ipa" Payload
+
+          test -f "$IPA_PATH"
+          ls -lh "$IPA_PATH"
+          unzip -l "$IPA_PATH" | head -50
+
+      - name: Upload unsigned IPA
         uses: actions/upload-artifact@v4
         with:
-          name: Runner-unsigned-ipa
-          path: flutter_app/build/ios/Runner-unsigned.ipa
+          name: AI-Audiobook-unsigned-IPA
+          path: build/ios/ipa/AI-Audiobook-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: iOS-build-diagnostics
+          path: |
+            flutter-ios-build.log
+            ios/Podfile.lock
+            ios/Runner.xcodeproj/project.pbxproj
+          if-no-files-found: warn
+          retention-days: 7
