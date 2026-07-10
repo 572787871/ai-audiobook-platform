@@ -61,17 +61,27 @@ jobs:
         env:
           CODE_SIGNING_ALLOWED: "NO"
         run: |
-          # flutter build ipa --no-codesign 在 Flutter 3.44 下可跳过签名，
-          # 产出未签名 IPA（Runner.ipa），可用企业证书后续自签。
-          flutter build ipa --release --no-codesign --build-name=1.0.0
-          IPA=build/ios/ipa/Runner.ipa
-          if [ ! -f "$IPA" ]; then
-            echo "::error::Runner.ipa not found after build"
-            ls -la build/ios/ipa/ 2>&1 || true
+          # Flutter 3.44 的 `flutter build ipa --no-codesign` 在 archive 阶段（编译/链接）
+          # 可成功产出 Runner.xcarchive，但 export 生成 deployable IPA 时强制要求
+          # Provisioning Profile（即使 --no-codesign）。因此：让 Flutter 完成 archive，
+          # 忽略其 export 失败（用 || true），再手动从 xcarchive 打包未签名 IPA。
+          flutter build ipa --release --no-codesign --build-name=1.0.0 || echo "flutter export 失败（预期），继续手动打包 xcarchive"
+
+          # 定位 archive 产物中的 Runner.app
+          APP=$(find build/ios/archive -name "Runner.app" -type d 2>/dev/null | head -1)
+          if [ -z "$APP" ]; then
+            echo "::error::Runner.app not found in xcarchive"
+            ls -la build/ios/ 2>&1 || true
             exit 1
           fi
-          echo "Unsigned IPA built: $IPA ($(du -sh "$IPA" | cut -f1))"
-          cp "$IPA" "$GITHUB_WORKSPACE/flutter_app/build/ios/Runner-unsigned.ipa"
+          echo "Found Runner.app: $APP ($(du -sh "$APP" | cut -f1))"
+
+          # 手动打包为未签名 IPA：Payload/Runner.app
+          mkdir -p build/ios/ipa/Payload
+          rm -rf build/ios/ipa/Payload/Runner.app
+          cp -R "$APP" build/ios/ipa/Payload/
+          cd build/ios/ipa
+          zip -r "$GITHUB_WORKSPACE/flutter_app/build/ios/Runner-unsigned.ipa" Payload
           echo "Unsigned IPA: $GITHUB_WORKSPACE/flutter_app/build/ios/Runner-unsigned.ipa"
 
       - name: Upload unsigned IPA artifact
