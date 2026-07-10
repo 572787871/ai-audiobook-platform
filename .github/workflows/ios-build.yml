@@ -65,13 +65,18 @@ jobs:
           # 可成功产出 Runner.xcarchive，但 export 生成 deployable IPA 时强制要求
           # Provisioning Profile（即使 --no-codesign）。因此：让 Flutter 完成 archive，
           # 忽略其 export 失败（用 || true），再手动从 xcarchive 打包未签名 IPA。
-          flutter build ipa --release --no-codesign --build-name=1.0.0 || echo "flutter export 失败（预期），继续手动打包 xcarchive"
+          flutter build ipa --release --no-codesign --build-name=1.0.0 || echo "flutter export 失败（预期），继续手动打包"
 
-          # 定位 archive 产物中的 Runner.app
-          APP=$(find build/ios/archive -name "Runner.app" -type d 2>/dev/null | head -1)
+          # 诊断：打印所有 Runner.app 候选位置
+          echo "=== 查找 Runner.app ==="
+          find build -name "Runner.app" -type d 2>/dev/null
+          find build -name "*.xcarchive" -type d 2>/dev/null
+
+          # 定位 archive 产物中的 Runner.app（兼容 xcarchive 嵌套路径）
+          APP=$(find build -name "Runner.app" -type d 2>/dev/null | head -1)
           if [ -z "$APP" ]; then
-            echo "::error::Runner.app not found in xcarchive"
-            ls -la build/ios/ 2>&1 || true
+            echo "::error::Runner.app not found after build"
+            ls -laR build/ios/ 2>&1 | head -40 || true
             exit 1
           fi
           echo "Found Runner.app: $APP ($(du -sh "$APP" | cut -f1))"
