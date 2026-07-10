@@ -134,7 +134,6 @@ class KokoroModelManager {
         onProgress: (p) {
           onProgress?.call(acc + weights[f]! * p.fraction, '下载 $f');
         },
-        shouldCancel: shouldCancel,
       );
       acc += weights[f]!;
       onProgress?.call(acc, '校验 $f');
