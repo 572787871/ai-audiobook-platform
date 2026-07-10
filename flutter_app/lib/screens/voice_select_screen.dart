@@ -122,7 +122,7 @@ class _VoiceSelectScreenState extends State<VoiceSelectScreen> {
       final path = await provider.previewVoice(voice);
       if (path != null && path.isNotEmpty) {
         // Kokoro：本地推理生成的 wav 文件，用 just_audio 播放
-        await _previewPlayer.setFilePath(path!);
+        await _previewPlayer.setFilePath(path);
         await _previewPlayer.play();
       }
       // 系统语音：原生 previewVoice 已直接 speak 出声，无需文件播放

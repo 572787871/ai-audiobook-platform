@@ -5,7 +5,6 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import '../models/local_tts.dart';
 import 'kokoro_model_manager.dart';
-import 'dart:math';
 import 'dart:typed_data';
 import 'resumable_downloader.dart';
 import 'package:sherpa_onnx/sherpa_onnx.dart';
@@ -318,7 +317,7 @@ class AbogenLocalService {
     ));
     try {
       final audio = tts.generate(text: text, sid: sid, speed: speed);
-      if (audio == null || audio.samples.isEmpty) {
+      if (audio.samples.isEmpty) {
         throw Exception('Kokoro 推理返回空音频（文本可能为空或模型异常）');
       }
       final outFile = File(outputPath);

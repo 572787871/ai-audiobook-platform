@@ -6,7 +6,6 @@ import '../theme/app_theme.dart';
 import '../providers/local_tts_provider.dart';
 import '../services/local_import_service.dart';
 import '../services/local_tts_service.dart';
-import 'local_generation_screen.dart';
 import '../models/local_tts.dart';
 
 class UploadScreen extends StatefulWidget {
@@ -109,14 +108,6 @@ class _UploadScreenState extends State<UploadScreen> {
       );
 
       if (!mounted) return;
-
-      // 读取正文用于本地生成（不依赖网络）
-      String sourceText = '';
-      try {
-        sourceText = await LocalTtsService.readTextFile(_selectedFile!);
-      } catch (_) {
-        sourceText = '';
-      }
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
