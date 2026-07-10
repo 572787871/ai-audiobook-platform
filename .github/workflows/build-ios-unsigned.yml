@@ -43,6 +43,20 @@ jobs:
           echo "Created /tmp/unsigned.xcconfig:"
           cat /tmp/unsigned.xcconfig
 
+      - name: Disable signing in pbxproj (runner-local, not committed)
+        run: |
+          set -e
+          python3 - <<'PY'
+          p='ios/Runner.xcodeproj/project.pbxproj'
+          s=open(p).read()
+          # 清空带 sdk 条件的签名身份（优先级最高，会覆盖 xcconfig 里的空值）
+          s=s.replace('"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";', '"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "";')
+          # Automatic 模式会强制解析证书，改为 Manual 后配合 CODE_SIGNING_ALLOWED=NO 即可免证书构建
+          s=s.replace('CODE_SIGN_STYLE = Automatic;', 'CODE_SIGN_STYLE = Manual;')
+          open(p,'w').write(s)
+          print('patched pbxproj: signing disabled for unsigned build')
+          PY
+
       - name: Build unsigned app bundle
         run: |
           set -e
