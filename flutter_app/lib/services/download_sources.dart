@@ -10,13 +10,6 @@ const String _hfBase = 'https://huggingface.co';
 /// Kokoro 核心模型包（csukuangfj 官方，sherpa-onnx 兼容）。
 const String kokoroModelRepo = 'csukuangfj/kokoro-en-v0_19';
 
-/// 核心文件清单：sherpa_onnx 推理 Kokoro 所必需。
-const List<String> kokoroCoreFiles = [
-  'model.onnx',
-  'voices.bin',
-  'tokens.txt',
-];
-
 /// 构造某个核心文件的下载 URL（不暴露任何密钥）。
 String kokoroCoreUrl(String fileName) =>
     '$_hfBase/$kokoroModelRepo/resolve/main/$fileName';

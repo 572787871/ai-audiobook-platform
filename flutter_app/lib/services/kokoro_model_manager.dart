@@ -6,7 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import '../models/local_tts.dart';
 import 'abogen_local_service.dart';
 import 'download_sources.dart';
-import 'resumable_downloader.dart';
+import 'resumable_downloader.dart' hide DownloadFailedException;
 
 class DownloadFailedException implements Exception {
   final String message;
@@ -41,6 +41,13 @@ class KokoroModelManager {
   static const String modelFile = 'model.onnx';
   static const String voicesFile = 'voices.bin';
   static const String tokensFile = 'tokens.txt';
+
+  /// 核心文件清单（下载与校验遍历用）。
+  static const List<String> kokoroCoreFiles = [
+    modelFile,
+    voicesFile,
+    tokensFile,
+  ];
 
   static Future<Directory> kokoroRoot() async {
     final base = await getApplicationDocumentsDirectory();
@@ -122,10 +129,10 @@ class KokoroModelManager {
       final url = kokoroCoreUrl(f);
       onProgress?.call(acc, '下载 $f');
       await ResumableDownloader.download(
-        url,
-        dest.path,
-        onProgress: (frac, received, total) {
-          onProgress?.call(acc + weights[f]! * frac, '下载 $f');
+        urls: [url],
+        outputPath: dest.path,
+        onProgress: (p) {
+          onProgress?.call(acc + weights[f]! * p.fraction, '下载 $f');
         },
         shouldCancel: shouldCancel,
       );

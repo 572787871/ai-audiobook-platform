@@ -124,7 +124,7 @@ class _UploadScreenState extends State<UploadScreen> {
         _busy = false;
         _stage = ImportStage.failed;
         _errorMsg = e.message;
-        _errorDetail = e.detail;
+        _errorDetail = e.detail?.toString();
         _statusLabel = null;
       });
     } catch (e, st) {

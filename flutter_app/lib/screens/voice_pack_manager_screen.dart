@@ -4,6 +4,7 @@ import "package:collection/collection.dart";
 import "package:provider/provider.dart";
 import "../models/local_tts.dart";
 import "../providers/local_tts_provider.dart";
+import "../services/abogen_local_service.dart";
 import "../theme/app_theme.dart";
 
 class VoicePackManagerScreen extends StatefulWidget {
@@ -124,7 +125,7 @@ class _KokoroStatusCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.recorded_voice_over_outlined, color: cs.primary),
+              Icon(Icons.graphic_eq, color: cs.primary),
               const SizedBox(width: 8),
               const Expanded(
                 child: Text('Kokoro 本地模型',

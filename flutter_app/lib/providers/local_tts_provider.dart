@@ -2,6 +2,7 @@ import "dart:io";
 import "package:flutter/foundation.dart";
 import "../models/book.dart";
 import "../models/local_tts.dart";
+import "../services/abogen_local_service.dart";
 import "../services/local_tts_service.dart";
 
 class LocalTtsProvider extends ChangeNotifier {
