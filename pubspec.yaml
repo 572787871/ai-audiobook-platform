@@ -10,6 +10,14 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
+  file_picker: ^8.1.0
+  path_provider: ^2.1.5
+  path: ^1.9.0
+  crypto: ^3.0.6
+  charset_converter: ^2.2.0
+  charset: ^2.0.1
+  uuid: ^4.4.0
+  intl: ^0.19.0
 
 dev_dependencies:
   flutter_test:

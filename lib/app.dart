@@ -1,6 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'theme/app_theme.dart';
-import 'features/library/library_page.dart';
+import 'features/library/pages/library_page.dart';
 
 class AudiobookApp extends StatelessWidget {
   const AudiobookApp({super.key});

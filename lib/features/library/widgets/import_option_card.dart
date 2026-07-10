@@ -2,40 +2,25 @@ import 'package:flutter/cupertino.dart';
 import '../../../theme/app_theme.dart';
 
 class ImportOptionCard extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-
   const ImportOptionCard({
     super.key,
     required this.icon,
     required this.title,
     required this.subtitle,
+    this.onTap,
   });
 
-  void _showPlaceholder(BuildContext context) {
-    showCupertinoDialog(
-      context: context,
-      builder: (context) => CupertinoAlertDialog(
-        title: const Text('提示'),
-        content: const Text('功能将在下一阶段加入'),
-        actions: [
-          CupertinoDialogAction(
-            isDefaultAction: true,
-            child: const Text('好的'),
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-        ],
-      ),
-    );
-  }
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: GestureDetector(
-        onTap: () => _showPlaceholder(context),
+        onTap: onTap,
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: AppTheme.cardDecoration,

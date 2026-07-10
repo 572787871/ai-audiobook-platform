@@ -36,12 +36,36 @@ jobs:
       - name: Test
         run: flutter test
 
-      - name: Build unsigned app bundle (no codesign)
+      - name: Disable code signing in Xcode project
         run: |
-          flutter build ios \
-            --no-codesign \
-            --release \
-            --verbose
+          set -e
+          cd ios
+          for f in Runner.xcworkspace/project.xcworkspace/xcshareddata/WorkspaceSettings.xcsettings Runner.xcodeproj/project.pbxproj; do
+            if [ -f "$f" ]; then
+              sed -i '' 's/CODE_SIGN_STYLE[^;]*;/CODE_SIGN_STYLE = Manual;/g; s/DEVELOPMENT_TEAM[^;]*;/DEVELOPMENT_TEAM = "";/g; s/CODE_SIGN_IDENTITY[^;]*;/CODE_SIGN_IDENTITY = "";/g' "$f"
+            fi
+          done
+          cd ..
+          # 通过 xcconfig 强制关闭签名
+          cat > /tmp/unsigned.xcconfig <<'XC'
+          CODE_SIGNING_ALLOWED = NO
+          CODE_SIGNING_REQUIRED = NO
+          CODE_SIGN_IDENTITY =
+          DEVELOPMENT_TEAM =
+          XC
+          echo "Created unsigned.xcconfig"
+
+      - name: Build unsigned app bundle
+        run: |
+          set -e
+          flutter build ios --config-only
+          xcodebuild -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -sdk iphoneos \
+            -xcconfig /tmp/unsigned.xcconfig \
+            -derivedDataPath build/ios \
+            build
 
       - name: Package unsigned IPA
         run: |
