@@ -39,36 +39,35 @@ jobs:
       - name: Create unsigned build xcconfig
         run: |
           set -e
-          printf 'CODE_SIGNING_ALLOWED = NO\nCODE_SIGNING_REQUIRED = NO\nCODE_SIGN_IDENTITY =\nDEVELOPMENT_TEAM =\n' > /tmp/unsigned.xcconfig
+          printf 'CODE_SIGNING_ALLOWED = NO\nCODE_SIGNING_REQUIRED = NO\nCODE_SIGN_IDENTITY =\nDEVELOPMENT_TEAM =\nCODE_SIGN_STYLE = Manual\n' > /tmp/unsigned.xcconfig
           echo "Created /tmp/unsigned.xcconfig:"
           cat /tmp/unsigned.xcconfig
 
-      - name: Build unsigned app bundle
+      - name: Build unsigned archive (no code signing)
         run: |
           set -e
           flutter build ios --config-only
-          xcodebuild -workspace ios/Runner.xcworkspace \
+          xcodebuild archive \
+            -workspace ios/Runner.xcworkspace \
             -scheme Runner \
             -configuration Release \
-            -sdk iphonesimulator \
+            -archivePath build/ios/Runner.xcarchive \
             -xcconfig /tmp/unsigned.xcconfig \
-            -derivedDataPath build/ios \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             DEVELOPMENT_TEAM="" \
-            build
+            CODE_SIGN_STYLE=Manual
 
       - name: Package unsigned IPA
         run: |
           set -e
-          APP=$(find build/ios -name "Runner.app" -type d | head -1)
-          if [ -z "$APP" ] || [ ! -d "$APP" ]; then
-            echo "Runner.app not found under build/ios"
+          APP="build/ios/Runner.xcarchive/Products/Applications/Runner.app"
+          if [ ! -d "$APP" ]; then
+            echo "Runner.app not found at $APP"
             find build/ios -name "*.app" -type d
             exit 1
           fi
-          echo "Found app bundle: $APP"
           WORKDIR=$(mktemp -d)
           mkdir -p "$WORKDIR/Payload"
           cp -R "$APP" "$WORKDIR/Payload/"
