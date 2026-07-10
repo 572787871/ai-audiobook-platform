@@ -51,8 +51,17 @@ class _VoiceSelectScreenState extends State<VoiceSelectScreen> {
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               scrollDirection: Axis.horizontal,
-              children:
-                  ["全部", "推荐", "中文", "英文", "男声", "女声", "已下载"].map((label) {
+              children: [
+                "全部",
+                "推荐",
+                "Kokoro",
+                "系统",
+                "中文",
+                "英文",
+                "男声",
+                "女声",
+                "已下载"
+              ].map((label) {
                 final active = _filter == label;
                 return Padding(
                   padding: const EdgeInsets.only(right: 8),
@@ -78,6 +87,7 @@ class _VoiceSelectScreenState extends State<VoiceSelectScreen> {
                   selected: selected,
                   playing: _playingVoiceId == voice.voiceId,
                   onPreview: () => _preview(provider, voice),
+                  onDownload: () => provider.downloadVoice(voice),
                   onSelect: () => _select(provider, voice),
                 );
               },
@@ -92,6 +102,8 @@ class _VoiceSelectScreenState extends State<VoiceSelectScreen> {
     return voices.where((voice) {
       return switch (_filter) {
         "推荐" => voice.recommended,
+        "Kokoro" => voice.backend == TtsBackend.kokoro,
+        "系统" => voice.backend == TtsBackend.iosSystem,
         "中文" => voice.language.toLowerCase().startsWith("zh"),
         "英文" => voice.language.toLowerCase().startsWith("en"),
         "男声" => voice.gender == TtsVoiceGender.male,
@@ -133,12 +145,14 @@ class _VoiceCard extends StatelessWidget {
   final bool selected;
   final bool playing;
   final VoidCallback onPreview;
+  final VoidCallback onDownload;
   final VoidCallback onSelect;
   const _VoiceCard({
     required this.voice,
     required this.selected,
     required this.playing,
     required this.onPreview,
+    required this.onDownload,
     required this.onSelect,
   });
 
@@ -150,6 +164,7 @@ class _VoiceCard extends StatelessWidget {
       TtsVoiceGender.female => "女声",
       TtsVoiceGender.neutral => "中性",
     };
+    final backend = voice.backend == TtsBackend.kokoro ? "Kokoro" : "iPhone 系统";
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -157,13 +172,13 @@ class _VoiceCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppTheme.radiusLg),
         border: Border.all(
             color:
-                selected ? cs.primary : cs.onSurface.withValues(alpha: 0.06)),
+                selected ? cs.primary : cs.onSurface.withOpacity(0.06)),
       ),
       child: Row(
         children: [
           CircleAvatar(
             radius: 24,
-            backgroundColor: cs.primary.withValues(alpha: 0.1),
+            backgroundColor: cs.primary.withOpacity(0.1),
             child: Icon(Icons.graphic_eq_rounded, color: cs.primary),
           ),
           const SizedBox(width: 12),
@@ -178,17 +193,18 @@ class _VoiceCard extends StatelessWidget {
                   if (voice.recommended) const _Badge(label: "推荐"),
                 ]),
                 const SizedBox(height: 4),
-                Text("$gender · ${voice.language} · ${voice.modelVersion}",
+                Text(
+                    "$gender · ${voice.language} · $backend · ${voice.modelVersion}",
                     style: TextStyle(
                         fontSize: 12,
-                        color: cs.onSurface.withValues(alpha: 0.55))),
+                        color: cs.onSurface.withOpacity(0.55))),
                 const SizedBox(height: 4),
                 Text(voice.description,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                         fontSize: 13,
-                        color: cs.onSurface.withValues(alpha: 0.75))),
+                        color: cs.onSurface.withOpacity(0.75))),
               ],
             ),
           ),
@@ -199,10 +215,12 @@ class _VoiceCard extends StatelessWidget {
                 ? Icons.stop_circle_outlined
                 : Icons.play_circle_outline_rounded),
           ),
-          selected
-              ? Icon(Icons.check_circle_rounded, color: cs.primary)
-              : FilledButton.tonal(
-                  onPressed: onSelect, child: const Text("使用")),
+          if (!voice.isDownloaded)
+            FilledButton.tonal(onPressed: onDownload, child: const Text("下载"))
+          else if (selected)
+            Icon(Icons.check_circle_rounded, color: cs.primary)
+          else
+            FilledButton.tonal(onPressed: onSelect, child: const Text("使用")),
         ],
       ),
     );
@@ -218,7 +236,7 @@ class _Badge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-          color: AppTheme.success.withValues(alpha: 0.12),
+          color: AppTheme.success.withOpacity(0.12),
           borderRadius: BorderRadius.circular(AppTheme.radiusFull)),
       child: Text(label,
           style: const TextStyle(

@@ -49,6 +49,17 @@ class _VoicePackManagerScreenState extends State<VoicePackManagerScreen> {
           ...provider.voicePacks.map((pack) => _PackTile(
               pack: pack, onDownload: () => provider.downloadVoicePack(pack))),
           const SizedBox(height: 24),
+          Text("Abogen 混合音色",
+              style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: cs.onSurface)),
+          const SizedBox(height: 10),
+          ...provider.voiceFormulas.map((formula) => _FormulaTile(
+                formula: formula,
+                voices: provider.voices,
+              )),
+          const SizedBox(height: 24),
           Text("默认旁白音色",
               style: TextStyle(
                   fontSize: 18,
@@ -60,6 +71,7 @@ class _VoicePackManagerScreenState extends State<VoicePackManagerScreen> {
                 selected: provider.defaultVoiceId == voice.voiceId,
                 playing: _playingVoiceId == voice.voiceId,
                 onSelect: () => provider.setDefaultVoice(voice.voiceId),
+                onDownload: () => provider.downloadVoice(voice),
                 onPreview: () => _preview(provider, voice),
               )),
           if (provider.error != null) ...[
@@ -113,7 +125,7 @@ class _ModeCard extends StatelessWidget {
                   color: Theme.of(context)
                       .colorScheme
                       .onSurface
-                      .withValues(alpha: 0.55))),
+                      .withOpacity(0.55))),
           const SizedBox(height: 10),
           ...options.map((item) {
             final selected = mode == item.$1;
@@ -173,12 +185,14 @@ class _VoiceTile extends StatelessWidget {
   final bool selected;
   final bool playing;
   final VoidCallback onSelect;
+  final VoidCallback onDownload;
   final VoidCallback onPreview;
   const _VoiceTile(
       {required this.voice,
       required this.selected,
       required this.playing,
       required this.onSelect,
+      required this.onDownload,
       required this.onPreview});
 
   @override
@@ -189,18 +203,21 @@ class _VoiceTile extends StatelessWidget {
       TtsVoiceGender.female => "女声",
       TtsVoiceGender.neutral => "中性",
     };
+    final backend = voice.backend == TtsBackend.kokoro ? "Kokoro" : "iPhone 系统";
     return Card(
       child: ListTile(
         leading: CircleAvatar(
           backgroundColor:
-              selected ? cs.primary : cs.primary.withValues(alpha: 0.08),
+              selected ? cs.primary : cs.primary.withOpacity(0.08),
           child: Icon(Icons.record_voice_over_rounded,
               color: selected ? Colors.white : cs.primary),
         ),
         title: Text(voice.displayName,
             style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: Text("$gender · ${voice.language}\n${voice.description}",
-            maxLines: 2, overflow: TextOverflow.ellipsis),
+        subtitle: Text(
+            "$gender · ${voice.language} · $backend${voice.grade == null ? "" : " · ${voice.grade}"}\n${voice.description}",
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis),
         isThreeLine: true,
         trailing: Wrap(
             spacing: 8,
@@ -212,10 +229,46 @@ class _VoiceTile extends StatelessWidget {
                   icon: Icon(playing
                       ? Icons.stop_circle_outlined
                       : Icons.play_circle_outline_rounded)),
-              selected
-                  ? Icon(Icons.check_rounded, color: cs.primary)
-                  : TextButton(onPressed: onSelect, child: const Text("设为默认")),
+              if (!voice.isDownloaded)
+                TextButton(onPressed: onDownload, child: const Text("下载"))
+              else if (selected)
+                Icon(Icons.check_rounded, color: cs.primary)
+              else
+                TextButton(onPressed: onSelect, child: const Text("设为默认")),
             ]),
+      ),
+    );
+  }
+}
+
+class _FormulaTile extends StatelessWidget {
+  final VoiceFormula formula;
+  final List<TtsVoice> voices;
+  const _FormulaTile({required this.formula, required this.voices});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final names = formula.parts.map((part) {
+      final matches = voices.where((v) => v.voiceId == part.voiceId);
+      final voice = matches.isEmpty ? null : matches.first;
+      final name = voice?.displayName ?? part.voiceId;
+      return "$name ${(part.weight * 100).toStringAsFixed(0)}%";
+    }).join(" + ");
+    return Card(
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: cs.secondaryContainer,
+          child: Icon(Icons.tune_rounded, color: cs.onSecondaryContainer),
+        ),
+        title: Text(formula.displayName,
+            style: const TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: Text("${formula.language}\n$names",
+            maxLines: 2, overflow: TextOverflow.ellipsis),
+        isThreeLine: true,
+        trailing: formula.isDefault
+            ? Icon(Icons.check_rounded, color: cs.primary)
+            : const Text("可选"),
       ),
     );
   }

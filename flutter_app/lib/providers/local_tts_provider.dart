@@ -7,6 +7,7 @@ import "../services/local_tts_service.dart";
 class LocalTtsProvider extends ChangeNotifier {
   List<TtsVoice> voices = [];
   List<VoicePack> voicePacks = [];
+  List<VoiceFormula> voiceFormulas = [];
   GenerationMode mode = GenerationMode.auto;
   String defaultVoiceId = "zh_female_warm";
   bool loading = false;
@@ -26,6 +27,7 @@ class LocalTtsProvider extends ChangeNotifier {
       defaultVoiceId = await LocalTtsService.resolveVoiceId();
       voicePacks = await LocalTtsService.getInstalledVoicePacks();
       voices = await LocalTtsService.getAvailableVoices();
+      voiceFormulas = await LocalTtsService.getVoiceFormulas();
     } catch (e) {
       error = "本地语音初始化失败: $e";
       voices = LocalTtsService.fallbackVoices();
@@ -78,6 +80,19 @@ class LocalTtsProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> downloadVoice(TtsVoice voice) async {
+    if (voice.isDownloaded) return;
+    error = null;
+    notifyListeners();
+    try {
+      await LocalTtsService.downloadVoice(voice);
+      await _refreshVoices();
+    } catch (e) {
+      error = "音色下载失败: $e";
+      notifyListeners();
+    }
+  }
+
   Future<void> downloadVoicePack(VoicePack pack) async {
     if (pack.isDownloaded) return;
     error = null;
@@ -119,6 +134,8 @@ class LocalTtsProvider extends ChangeNotifier {
     double speed = 1,
     double volume = 1,
     double pitch = 1,
+    VoiceFormula? voiceFormula,
+    SubtitleMode subtitleMode = SubtitleMode.sentence,
   }) async {
     generating = true;
     generationProgress = 0;
@@ -135,6 +152,8 @@ class LocalTtsProvider extends ChangeNotifier {
         speed: speed,
         volume: volume,
         pitch: pitch,
+        voiceFormula: voiceFormula,
+        subtitleMode: subtitleMode,
         onProgress: (progress, label) {
           generationProgress = progress;
           generationLabel = label;
@@ -183,6 +202,7 @@ class LocalTtsProvider extends ChangeNotifier {
   Future<void> _refreshVoices() async {
     voices = await LocalTtsService.getAvailableVoices();
     defaultVoiceId = await LocalTtsService.resolveVoiceId();
+    voicePacks = await LocalTtsService.getInstalledVoicePacks();
     notifyListeners();
   }
 }

@@ -228,10 +228,24 @@ final class LocalTtsPlugin: NSObject {
     }
     let voices = AVSpeechSynthesisVoice.speechVoices()
     let zhVoices = voices.filter { $0.language.hasPrefix("zh") }
-    if voiceId.contains("male") {
+    let enUSVoices = voices.filter { $0.language.hasPrefix("en-US") }
+    let enGBVoices = voices.filter { $0.language.hasPrefix("en-GB") }
+    let lower = voiceId.lowercased()
+
+    if lower.hasPrefix("af_") || lower.hasPrefix("bf_") || lower.hasPrefix("en_female") {
+      let pool = lower.hasPrefix("bf_") ? enGBVoices : enUSVoices
+      if let female = pool.first(where: { speechGender($0) == "female" }) { return female }
+      if let fallback = pool.first { return fallback }
+    }
+    if lower.hasPrefix("am_") || lower.hasPrefix("bm_") || lower.hasPrefix("en_male") {
+      let pool = lower.hasPrefix("bm_") ? enGBVoices : enUSVoices
+      if let male = pool.first(where: { speechGender($0) == "male" }) { return male }
+      if let fallback = pool.first { return fallback }
+    }
+    if lower.hasPrefix("zm_") || lower.contains("male") {
       if let male = zhVoices.first(where: { speechGender($0) == "male" }) { return male }
     }
-    if voiceId.contains("female") {
+    if lower.hasPrefix("zf_") || lower.contains("female") {
       if let female = zhVoices.first(where: { speechGender($0) == "female" }) { return female }
     }
     return AVSpeechSynthesisVoice(language: "zh-CN") ?? zhVoices.first

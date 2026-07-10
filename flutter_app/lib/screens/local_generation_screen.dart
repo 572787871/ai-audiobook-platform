@@ -27,6 +27,8 @@ class LocalGenerationScreen extends StatefulWidget {
 class _LocalGenerationScreenState extends State<LocalGenerationScreen> {
   BookDetail? _book;
   String? _voiceId;
+  VoiceFormula? _formula;
+  SubtitleMode _subtitleMode = SubtitleMode.sentence;
   bool _loading = true;
   String? _error;
 
@@ -48,10 +50,14 @@ class _LocalGenerationScreenState extends State<LocalGenerationScreen> {
           .fetchBookDetail(widget.args.bookId);
       final voiceId =
           await LocalTtsService.resolveVoiceId(bookId: widget.args.bookId);
+      final formulas = context.read<LocalTtsProvider>().voiceFormulas;
       if (!mounted) return;
       setState(() {
         _book = book;
         _voiceId = voiceId;
+        _formula = formulas.where((f) => f.isDefault).isEmpty
+            ? (formulas.isEmpty ? null : formulas.first)
+            : formulas.firstWhere((f) => f.isDefault);
         _loading = false;
       });
     } catch (e) {
@@ -99,6 +105,16 @@ class _LocalGenerationScreenState extends State<LocalGenerationScreen> {
                       actionLabel: "选择",
                       onTap: _selectVoice,
                     ),
+                    _FormulaCard(
+                      formulas: provider.voiceFormulas,
+                      selected: _formula,
+                      onChanged: (value) => setState(() => _formula = value),
+                    ),
+                    _SegmentModeCard(
+                      mode: _subtitleMode,
+                      onChanged: (value) =>
+                          setState(() => _subtitleMode = value),
+                    ),
                     const SizedBox(height: 16),
                     if (provider.generating)
                       _ProgressPanel(provider: provider)
@@ -115,7 +131,7 @@ class _LocalGenerationScreenState extends State<LocalGenerationScreen> {
                       style: TextStyle(
                           fontSize: 13,
                           height: 1.5,
-                          color: cs.onSurface.withValues(alpha: 0.55)),
+                          color: cs.onSurface.withOpacity(0.55)),
                     ),
                   ],
                 ),
@@ -135,7 +151,12 @@ class _LocalGenerationScreenState extends State<LocalGenerationScreen> {
     if (_book == null) return;
     try {
       final segments = await context.read<LocalTtsProvider>().generateBook(
-          book: _book!, sourceText: widget.args.sourceText, voiceId: _voiceId);
+            book: _book!,
+            sourceText: widget.args.sourceText,
+            voiceId: _voiceId,
+            voiceFormula: _formula,
+            subtitleMode: _subtitleMode,
+          );
       final duration =
           segments.fold<double>(0, (sum, seg) => sum + seg.duration);
       await LocalBookService.markCompleted(_book!.id, duration: duration);
@@ -207,7 +228,7 @@ class _BookHeader extends StatelessWidget {
                       fontSize: 20, fontWeight: FontWeight.w800)),
               const SizedBox(height: 6),
               Text(book.author?.isNotEmpty == true ? book.author! : "未知作者",
-                  style: TextStyle(color: cs.onSurface.withValues(alpha: 0.5))),
+                  style: TextStyle(color: cs.onSurface.withOpacity(0.5))),
               const SizedBox(height: 10),
               StatusTag(status: book.status),
             ],
@@ -267,6 +288,135 @@ class _ProgressPanel extends StatelessWidget {
           Text(
               "${(provider.generationProgress * 100).clamp(0, 100).toStringAsFixed(0)}%"),
         ],
+      ),
+    );
+  }
+}
+
+class _FormulaCard extends StatelessWidget {
+  final List<VoiceFormula> formulas;
+  final VoiceFormula? selected;
+  final ValueChanged<VoiceFormula?> onChanged;
+  const _FormulaCard({
+    required this.formulas,
+    required this.selected,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (formulas.isEmpty) return const SizedBox.shrink();
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.tune_rounded),
+                SizedBox(width: 8),
+                Text("Abogen 混合音色",
+                    style:
+                        TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              "按 abogen 的 voice*weight 公式保存，例如 ${selected?.abogenFormula ?? formulas.first.abogenFormula}",
+              style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurface
+                      .withOpacity(0.56)),
+            ),
+            const SizedBox(height: 10),
+            DropdownButtonFormField<String>(
+              initialValue: selected?.formulaId,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                labelText: "混合音色",
+              ),
+              items: [
+                const DropdownMenuItem<String>(
+                  value: "",
+                  child: Text("不使用混合，直接使用旁白音色"),
+                ),
+                ...formulas.map((formula) => DropdownMenuItem<String>(
+                      value: formula.formulaId,
+                      child: Text(formula.displayName),
+                    )),
+              ],
+              onChanged: (id) {
+                if (id == null || id.isEmpty) {
+                  onChanged(null);
+                  return;
+                }
+                onChanged(formulas.firstWhere((f) => f.formulaId == id));
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SegmentModeCard extends StatelessWidget {
+  final SubtitleMode mode;
+  final ValueChanged<SubtitleMode> onChanged;
+  const _SegmentModeCard({required this.mode, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.subtitles_rounded),
+                SizedBox(width: 8),
+                Text("分段与字幕",
+                    style:
+                        TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            SegmentedButton<SubtitleMode>(
+              segments: const [
+                ButtonSegment(
+                  value: SubtitleMode.sentence,
+                  label: Text("句子"),
+                  icon: Icon(Icons.short_text_rounded),
+                ),
+                ButtonSegment(
+                  value: SubtitleMode.paragraph,
+                  label: Text("段落"),
+                  icon: Icon(Icons.notes_rounded),
+                ),
+              ],
+              selected: {mode},
+              onSelectionChanged: (value) => onChanged(value.first),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              mode == SubtitleMode.sentence
+                  ? "适合边听边看高亮，和 abogen sentence chunk 对齐。"
+                  : "生成段数更少，适合长篇批量缓存。",
+              style: TextStyle(
+                fontSize: 13,
+                color: Theme.of(context)
+                    .colorScheme
+                    .onSurface
+                    .withOpacity(0.56),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

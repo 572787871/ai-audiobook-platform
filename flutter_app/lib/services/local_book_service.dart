@@ -189,5 +189,19 @@ class LocalBookService {
     return File(p.join(dir.path, "index.json"));
   }
 
+  static Future<Directory> rootDir() => getApplicationDocumentsDirectory();
+
+  /// 写入或更新一本书（覆盖时替换同 id 记录）。
+  static Future<void> upsertBook(Book book, {int? overwriteId}) async {
+    final books = await _readAll();
+    if (overwriteId != null) {
+      books.removeWhere((b) => b.id == overwriteId);
+    } else {
+      books.removeWhere((b) => b.id == book.id);
+    }
+    books.insert(0, book);
+    await _writeAll(books);
+  }
+
   static Future<Directory> _rootDir() => getApplicationDocumentsDirectory();
 }

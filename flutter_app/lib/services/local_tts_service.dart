@@ -7,6 +7,7 @@ import "package:path_provider/path_provider.dart";
 import "package:shared_preferences/shared_preferences.dart";
 import "../models/book.dart";
 import "../models/local_tts.dart";
+import "abogen_local_service.dart";
 
 class LocalTtsService {
   LocalTtsService._();
@@ -100,6 +101,8 @@ class LocalTtsService {
 
   static Future<List<TtsVoice>> getAvailableVoices() async {
     final local = fallbackVoices();
+    final downloaded = await AbogenLocalService.downloadedVoiceIds();
+    final kokoro = AbogenLocalService.kokoroVoices(downloaded: downloaded);
     try {
       final raw =
           await _channel.invokeMethod<List<dynamic>>("getAvailableVoices");
@@ -110,15 +113,17 @@ class LocalTtsService {
       if (native.isEmpty) return local;
       final known = {for (final v in local) v.voiceId: v};
       return [
+        ...kokoro,
         ...local,
         ...native.where((v) => !known.containsKey(v.voiceId)),
       ];
     } on MissingPluginException {
-      return local;
+      return [...kokoro, ...local];
     }
   }
 
   static Future<List<VoicePack>> getInstalledVoicePacks() async {
+    final kokoroPacks = await AbogenLocalService.voicePacks();
     try {
       final raw =
           await _channel.invokeMethod<List<dynamic>>("getInstalledVoicePacks");
@@ -126,19 +131,39 @@ class LocalTtsService {
           .whereType<Map>()
           .map((e) => VoicePack.fromJson(Map<String, dynamic>.from(e)))
           .toList();
-      if (native.isNotEmpty) return native;
+      if (native.isNotEmpty) return [...kokoroPacks, ...native];
     } on MissingPluginException {
       // Android/web still show the built-in management UI.
     }
-    return defaultVoicePacks();
+    return [...kokoroPacks, ...defaultVoicePacks()];
   }
 
   static Future<void> downloadVoicePack(VoicePack pack) async {
     if (pack.isDownloaded || pack.downloadUrl.isEmpty) return;
+    if (pack.packId == AbogenLocalService.kokoroPackId) {
+      await AbogenLocalService.downloadCoreModel();
+      await AbogenLocalService.downloadRecommendedVoices();
+      return;
+    }
     await _channel.invokeMethod("downloadVoicePack", pack.toJson());
   }
 
+  static Future<void> downloadVoice(TtsVoice voice) async {
+    if (voice.backend == TtsBackend.kokoro) {
+      await AbogenLocalService.downloadVoice(voice);
+    }
+  }
+
+  static Future<List<VoiceFormula>> getVoiceFormulas() =>
+      AbogenLocalService.loadFormulas();
+
+  static Future<void> saveVoiceFormulas(List<VoiceFormula> formulas) =>
+      AbogenLocalService.saveFormulas(formulas);
+
   static Future<String> previewVoice(TtsVoice voice) async {
+    if (voice.backend == TtsBackend.kokoro && !voice.isDownloaded) {
+      await AbogenLocalService.downloadVoice(voice);
+    }
     final dir = await _bookDir(0);
     final output = p.join(dir.path, "preview_${voice.voiceId}.wav");
     final path = await _generateSpeechNative(
@@ -161,11 +186,24 @@ class LocalTtsService {
     double speed = 1,
     double volume = 1,
     double pitch = 1,
+    VoiceFormula? voiceFormula,
+    SubtitleMode subtitleMode = SubtitleMode.sentence,
     void Function(double progress, String label)? onProgress,
   }) async {
     await initializeTtsEngine();
     final texts = _textsForBook(book, sourceText: sourceText);
-    final segments = _splitToSegments(book.id, texts, voiceId);
+    final segments = AbogenLocalService.chunkBookText(
+      bookId: book.id,
+      texts: texts,
+      settings: AbogenGenerationSettings(
+        voiceId: voiceId,
+        voiceFormula: voiceFormula,
+        subtitleMode: subtitleMode,
+        speed: speed,
+        volume: volume,
+        pitch: pitch,
+      ),
+    );
     final result = <TtsSegment>[];
     double cursor = 0;
 
@@ -186,7 +224,7 @@ class LocalTtsService {
       final output = p.join(dir.path, "${seg.segmentId}.wav");
       final audioPath = await _generateSpeechNative(
         text: seg.normalizedText,
-        voiceId: voiceId,
+        voiceId: seg.voiceId,
         speed: speed,
         volume: volume,
         pitch: pitch,
@@ -359,47 +397,6 @@ class LocalTtsService {
         .where((e) => e.trim().isNotEmpty)
         .join("\n\n");
     return [fallback.isEmpty ? "这本书还没有可朗读的文本。" : fallback];
-  }
-
-  static List<TtsSegment> _splitToSegments(
-      int bookId, List<String> texts, String voiceId) {
-    final joined = texts.join("\n\n");
-    final normalized = _normalizeText(joined);
-    final chunks = <String>[];
-    final buffer = StringBuffer();
-    for (final rune in normalized.runes) {
-      final char = String.fromCharCode(rune);
-      buffer.write(char);
-      final shouldCut = "。！？!?；;\n".contains(char) || buffer.length >= 160;
-      if (shouldCut && buffer.toString().trim().isNotEmpty) {
-        chunks.add(buffer.toString().trim());
-        buffer.clear();
-      }
-    }
-    if (buffer.toString().trim().isNotEmpty)
-      chunks.add(buffer.toString().trim());
-
-    return chunks.asMap().entries.map((entry) {
-      final chapterId = entry.key ~/ 30;
-      return TtsSegment(
-        segmentId: "book_${bookId}_seg_${entry.key.toString().padLeft(5, "0")}",
-        bookId: bookId,
-        chapterId: chapterId,
-        originalText: entry.value,
-        normalizedText: entry.value,
-        voiceId: voiceId,
-      );
-    }).toList();
-  }
-
-  static String _normalizeText(String input) {
-    return input
-        .replaceAll("\r\n", "\n")
-        .replaceAll("\r", "\n")
-        .replaceAll(RegExp(r"<[^>]+>"), "")
-        .replaceAll(RegExp(r"\n{3,}"), "\n\n")
-        .replaceAll(RegExp(r"[ \t]{2,}"), " ")
-        .trim();
   }
 
   static Future<double> _probeDuration(
