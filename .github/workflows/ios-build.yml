@@ -47,12 +47,27 @@ jobs:
             echo "Patched Info.plist with ATS exception"
           fi
 
+      - name: Patch project for unsigned build (set dummy DEVELOPMENT_TEAM)
+        working-directory: flutter_app
+        run: |
+          PBX=ios/Runner.xcodeproj/project.pbxproj
+          if [ -f "$PBX" ]; then
+            # 设置虚拟 team 以通过 Flutter 的 team 检查；实际签名由 CODE_SIGNING_ALLOWED=NO 跳过
+            sed -i '' "s/DEVELOPMENT_TEAM = "";/DEVELOPMENT_TEAM = AAAAAAAAAA;/g" "$PBX" 2>/dev/null || \
+              sed -i "s/DEVELOPMENT_TEAM = "";/DEVELOPMENT_TEAM = AAAAAAAAAA;/g" "$PBX"
+            echo "Patched pbxproj DEVELOPMENT_TEAM"
+          fi
+
       - name: Analyze
         working-directory: flutter_app
         run: flutter analyze
 
       - name: Build IPA (unsigned)
         working-directory: flutter_app
+        env:
+          DEVELOPMENT_TEAM: ""
+          CODE_SIGNING_REQUIRED: "NO"
+          CODE_SIGNING_ALLOWED: "NO"
         run: flutter build ios --release --no-codesign
 
       - name: Create unsigned IPA
