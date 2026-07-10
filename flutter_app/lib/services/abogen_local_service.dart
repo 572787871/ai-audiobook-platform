@@ -5,6 +5,8 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import '../models/local_tts.dart';
 import 'kokoro_model_manager.dart';
+import 'dart:math';
+import 'dart:typed_data';
 import 'resumable_downloader.dart';
 import 'package:sherpa_onnx/sherpa_onnx.dart';
 
@@ -256,12 +258,37 @@ class AbogenLocalService {
   /// 使用 sherpa-onnx 进行真实 Kokoro 本地推理。
   /// 返回生成的 wav 文件。要求核心模型与音色已下载且完整。
   /// 任何缺失/不完整都会抛出带明确信息的异常。
+  /// Kokoro voiceId -> sherpa-onnx sid（voices.bin 内整数索引）。
+  /// 顺序与 Kokoro 官方 voices 列表一致；真机首次运行可按试听结果校准。
+  static const Map<String, int> _kokoroSid = {
+    'zf_xiaobei': 0,
+    'zf_xiaoni': 1,
+    'zf_xiaoxiao': 2,
+    'zf_xiaoyi': 3,
+    'zm_yunjian': 4,
+    'zm_yunxi': 5,
+    'zm_yunxia': 6,
+    'zm_yunyang': 7,
+    'af_heart': 8,
+    'af_bella': 9,
+    'af_nicole': 10,
+    'am_michael': 11,
+    'am_fenrir': 12,
+    'bf_emma': 13,
+    'bm_fable': 14,
+  };
+
+  /// 使用 sherpa-onnx 进行真实 Kokoro 本地推理。
+  /// 返回生成的 wav 文件。要求核心模型与音色已下载且完整。
+  /// 任何缺失/不完整都会抛出带明确信息的异常。
   static Future<File> synthesizeKokoro({
     required String text,
     required String voiceId,
     required String outputPath,
     double speed = 1.0,
   }) async {
+    if (text.trim().isEmpty) throw Exception('Kokoro 推理文本为空');
+
     final issues = await KokoroModelManager.verifyIntegrity(voiceIds: {voiceId});
     if (issues.isNotEmpty) {
       throw Exception('Kokoro 模型不完整，无法生成：\n- ${issues.join("\n- ")}');
@@ -269,22 +296,27 @@ class AbogenLocalService {
     final root = await KokoroModelManager.kokoroRoot();
     final modelPath = p.join(root.path, KokoroModelManager.modelFile);
     final voicesPath = p.join(root.path, KokoroModelManager.voicesBinFile);
-    final voicePath = p.join(root.path, 'voices', '$voiceId.pt');
 
-    final ttsConfig = OfflineTtsConfig(
+    // sid 映射：Kokoro 用 voices.bin 内整数索引选择音色
+    final sid = _kokoroSid[voiceId] ?? 0;
+
+    try {
+      initBindings();
+    } catch (_) {
+      // 已初始化则忽略
+    }
+
+    final tts = OfflineTts(OfflineTtsConfig(
       model: OfflineTtsModelConfig(
-        modelType: 'kokoro',
-        kokoroModel: modelPath,
-        kokoroVoices: voicesPath,
+        kokoro: OfflineTtsKokoroModelConfig(
+          model: modelPath,
+          voices: voicesPath,
+          dataDir: '',
+        ),
         numThreads: 2,
       ),
-    );
-    final tts = OfflineTts(ttsConfig);
+    ));
     try {
-      final sid = tts.addSpeaker(voicePath);
-      if (sid == null) {
-        throw Exception('音色加载失败：$voiceId（voices.bin 或 .pt 不匹配）');
-      }
       final audio = tts.generate(text: text, sid: sid, speed: speed);
       if (audio == null || audio.samples.isEmpty) {
         throw Exception('Kokoro 推理返回空音频（文本可能为空或模型异常）');

@@ -318,7 +318,7 @@ class LocalImportService {
 
   /// 检查同名书籍是否已存在（按标题匹配）。
   static Future<ImportDuplication> checkDuplicate(String title) async {
-    final books = await LocalBookService.readAllBooks();
+    final books = await LocalBookService.listBooks();
     for (final b in books) {
       if (b.title.trim() == title.trim()) {
         return ImportDuplication(
