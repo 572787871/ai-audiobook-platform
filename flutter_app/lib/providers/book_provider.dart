@@ -1,7 +1,7 @@
 /// Book Provider：有声书状态管理
 import "package:flutter/foundation.dart";
 import "dart:io";
-import "../services/api_service.dart";
+import "../services/local_book_service.dart";
 import "../models/book.dart";
 import "../models/task.dart";
 
@@ -19,7 +19,7 @@ class BookProvider extends ChangeNotifier {
   /// 获取有声书列表
   /// 获取书籍详情
   Future<BookDetail> fetchBookDetail(int id) async {
-    return ApiService.fetchBookDetail(id);
+    return LocalBookService.getBook(id);
   }
 
   Future<void> loadBooks() async {
@@ -27,7 +27,7 @@ class BookProvider extends ChangeNotifier {
     _error = null;
     notifyListeners();
     try {
-      _books = await ApiService.listBooks();
+      _books = await LocalBookService.listBooks();
       _isLoading = false;
       notifyListeners();
     } catch (e) {
@@ -44,7 +44,7 @@ class BookProvider extends ChangeNotifier {
     _error = null;
     notifyListeners();
     try {
-      final book = await ApiService.uploadBook(file, title,
+      final book = await LocalBookService.importBook(file, title,
           author: author, description: description);
       _books.insert(0, book);
       _isLoading = false;
@@ -64,7 +64,7 @@ class BookProvider extends ChangeNotifier {
     _error = null;
     notifyListeners();
     try {
-      _currentDetail = await ApiService.getBook(id);
+      _currentDetail = await LocalBookService.getBook(id);
       _isLoading = false;
       notifyListeners();
     } catch (e) {
@@ -78,7 +78,7 @@ class BookProvider extends ChangeNotifier {
   Future<void> refreshDetail() async {
     if (_currentDetail == null) return;
     try {
-      _currentDetail = await ApiService.getBook(_currentDetail!.id);
+      _currentDetail = await LocalBookService.getBook(_currentDetail!.id);
       notifyListeners();
     } catch (_) {}
   }
@@ -86,7 +86,7 @@ class BookProvider extends ChangeNotifier {
   /// 删除有声书
   Future<bool> deleteBook(int id) async {
     try {
-      await ApiService.deleteBook(id);
+      await LocalBookService.deleteBook(id);
       _books.removeWhere((b) => b.id == id);
       notifyListeners();
       return true;
@@ -99,13 +99,9 @@ class BookProvider extends ChangeNotifier {
 
   /// 创建 TTS 任务
   Future<Task?> createTask(int bookId) async {
-    try {
-      return await ApiService.createTask(bookId);
-    } catch (e) {
-      _error = e.toString();
-      notifyListeners();
-      return null;
-    }
+    _error = "当前版本已关闭云端生成，请使用本地生成";
+    notifyListeners();
+    return null;
   }
 
   void clearError() {

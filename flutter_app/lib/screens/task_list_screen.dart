@@ -103,8 +103,8 @@ class _TaskListScreenState extends State<TaskListScreen> {
           SliverFillRemaining(
             child: EmptyState(
               icon: Icons.task_alt_rounded,
-              title: "暂无任务",
-              subtitle: "上传小说后将自动创建生成任务",
+              title: "暂无本地生成任务",
+              subtitle: "上传小说后会在 iPhone 本地生成音频",
               actionLabel: "去上传",
               onAction: () => Navigator.push<bool>(context,
                       MaterialPageRoute(builder: (_) => const UploadScreen()))

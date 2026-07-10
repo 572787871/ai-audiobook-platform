@@ -1,6 +1,5 @@
 /// Auth Provider：用户认证状态管理
 import "package:flutter/foundation.dart";
-import "../services/api_service.dart";
 import "../models/user.dart";
 
 class AuthProvider extends ChangeNotifier {
@@ -11,17 +10,19 @@ class AuthProvider extends ChangeNotifier {
   User? get user => _user;
   bool get isLoading => _isLoading;
   String? get error => _error;
-  bool get isLoggedIn => ApiService.isLoggedIn && _user != null;
+  bool get isLoggedIn => _user != null;
 
   /// 初始化：尝试恢复会话
   Future<void> init() async {
-    if (ApiService.token != null) {
-      try {
-        _user = await ApiService.getMe();
-      } catch (_) {
-        // token 过期，忽略
-      }
-    }
+    _user ??= User(
+      id: 0,
+      email: "local@iphone",
+      username: "本机用户",
+      avatarUrl: null,
+      isPremium: true,
+      isActive: true,
+      createdAt: DateTime.now().toIso8601String(),
+    );
     notifyListeners();
   }
 
@@ -31,8 +32,15 @@ class AuthProvider extends ChangeNotifier {
     _error = null;
     notifyListeners();
     try {
-      final auth = await ApiService.login(email, password);
-      _user = auth.user;
+      _user = User(
+        id: 0,
+        email: email.trim().isEmpty ? "local@iphone" : email.trim(),
+        username: email.trim().isEmpty ? "本机用户" : email.split("@").first,
+        avatarUrl: null,
+        isPremium: true,
+        isActive: true,
+        createdAt: DateTime.now().toIso8601String(),
+      );
       _isLoading = false;
       notifyListeners();
       return true;
@@ -50,8 +58,15 @@ class AuthProvider extends ChangeNotifier {
     _error = null;
     notifyListeners();
     try {
-      final auth = await ApiService.register(email, username, password);
-      _user = auth.user;
+      _user = User(
+        id: 0,
+        email: email.trim().isEmpty ? "local@iphone" : email.trim(),
+        username: username.trim().isEmpty ? "本机用户" : username.trim(),
+        avatarUrl: null,
+        isPremium: true,
+        isActive: true,
+        createdAt: DateTime.now().toIso8601String(),
+      );
       _isLoading = false;
       notifyListeners();
       return true;
@@ -65,15 +80,25 @@ class AuthProvider extends ChangeNotifier {
 
   /// 登出
   Future<void> logout() async {
-    await ApiService.logout();
-    _user = null;
+    await init();
     notifyListeners();
   }
 
   /// 更新个人资料
   Future<bool> updateProfile({String? username}) async {
     try {
-      _user = await ApiService.updateProfile(username: username);
+      final current = _user;
+      _user = User(
+        id: current?.id ?? 0,
+        email: current?.email ?? "local@iphone",
+        username: username?.trim().isNotEmpty == true
+            ? username!.trim()
+            : (current?.username ?? "本机用户"),
+        avatarUrl: current?.avatarUrl,
+        isPremium: true,
+        isActive: true,
+        createdAt: current?.createdAt ?? DateTime.now().toIso8601String(),
+      );
       notifyListeners();
       return true;
     } catch (e) {
@@ -86,7 +111,7 @@ class AuthProvider extends ChangeNotifier {
   /// 升级会员
   Future<bool> upgradePremium() async {
     try {
-      _user = await ApiService.upgradePremium();
+      await init();
       notifyListeners();
       return true;
     } catch (e) {

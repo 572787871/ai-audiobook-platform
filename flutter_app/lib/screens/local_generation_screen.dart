@@ -4,7 +4,7 @@ import "../models/book.dart";
 import "../models/local_tts.dart";
 import "../providers/book_provider.dart";
 import "../providers/local_tts_provider.dart";
-import "../providers/task_provider.dart";
+import "../services/local_book_service.dart";
 import "../services/local_tts_service.dart";
 import "../theme/app_theme.dart";
 import "../widgets/common_widgets.dart";
@@ -28,7 +28,6 @@ class _LocalGenerationScreenState extends State<LocalGenerationScreen> {
   BookDetail? _book;
   String? _voiceId;
   bool _loading = true;
-  bool _cloudSubmitting = false;
   String? _error;
 
   @override
@@ -104,10 +103,7 @@ class _LocalGenerationScreenState extends State<LocalGenerationScreen> {
                     if (provider.generating)
                       _ProgressPanel(provider: provider)
                     else
-                      _StartPanel(
-                          onLocal: _startLocal,
-                          onCloud: _startCloud,
-                          cloudSubmitting: _cloudSubmitting),
+                      _StartPanel(onLocal: _startLocal),
                     if (provider.error != null) ...[
                       const SizedBox(height: 16),
                       Text(provider.error!,
@@ -115,7 +111,7 @@ class _LocalGenerationScreenState extends State<LocalGenerationScreen> {
                     ],
                     const SizedBox(height: 32),
                     Text(
-                      "本地生成会在 iPhone 上分段生成音频并缓存，不会上传书籍正文。云端生成仍保留为兼容旧设备和本地失败时的备用方案。",
+                      "本地生成会在 iPhone 上分段生成音频并缓存，不会上传书籍正文。生成时可以退出页面，已完成的分段会保留在本机。",
                       style: TextStyle(
                           fontSize: 13,
                           height: 1.5,
@@ -138,51 +134,26 @@ class _LocalGenerationScreenState extends State<LocalGenerationScreen> {
   Future<void> _startLocal() async {
     if (_book == null) return;
     try {
-      await context.read<LocalTtsProvider>().generateBook(
+      final segments = await context.read<LocalTtsProvider>().generateBook(
           book: _book!, sourceText: widget.args.sourceText, voiceId: _voiceId);
+      final duration =
+          segments.fold<double>(0, (sum, seg) => sum + seg.duration);
+      await LocalBookService.markCompleted(_book!.id, duration: duration);
       if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text("本地有声书已生成")));
       Navigator.pushReplacementNamed(context, "/player", arguments: _book!.id);
     } catch (e) {
       if (!mounted) return;
-      final switchCloud = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text("本地生成失败"),
-          content: Text("$e\n\n是否切换云端生成？"),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text("稍后再试")),
-            FilledButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                child: const Text("用云端生成")),
-          ],
-        ),
-      );
-      if (switchCloud == true) _startCloud();
-    }
-  }
-
-  Future<void> _startCloud() async {
-    setState(() => _cloudSubmitting = true);
-    try {
-      await context.read<TaskProvider>().createTask(widget.args.bookId,
-          params: {"generation_mode": "cloud", "voice": _voiceId});
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text("已提交云端生成任务")));
-      Navigator.pop(context, true);
-    } finally {
-      if (mounted) setState(() => _cloudSubmitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text("本地生成失败: $e"), backgroundColor: AppTheme.danger));
     }
   }
 
   String _modeSubtitle(GenerationMode mode) => switch (mode) {
-        GenerationMode.auto => "自动选择：优先本地，失败后询问是否切换云端",
+        GenerationMode.auto => "本地生成：正文不离开这台 iPhone",
         GenerationMode.local => "只用本地：正文不会上传服务器",
-        GenerationMode.cloud => "只用云端：使用服务器生成链路",
+        GenerationMode.cloud => "云端已关闭：按本地生成执行",
       };
 
   String _voiceName(LocalTtsProvider provider, String? voiceId) {
@@ -303,12 +274,7 @@ class _ProgressPanel extends StatelessWidget {
 
 class _StartPanel extends StatelessWidget {
   final VoidCallback onLocal;
-  final VoidCallback onCloud;
-  final bool cloudSubmitting;
-  const _StartPanel(
-      {required this.onLocal,
-      required this.onCloud,
-      required this.cloudSubmitting});
+  const _StartPanel({required this.onLocal});
 
   @override
   Widget build(BuildContext context) {
@@ -321,21 +287,6 @@ class _StartPanel extends StatelessWidget {
                 onPressed: onLocal,
                 icon: const Icon(Icons.phone_iphone_rounded),
                 label: const Text("开始本地生成"))),
-        const SizedBox(height: 10),
-        SizedBox(
-          width: double.infinity,
-          height: 50,
-          child: OutlinedButton.icon(
-            onPressed: cloudSubmitting ? null : onCloud,
-            icon: cloudSubmitting
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.cloud_queue_rounded),
-            label: Text(cloudSubmitting ? "提交中..." : "改用云端生成"),
-          ),
-        ),
       ],
     );
   }

@@ -1,7 +1,6 @@
 /// Task Provider：任务状态管理
 import "dart:async";
 import "package:flutter/foundation.dart";
-import "../services/api_service.dart";
 import "../models/task.dart";
 
 class TaskProvider extends ChangeNotifier {
@@ -20,7 +19,7 @@ class TaskProvider extends ChangeNotifier {
     _error = null;
     notifyListeners();
     try {
-      _tasks = await ApiService.listTasks(statusFilter: statusFilter);
+      _tasks = [];
       _isLoading = false;
       notifyListeners();
     } catch (e) {
@@ -32,19 +31,14 @@ class TaskProvider extends ChangeNotifier {
 
   /// 轮询单个任务状态
   Future<Task?> pollTask(int id) async {
-    try {
-      return await ApiService.getTask(id);
-    } catch (e) {
-      return null;
-    }
+    return null;
   }
 
   Future<Task?> createTask(int bookId, {Map<String, dynamic>? params}) async {
     try {
-      final task = await ApiService.createTask(bookId, params: params);
-      _tasks.insert(0, task);
+      _error = "云端生成已关闭，请使用本地生成";
       notifyListeners();
-      return task;
+      return null;
     } catch (e) {
       _error = e.toString();
       notifyListeners();
@@ -53,10 +47,9 @@ class TaskProvider extends ChangeNotifier {
   }
 
   Future<bool> retryTask(int bookId) async {
-    final task = await createTask(bookId);
-    if (task == null) return false;
-    await loadTasks();
-    return true;
+    _error = "云端重试已关闭，请在书籍详情页使用本地重新生成";
+    notifyListeners();
+    return false;
   }
 
   /// 启动自动轮询（用于任务列表页）
@@ -76,9 +69,6 @@ class TaskProvider extends ChangeNotifier {
   /// 取消任务
   Future<bool> cancelTask(int id) async {
     try {
-      final task = await ApiService.cancelTask(id);
-      final idx = _tasks.indexWhere((t) => t.id == id);
-      if (idx >= 0) _tasks[idx] = task;
       notifyListeners();
       return true;
     } catch (e) {
@@ -90,7 +80,6 @@ class TaskProvider extends ChangeNotifier {
 
   Future<bool> deleteTask(int id) async {
     try {
-      await ApiService.deleteTask(id);
       _tasks.removeWhere((t) => t.id == id);
       notifyListeners();
       return true;

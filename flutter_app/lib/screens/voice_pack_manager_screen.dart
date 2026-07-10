@@ -1,4 +1,5 @@
 import "package:flutter/material.dart";
+import "package:just_audio/just_audio.dart";
 import "package:provider/provider.dart";
 import "../models/local_tts.dart";
 import "../providers/local_tts_provider.dart";
@@ -12,11 +13,20 @@ class VoicePackManagerScreen extends StatefulWidget {
 }
 
 class _VoicePackManagerScreenState extends State<VoicePackManagerScreen> {
+  final AudioPlayer _player = AudioPlayer();
+  String? _playingVoiceId;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance
         .addPostFrameCallback((_) => context.read<LocalTtsProvider>().init());
+  }
+
+  @override
+  void dispose() {
+    _player.dispose();
+    super.dispose();
   }
 
   @override
@@ -48,7 +58,9 @@ class _VoicePackManagerScreenState extends State<VoicePackManagerScreen> {
           ...provider.voices.map((voice) => _VoiceTile(
                 voice: voice,
                 selected: provider.defaultVoiceId == voice.voiceId,
+                playing: _playingVoiceId == voice.voiceId,
                 onSelect: () => provider.setDefaultVoice(voice.voiceId),
+                onPreview: () => _preview(provider, voice),
               )),
           if (provider.error != null) ...[
             const SizedBox(height: 16),
@@ -58,6 +70,18 @@ class _VoicePackManagerScreenState extends State<VoicePackManagerScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _preview(LocalTtsProvider provider, TtsVoice voice) async {
+    try {
+      setState(() => _playingVoiceId = voice.voiceId);
+      final path = await provider.previewVoice(voice);
+      if (path == null) return;
+      await _player.setFilePath(path);
+      await _player.play();
+    } finally {
+      if (mounted) setState(() => _playingVoiceId = null);
+    }
   }
 }
 
@@ -69,9 +93,7 @@ class _ModeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final options = [
-      (GenerationMode.auto, "自动选择", "优先本地，失败后提示切换云端"),
-      (GenerationMode.local, "只用本地", "正文不上传服务器，适合隐私内容"),
-      (GenerationMode.cloud, "只用云端", "继续使用服务器 Abogen/TTS 链路"),
+      (GenerationMode.local, "本地生成", "正文、分段、音频缓存全部保存在这台 iPhone"),
     ];
     return Container(
       padding: const EdgeInsets.all(14),
@@ -84,6 +106,14 @@ class _ModeCard extends StatelessWidget {
         children: [
           const Text("生成方式",
               style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+          const SizedBox(height: 6),
+          Text("云端生成已关闭。上传文件不会发送到服务器。",
+              style: TextStyle(
+                  fontSize: 13,
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurface
+                      .withValues(alpha: 0.55))),
           const SizedBox(height: 10),
           ...options.map((item) {
             final selected = mode == item.$1;
@@ -141,9 +171,15 @@ class _PackTile extends StatelessWidget {
 class _VoiceTile extends StatelessWidget {
   final TtsVoice voice;
   final bool selected;
+  final bool playing;
   final VoidCallback onSelect;
+  final VoidCallback onPreview;
   const _VoiceTile(
-      {required this.voice, required this.selected, required this.onSelect});
+      {required this.voice,
+      required this.selected,
+      required this.playing,
+      required this.onSelect,
+      required this.onPreview});
 
   @override
   Widget build(BuildContext context) {
@@ -166,9 +202,20 @@ class _VoiceTile extends StatelessWidget {
         subtitle: Text("$gender · ${voice.language}\n${voice.description}",
             maxLines: 2, overflow: TextOverflow.ellipsis),
         isThreeLine: true,
-        trailing: selected
-            ? Icon(Icons.check_rounded, color: cs.primary)
-            : TextButton(onPressed: onSelect, child: const Text("设为默认")),
+        trailing: Wrap(
+            spacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              IconButton(
+                  tooltip: "试听",
+                  onPressed: onPreview,
+                  icon: Icon(playing
+                      ? Icons.stop_circle_outlined
+                      : Icons.play_circle_outline_rounded)),
+              selected
+                  ? Icon(Icons.check_rounded, color: cs.primary)
+                  : TextButton(onPressed: onSelect, child: const Text("设为默认")),
+            ]),
       ),
     );
   }

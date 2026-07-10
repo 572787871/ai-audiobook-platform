@@ -21,7 +21,8 @@ class LocalTtsProvider extends ChangeNotifier {
     error = null;
     notifyListeners();
     try {
-      mode = await LocalTtsService.getGenerationMode();
+      mode = GenerationMode.local;
+      await LocalTtsService.setGenerationMode(mode);
       defaultVoiceId = await LocalTtsService.resolveVoiceId();
       voicePacks = await LocalTtsService.getInstalledVoicePacks();
       voices = await LocalTtsService.getAvailableVoices();

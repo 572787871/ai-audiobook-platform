@@ -8,6 +8,8 @@ class Book {
   final String? coverUrl;
   final String? audioUrl;
   final double? audioDuration;
+  final String? sourceFilePath;
+  final int? sourceFileSize;
   final String status;
   final String createdAt;
   final String updatedAt;
@@ -21,6 +23,8 @@ class Book {
     this.coverUrl,
     this.audioUrl,
     this.audioDuration,
+    this.sourceFilePath,
+    this.sourceFileSize,
     required this.status,
     required this.createdAt,
     required this.updatedAt,
@@ -36,9 +40,50 @@ class Book {
       coverUrl: json["cover_url"] as String?,
       audioUrl: json["audio_url"] as String?,
       audioDuration: (json["audio_duration"] as num?)?.toDouble(),
+      sourceFilePath: json["source_file_path"] as String?,
+      sourceFileSize: json["source_file_size"] as int?,
       status: json["status"] as String? ?? "pending",
       createdAt: json["created_at"] as String? ?? "",
       updatedAt: json["updated_at"] as String? ?? "",
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        "id": id,
+        "user_id": userId,
+        "title": title,
+        "author": author,
+        "description": description,
+        "cover_url": coverUrl,
+        "audio_url": audioUrl,
+        "audio_duration": audioDuration,
+        "source_file_path": sourceFilePath,
+        "source_file_size": sourceFileSize,
+        "status": status,
+        "created_at": createdAt,
+        "updated_at": updatedAt,
+      };
+
+  Book copyWith({
+    String? audioUrl,
+    double? audioDuration,
+    String? status,
+    String? updatedAt,
+  }) {
+    return Book(
+      id: id,
+      userId: userId,
+      title: title,
+      author: author,
+      description: description,
+      coverUrl: coverUrl,
+      audioUrl: audioUrl ?? this.audioUrl,
+      audioDuration: audioDuration ?? this.audioDuration,
+      sourceFilePath: sourceFilePath,
+      sourceFileSize: sourceFileSize,
+      status: status ?? this.status,
+      createdAt: createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 }
@@ -65,6 +110,13 @@ class Chapter {
       end: (json["end"] as num).toDouble(),
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        "index": index,
+        "title": title,
+        "start": start,
+        "end": end,
+      };
 }
 
 /// 字幕行
@@ -86,6 +138,12 @@ class TranscriptLine {
       text: json["text"] as String,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        "start": start,
+        "end": end,
+        "text": text,
+      };
 }
 
 /// 有声书详情（含章节和字幕）
@@ -104,6 +162,8 @@ class BookDetail extends Book {
     super.coverUrl,
     super.audioUrl,
     super.audioDuration,
+    super.sourceFilePath,
+    super.sourceFileSize,
     required super.status,
     required super.createdAt,
     required super.updatedAt,
@@ -123,6 +183,8 @@ class BookDetail extends Book {
       coverUrl: json["cover_url"] as String?,
       audioUrl: json["audio_url"] as String?,
       audioDuration: (json["audio_duration"] as num?)?.toDouble(),
+      sourceFilePath: json["source_file_path"] as String?,
+      sourceFileSize: json["source_file_size"] as int?,
       status: json["status"] as String? ?? "pending",
       createdAt: json["created_at"] as String? ?? "",
       updatedAt: json["updated_at"] as String? ?? "",
@@ -137,4 +199,13 @@ class BookDetail extends Book {
           (json["audio_duration"]?.toString()),
     );
   }
+
+  @override
+  Map<String, dynamic> toJson() => {
+        ...super.toJson(),
+        "chapters": chapters.map((e) => e.toJson()).toList(),
+        "transcript": transcript.map((e) => e.toJson()).toList(),
+        "word_count": wordCount,
+        "total_duration": totalDuration,
+      };
 }

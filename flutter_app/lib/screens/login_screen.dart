@@ -2,7 +2,6 @@
 import "package:flutter/material.dart";
 import "package:provider/provider.dart";
 import "../providers/auth_provider.dart";
-import "../services/api_service.dart";
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -36,41 +35,6 @@ class _LoginScreenState extends State<LoginScreen> {
         SnackBar(content: Text(auth.error ?? "登录失败")),
       );
     }
-  }
-
-  void _showServerDialog() {
-    final ctrl = TextEditingController(text: ApiService.baseUrl);
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("服务器地址"),
-        content: TextField(
-          controller: ctrl,
-          decoration: const InputDecoration(
-            labelText: "后端 API 地址",
-            hintText: "http://192.168.x.x:8001",
-            border: OutlineInputBorder(),
-          ),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text("取消")),
-          FilledButton(
-              onPressed: () async {
-                await ApiService.setBaseUrl(ctrl.text.trim());
-                if (ctx.mounted) {
-                  Navigator.pop(ctx);
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("服务器地址已更新")),
-                    );
-                  }
-                }
-              },
-              child: const Text("保存")),
-        ],
-      ),
-    );
   }
 
   @override
@@ -145,11 +109,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   ],
                 ),
                 const SizedBox(height: 8),
-                TextButton.icon(
-                  icon: const Icon(Icons.settings, size: 16),
-                  label: const Text("服务器地址"),
-                  onPressed: _showServerDialog,
-                ),
+                Text("离线模式：书籍和音频只保存在本机",
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context)
+                            .colorScheme
+                            .onSurface
+                            .withValues(alpha: 0.45))),
               ],
             ),
           ),

@@ -85,7 +85,7 @@ class _BrowseReadScreenState extends State<BrowseReadScreen> {
           setState(() => _error = "音频加载失败: $e");
         }
       } else {
-        setState(() => _error = "音频尚未生成或后端未返回 audio_url");
+        setState(() => _error = "音频尚未生成，请先在本机生成有声书");
       }
     } catch (e) {
       if (mounted)

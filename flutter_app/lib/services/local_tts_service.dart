@@ -35,16 +35,6 @@ class LocalTtsService {
           isDownloaded: true,
           progress: 1,
         ),
-        VoicePack(
-          packId: "kokoro_int8_zh_en",
-          displayName: "Kokoro INT8 中英语音包",
-          modelVersion: "kokoro-onnx-int8",
-          language: "zh-CN/en-US",
-          sizeBytes: 0,
-          downloadUrl: "",
-          sha256: "",
-          isDownloaded: false,
-        ),
       ];
 
   static List<TtsVoice> fallbackVoices() => const [
@@ -144,7 +134,7 @@ class LocalTtsService {
   }
 
   static Future<void> downloadVoicePack(VoicePack pack) async {
-    if (pack.downloadUrl.isEmpty) return;
+    if (pack.isDownloaded || pack.downloadUrl.isEmpty) return;
     await _channel.invokeMethod("downloadVoicePack", pack.toJson());
   }
 

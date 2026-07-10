@@ -3,9 +3,8 @@ import "package:provider/provider.dart";
 import "../theme/app_theme.dart";
 import "../widgets/common_widgets.dart";
 import "../providers/book_provider.dart";
-import "../providers/task_provider.dart";
 import "../models/book.dart";
-import "../services/api_service.dart";
+import "../services/local_tts_service.dart";
 import "local_generation_screen.dart";
 import "voice_select_screen.dart";
 
@@ -425,22 +424,24 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
   // ====== 操作 ======
 
   Future<void> _regenerate(BuildContext context, int bookId) async {
-    final ok = await context.read<TaskProvider>().retryTask(bookId);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(ok ? "已重新提交生成" : "操作失败")));
-    if (ok) _loadDetail();
+    Navigator.pushNamed(context, "/local-generation",
+        arguments: LocalGenerationArgs(bookId: bookId));
   }
 
   Future<void> _downloadBook(BuildContext context, BookDetail d) async {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text("开始下载...")));
     try {
-      if (d.audioUrl != null && d.audioUrl!.isNotEmpty) {
-        await ApiService.downloadBook(d.id, d.audioUrl!);
-        if (mounted)
+      final segments = await LocalTtsService.getSegments(d.id);
+      if (segments.isEmpty) {
+        if (mounted) {
           ScaffoldMessenger.of(context)
-              .showSnackBar(const SnackBar(content: Text("下载完成")));
+              .showSnackBar(const SnackBar(content: Text("还没有本地音频，请先生成")));
+        }
+        return;
+      }
+      final path = segments.first.audioPath ?? "";
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text("音频已在本机缓存：$path")));
       }
     } catch (e) {
       if (mounted)

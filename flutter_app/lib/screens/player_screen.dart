@@ -96,7 +96,7 @@ class _PlayerScreenState extends State<PlayerScreen>
           setState(() => _error = "音频加载失败: $e");
         }
       } else {
-        setState(() => _error = "音频尚未生成或后端未返回 audio_url");
+        setState(() => _error = "音频尚未生成，请先在本机生成有声书");
       }
     } catch (e) {
       if (mounted)
@@ -391,7 +391,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                 icon: _usingLocalAudio
                     ? Icons.phone_iphone_rounded
                     : Icons.cloud_queue_rounded,
-                label: _usingLocalAudio ? "本地" : "云端",
+                label: "本地",
                 onTap: () => _showMoreSheet(context)),
           ])),
 
@@ -492,8 +492,8 @@ class _PlayerScreenState extends State<PlayerScreen>
             leading: Icon(_usingLocalAudio
                 ? Icons.phone_iphone_rounded
                 : Icons.cloud_queue_rounded),
-            title: Text(_usingLocalAudio ? "正在播放本地缓存" : "正在播放云端音频"),
-            subtitle: const Text("本地缓存优先，缺失时自动回退云端 URL"),
+            title: const Text("正在播放本地缓存"),
+            subtitle: const Text("音频文件保存在本机，不依赖服务器"),
           ),
         ]),
       ),

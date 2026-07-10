@@ -4,7 +4,6 @@ import "package:file_picker/file_picker.dart";
 import "package:provider/provider.dart";
 import "../theme/app_theme.dart";
 import "../providers/book_provider.dart";
-import "../providers/task_provider.dart";
 import "../providers/local_tts_provider.dart";
 import "../models/local_tts.dart";
 import "../services/local_tts_service.dart";
@@ -74,23 +73,12 @@ class _UploadScreenState extends State<UploadScreen> {
               _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim());
       if (book == null) {
         setState(() {
-          _errorMsg = bp.error ?? "上传失败，请检查服务器地址";
+          _errorMsg = bp.error ?? "导入失败，请检查文件权限";
           _uploading = false;
         });
         return;
       }
-      final mode = context.read<LocalTtsProvider>().mode;
       if (!mounted) return;
-      if (mode == GenerationMode.cloud) {
-        await context
-            .read<TaskProvider>()
-            .createTask(book.id, params: {"generation_mode": "cloud"});
-        if (!mounted) return;
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text("上传成功，已提交云端生成")));
-        Navigator.pop(context, true);
-        return;
-      }
       final sourceText = await LocalTtsService.readTextFile(_selectedFile!);
       if (!mounted) return;
       ScaffoldMessenger.of(context)
@@ -312,9 +300,9 @@ class _UploadScreenState extends State<UploadScreen> {
   }
 
   String _modeLabel(GenerationMode mode) => switch (mode) {
-        GenerationMode.auto => "自动选择：优先 iPhone 本地生成，失败后询问是否切换云端",
+        GenerationMode.auto => "本地生成：正文只保存在这台 iPhone",
         GenerationMode.local => "本地生成：正文仅在 iPhone 上处理",
-        GenerationMode.cloud => "云端生成：上传后由服务器生成音频",
+        GenerationMode.cloud => "云端已关闭：会按本地生成处理",
       };
 
   String _voiceName(LocalTtsProvider tts) {

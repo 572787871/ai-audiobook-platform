@@ -2,7 +2,6 @@ import "package:flutter/material.dart";
 import "package:provider/provider.dart";
 import "../providers/auth_provider.dart";
 import "../providers/local_tts_provider.dart";
-import "../services/api_service.dart";
 import "../models/local_tts.dart";
 
 class SettingsScreen extends StatefulWidget {
@@ -12,20 +11,6 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  late TextEditingController _baseUrlCtrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _baseUrlCtrl = TextEditingController(text: ApiService.baseUrl);
-  }
-
-  @override
-  void dispose() {
-    _baseUrlCtrl.dispose();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
@@ -63,32 +48,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           onTap: () => Navigator.pushNamed(context, "/voice-packs"),
         ),
         const Divider(height: 40),
-        const Text("服务器",
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-        const SizedBox(height: 12),
-        Row(children: [
-          Expanded(
-              child: TextField(
-                  controller: _baseUrlCtrl,
-                  decoration: const InputDecoration(
-                      labelText: "API 地址", prefixIcon: Icon(Icons.dns)))),
-          const SizedBox(width: 8),
-          FilledButton(
-              onPressed: () async {
-                await ApiService.setBaseUrl(_baseUrlCtrl.text.trim());
-                if (context.mounted)
-                  ScaffoldMessenger.of(context)
-                      .showSnackBar(const SnackBar(content: Text("已保存")));
-              },
-              child: const Text("保存")),
-        ]),
-        const Divider(height: 40),
         const Text("账号",
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
         const SizedBox(height: 8),
         ListTile(
             title: const Text("当前账号"),
-            subtitle: Text(auth.user?.email ?? "-"),
+            subtitle: Text(auth.user?.email ?? "本机离线账户"),
             leading: const Icon(Icons.person)),
         ListTile(
             title: const Text("版本"),
@@ -108,9 +73,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   String _modeText(GenerationMode mode) => switch (mode) {
-        GenerationMode.auto => "自动选择，本地优先",
+        GenerationMode.auto => "本地生成",
         GenerationMode.local => "只在 iPhone 本地生成",
-        GenerationMode.cloud => "只用服务器生成",
+        GenerationMode.cloud => "云端已关闭",
       };
 
   String _voiceName(LocalTtsProvider tts) {
