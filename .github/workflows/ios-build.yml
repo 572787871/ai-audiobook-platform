@@ -62,25 +62,16 @@ jobs:
         working-directory: flutter_app
         run: flutter analyze
 
-      - name: Build IPA (unsigned)
+      - name: Build for iOS Simulator (unsigned, CI 无 Apple 账号)
         working-directory: flutter_app
-        env:
-          DEVELOPMENT_TEAM: "AAAAAAAAAA"
-          CODE_SIGNING_REQUIRED: "NO"
-          CODE_SIGNING_ALLOWED: "NO"
-        run: flutter build ios --release --no-codesign
+        run: flutter build ios --simulator --no-codesign
 
-      - name: Create unsigned IPA
+      - name: Verify simulator app built
         working-directory: flutter_app
         run: |
-          mkdir -p Payload
-          cp -R build/ios/iphoneos/Runner.app Payload/
-          zip -r ai_audiobook_unsigned.ipa Payload >/dev/null
-          rm -rf Payload
-          echo "IPA created: $(ls -lh ai_audiobook_unsigned.ipa)"
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ai-audiobook-unsigned-ipa
-          path: flutter_app/ai_audiobook_unsigned.ipa
-          retention-days: 30
+          APP=$(find build/ios -name "Runner.app" -maxdepth 3 | head -n1)
+          if [ -z "$APP" ]; then
+            echo "::error::Runner.app not found after build"
+            exit 1
+          fi
+          echo "Simulator app built: $APP ($(du -sh "$APP" | cut -f1))"
