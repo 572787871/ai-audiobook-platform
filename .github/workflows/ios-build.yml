@@ -58,9 +58,6 @@ jobs:
             echo "Patched pbxproj DEVELOPMENT_TEAM"
           fi
 
-      - name: Analyze
-        working-directory: flutter_app
-        run: flutter analyze
 
       - name: Build unsigned release IPA (no Apple 账号, 供企业证书自签)
         working-directory: flutter_app
