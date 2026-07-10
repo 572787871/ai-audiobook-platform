@@ -42,9 +42,12 @@ jobs:
           printf 'CODE_SIGNING_ALLOWED = NO\nCODE_SIGNING_REQUIRED = NO\nCODE_SIGN_IDENTITY =\nDEVELOPMENT_TEAM =\nCODE_SIGN_STYLE = Manual\n' > /tmp/unsigned.xcconfig
           cat /tmp/unsigned.xcconfig
 
-      - name: Disable signing in pbxproj (runner only, not committed)
+      - name: Build unsigned archive (no code signing)
         run: |
           set -e
+          flutter build ios --config-only
+          # config-only 完成后，再在 runner 本地禁用 pbxproj 签名
+          # （必须在 config-only 之后，否则 Flutter 会重新写回签名设置）
           python3 - <<'PY'
           p = 'ios/Runner.xcodeproj/project.pbxproj'
           s = open(p).read()
@@ -53,13 +56,8 @@ jobs:
           # Automatic -> Manual（配合无 team/identity 即禁用签名）
           s = s.replace('CODE_SIGN_STYLE = Automatic;', 'CODE_SIGN_STYLE = Manual;')
           open(p, 'w').write(s)
-          print('pbxproj patched for unsigned build (local only)')
+          print('pbxproj patched for unsigned build (local only, after config-only)')
           PY
-
-      - name: Build unsigned archive (no code signing)
-        run: |
-          set -e
-          flutter build ios --config-only
           xcodebuild archive \
             -workspace ios/Runner.xcworkspace \
             -scheme Runner \
