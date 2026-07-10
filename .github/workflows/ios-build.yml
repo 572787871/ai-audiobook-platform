@@ -21,15 +21,6 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Generate iOS project files if missing
-        run: |
-          if [ ! -f flutter_app/ios/Runner.xcodeproj/project.pbxproj ]; then
-            mkdir -p /tmp/flutter_ios_gen
-            cd /tmp/flutter_ios_gen
-            flutter create --project-name ai_audiobook --org com.ai.audiobook --platforms=ios .
-            cp -R ios "$GITHUB_WORKSPACE/flutter_app/"
-          fi
-
       - name: Install dependencies
         working-directory: flutter_app
         run: flutter pub get
@@ -47,17 +38,23 @@ jobs:
             echo "Patched Info.plist with ATS exception"
           fi
 
-      - name: Patch project for unsigned build (set dummy DEVELOPMENT_TEAM)
+      - name: Ensure dummy DEVELOPMENT_TEAM in pbxproj (unsigned build)
         working-directory: flutter_app
         run: |
           PBX=ios/Runner.xcodeproj/project.pbxproj
-          if [ -f "$PBX" ]; then
-            # 设置虚拟 team 以通过 Flutter 的 team 检查；实际签名由 CODE_SIGNING_ALLOWED=NO 跳过
-            sed -i '' "s/DEVELOPMENT_TEAM = "";/DEVELOPMENT_TEAM = AAAAAAAAAA;/g" "$PBX" 2>/dev/null || \
-              sed -i "s/DEVELOPMENT_TEAM = "";/DEVELOPMENT_TEAM = AAAAAAAAAA;/g" "$PBX"
-            echo "Patched pbxproj DEVELOPMENT_TEAM"
+          if [ -f "$PBX" ] && ! grep -q "DEVELOPMENT_TEAM" "$PBX"; then
+            # 本地 pbxproj 未含 team 时，注入虚拟 team + 禁用签名
+            awk '
+              /CODE_SIGN_STYLE = Automatic;/ {
+                print
+                print "\t\t\t\tDEVELOPMENT_TEAM = AAAAAAAAAA;"
+                print "\t\t\t\tCODE_SIGNING_ALLOWED = NO;"
+                next
+              }
+              { print }
+            ' "$PBX" > "$PBX.tmp" && mv "$PBX.tmp" "$PBX"
           fi
-
+          echo "pbxproj team check done"
 
       - name: Build unsigned release IPA (no Apple 账号, 供企业证书自签)
         working-directory: flutter_app
@@ -71,7 +68,6 @@ jobs:
             exit 1
           fi
           echo "Unsigned Runner.app built: $APP ($(du -sh "$APP" | cut -f1))"
-          # 打包成未签名 IPA：Payload/Runner.app
           mkdir -p build/ios/ipa/Payload
           cp -R "$APP" build/ios/ipa/Payload/
           cd build/ios/ipa
