@@ -53,6 +53,9 @@ class _ReaderPageState extends State<ReaderPage> {
   @override
   void dispose() {
     _saveTimer?.cancel();
+    // 兜底：无论以何种方式退出（系统右滑/返回按钮/dispose），
+    // 都把最新阅读进度与阅读时长落盘，避免丢失。
+    _saveProgress();
     _saveReadingTime();
     super.dispose();
   }
@@ -176,11 +179,8 @@ class _ReaderPageState extends State<ReaderPage> {
   Widget build(BuildContext context) {
     final themeColors = _bgColors();
     return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, _) async {
-        if (didPop) return;
-        await _handleBack();
-      },
+      // canPop:true 且不拦截 pop，保留 CupertinoPageRoute 默认的左边缘右滑返回。
+      canPop: true,
       child: CupertinoPageScaffold(
         backgroundColor: themeColors.background,
         navigationBar: CupertinoNavigationBar(
