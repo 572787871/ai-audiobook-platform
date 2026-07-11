@@ -4,23 +4,48 @@ import '../../../theme/app_theme.dart';
 import '../models/book.dart';
 import '../models/book_file_type.dart';
 import '../models/book_parse_status.dart';
+import '../models/library_change_result.dart';
 import '../services/book_repository.dart';
 import '../../../shared/utils/file_size_formatter.dart';
 import '../../reader/pages/reader_page.dart';
 
 /// 书籍详情页
-class BookDetailPage extends StatelessWidget {
-  const BookDetailPage({super.key, required this.book, this.repository});
+class BookDetailPage extends StatefulWidget {
+  const BookDetailPage({
+    super.key,
+    required this.book,
+    this.repository,
+    this.contentLoader,
+    this.initialPageIndex,
+  });
 
   final Book book;
   final BookRepositoryBase? repository;
 
-  BookRepositoryBase get _repo => repository ?? BookRepository.instance;
+  /// 阅读器正文加载器（测试注入内存正文用），生产为 null 走本地文件。
+  final Future<String> Function(Book book)? contentLoader;
+
+  /// 进入阅读器时的起始页索引；null 时由阅读器按 book.readingProgress 恢复。
+  final int? initialPageIndex;
+
+  @override
+  State<BookDetailPage> createState() => _BookDetailPageState();
+}
+
+class _BookDetailPageState extends State<BookDetailPage> {
+  late Book _book;
+  BookRepositoryBase get _repo => widget.repository ?? BookRepository.instance;
+
+  @override
+  void initState() {
+    super.initState();
+    _book = widget.book;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final isTxt = book.fileType == BookFileType.txt;
-    final created = DateFormat('yyyy-MM-dd HH:mm').format(book.createdAt);
+    final isTxt = _book.fileType == BookFileType.txt;
+    final created = DateFormat('yyyy-MM-dd HH:mm').format(_book.createdAt);
 
     return CupertinoPageScaffold(
       backgroundColor: AppTheme.background,
@@ -38,7 +63,7 @@ class BookDetailPage extends StatelessWidget {
           children: [
             // 标题
             Text(
-              book.title,
+              _book.title,
               style: const TextStyle(
                 fontSize: 26,
                 fontWeight: FontWeight.bold,
@@ -47,7 +72,7 @@ class BookDetailPage extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              '格式：${book.fileType.label}',
+              '格式：${_book.fileType.label}',
               style: const TextStyle(fontSize: 15, color: AppTheme.secondaryText),
             ),
             const SizedBox(height: 20),
@@ -58,15 +83,15 @@ class BookDetailPage extends StatelessWidget {
               decoration: AppTheme.cardDecoration,
               child: Column(
                 children: [
-                  _row('文件大小', FileSizeFormatter.format(book.fileSize)),
-                  _row('字符数', isTxt ? '${book.characterCount ?? 0} 字' : '—'),
+                  _row('文件大小', FileSizeFormatter.format(_book.fileSize)),
+                  _row('字符数', isTxt ? '${_book.characterCount ?? 0} 字' : '—'),
                   _row('导入时间', created),
-                  _row('上次阅读', DateFormat('yyyy-MM-dd HH:mm').format(book.updatedAt)),
-                  _row('解析状态', book.parseStatus.label),
+                  _row('上次阅读', DateFormat('yyyy-MM-dd HH:mm').format(_book.updatedAt)),
+                  _row('解析状态', _book.parseStatus.label),
                   _row('章节状态', isTxt ? '未分章' : '不可用'),
                   _row('AI 模型', '未下载'),
-                  if (isTxt && book.encoding != null)
-                    _row('编码', book.encoding!),
+                  if (isTxt && _book.encoding != null)
+                    _row('编码', _book.encoding!),
                 ],
               ),
             ),
@@ -99,10 +124,10 @@ class BookDetailPage extends StatelessWidget {
               child: Column(
                 children: [
                   _row('阅读进度',
-                      '${(book.readingProgress * 100).round()}%'),
-                  _row('当前章节', book.lastReadChapter ?? '未开始'),
+                      '${(_book.readingProgress * 100).round()}%'),
+                  _row('当前章节', _book.lastReadChapter ?? '未开始'),
                   _row('阅读时长',
-                      '${(book.readingTimeSec / 60).floor()} 分钟'),
+                      '${(_book.readingTimeSec / 60).floor()} 分钟'),
                 ],
               ),
             ),
@@ -113,10 +138,23 @@ class BookDetailPage extends StatelessWidget {
     );
   }
 
-  void _continueReading(BuildContext context) {
-    Navigator.of(context).push(
-      CupertinoPageRoute(builder: (_) => ReaderPage(book: book, repository: _repo)),
+  Future<void> _continueReading(BuildContext context) async {
+    final updated = await Navigator.of(context).push<Book?>(
+      CupertinoPageRoute(
+        builder: (_) => ReaderPage(
+          book: _book,
+          repository: _repo,
+          contentLoader: widget.contentLoader,
+          initialPageIndex: widget.initialPageIndex,
+        ),
+      ),
     );
+    if (updated != null && mounted) {
+      // 阅读器已保存进度，原地刷新详情页进度，无需重新进入
+      setState(() {
+        _book = updated;
+      });
+    }
   }
 
   Widget _row(String label, String value) {
@@ -208,10 +246,9 @@ class BookDetailPage extends StatelessWidget {
             child: const Text('删除'),
             onPressed: () async {
               Navigator.of(ctx).pop();
-              await _repo.delete(book.id);
-              if (context.mounted) {
-                Navigator.of(context).pop(); // 返回书库
-              }
+              await _repo.delete(_book.id);
+              if (!mounted) return;
+              Navigator.of(context).pop(LibraryChangeResult.deleted);
             },
           ),
         ],
@@ -220,7 +257,7 @@ class BookDetailPage extends StatelessWidget {
   }
 
   Future<void> _rename(BuildContext context) async {
-    final controller = TextEditingController(text: book.title);
+    final controller = TextEditingController(text: _book.title);
     final result = await showCupertinoDialog<String?>(
       context: context,
       builder: (ctx) => CupertinoAlertDialog(
@@ -239,8 +276,8 @@ class BookDetailPage extends StatelessWidget {
         ],
       ),
     );
-    if (result != null && result.isNotEmpty && result != book.title) {
-      await _repo.save(book.copyWith(title: result, updatedAt: DateTime.now()));
+    if (result != null && result.isNotEmpty && result != _book.title) {
+      await _repo.save(_book.copyWith(title: result, updatedAt: DateTime.now()));
     }
   }
 

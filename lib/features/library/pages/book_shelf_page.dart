@@ -3,6 +3,7 @@ import 'package:flutter/material.dart' show Colors;
 import '../../../theme/app_theme.dart';
 import '../models/book.dart';
 import '../models/book_file_type.dart';
+import '../models/library_change_result.dart';
 import '../services/book_repository.dart';
 import '../services/book_cover_service.dart';
 import 'book_detail_page.dart';
@@ -107,6 +108,8 @@ class _BookShelfPageState extends State<BookShelfPage> {
     );
     if (confirm == true) {
       await _repo.delete(book.id);
+      if (!mounted) return;
+      setState(() => _books.removeWhere((b) => b.id == book.id));
       _load();
     }
   }
@@ -136,17 +139,29 @@ class _BookShelfPageState extends State<BookShelfPage> {
         await _repo.delete(id);
       }
       _selected.clear();
-      setState(() => _editing = false);
+      if (mounted) {
+        setState(() {
+          _books.removeWhere((b) => ids.contains(b.id));
+          _editing = false;
+        });
+      }
       _load();
     }
   }
 
-  void _openDetail(Book book) {
-    Navigator.of(context).push(
+  Future<void> _openDetail(Book book) async {
+    final result = await Navigator.of(context).push<LibraryChangeResult?>(
       CupertinoPageRoute(
         builder: (_) => BookDetailPage(book: book, repository: _repo),
       ),
     );
+    if (!mounted) return;
+    if (result == LibraryChangeResult.deleted) {
+      // 删除后当前书架立即移除卡片，不等重新进入
+      setState(() => _books.removeWhere((b) => b.id == book.id));
+    }
+    // 兜底：无论结果都重新加载，确保进度/标题最新
+    await _load();
   }
 
   Future<void> _continueReading(Book book) async {
@@ -154,16 +169,16 @@ class _BookShelfPageState extends State<BookShelfPage> {
       _toast('该书暂未解析，无法阅读');
       return;
     }
-    final result = await Navigator.of(context).push(
+    await Navigator.of(context).push<Book?>(
       CupertinoPageRoute(
         builder: (_) => ReaderPage(book: book, repository: _repo),
       ),
     );
     // 返回后刷新进度
     await _load();
-    if (result != null && mounted) {
-      // 占位：ReaderPage 已通过 repository 保存进度
-    }
+    if (!mounted) return;
+    // 有阅读进度变化：返回首页时通知其重新同步数量
+    Navigator.of(context).pop(true);
   }
 
   void _toast(String msg) {
@@ -236,7 +251,7 @@ class _BookShelfPageState extends State<BookShelfPage> {
         leading: CupertinoButton(
           padding: EdgeInsets.zero,
           child: const Text('返回'),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () => Navigator.of(context).pop(true),
         ),
         trailing: _editing
             ? CupertinoButton(

@@ -17,10 +17,12 @@ class ReadingSettingsService {
   ReadingSettings? _cache;
 
   /// 测试注入目录，避免访问 path_provider。
+  /// 同时预热默认缓存，使 [get] 在测试环境下直接同步返回，
+  /// 不触发 `File.exists()`（该调用在 flutter test 的 binding 下会挂起）。
   void setDirForTest(Directory dir) {
     _dir = dir;
     _file = File(p.join(dir.path, 'reader_settings.json'));
-    _cache = null;
+    _cache = const ReadingSettings();
   }
 
   void resetForTest() {

@@ -155,12 +155,14 @@ class _LibraryPageState extends State<LibraryPage> {
     );
   }
 
-  void _openShelf() {
-    Navigator.of(context).push(
+  Future<void> _openShelf() async {
+    await Navigator.of(context).push<bool>(
       CupertinoPageRoute(
         builder: (_) => BookShelfPage(repository: widget.repository),
       ),
     );
+    // 无论返回结果如何，重新加载以同步“已导入 N 本书”数量
+    if (mounted) await _loadBooks();
   }
 
   void _showUnsupported() {

@@ -12,7 +12,21 @@ class ReaderPage extends StatefulWidget {
   final Book book;
   final BookRepositoryBase? repository;
 
-  const ReaderPage({super.key, required this.book, this.repository});
+  /// 正文加载器。生产环境为 null，默认从 `book.contentPath` 读取本地文件；
+  /// 测试环境可注入内存字符串，避免依赖真实磁盘 IO。
+  final Future<String> Function(Book book)? contentLoader;
+
+  /// 起始阅读页索引（0 基）。默认 null：按 `book.readingProgress` 恢复上次位置。
+  /// 传入时优先使用该值定位（用于测试或外部指定起始阅读位置）。
+  final int? initialPageIndex;
+
+  const ReaderPage({
+    super.key,
+    required this.book,
+    this.repository,
+    this.contentLoader,
+    this.initialPageIndex,
+  });
 
   @override
   State<ReaderPage> createState() => _ReaderPageState();
@@ -56,6 +70,15 @@ class _ReaderPageState extends State<ReaderPage> {
 
   Future<String> _loadContent() async {
     if (widget.book.fileType != BookFileType.txt) return '';
+    // 测试可注入内存正文，跳过真实磁盘读取
+    final loader = widget.contentLoader;
+    if (loader != null) {
+      try {
+        return await loader(widget.book);
+      } catch (_) {
+        return '';
+      }
+    }
     final file = File(widget.book.contentPath ?? '');
     if (!await file.exists()) return '';
     try {
@@ -85,24 +108,32 @@ class _ReaderPageState extends State<ReaderPage> {
     _pages = pages.isEmpty ? [''] : pages;
 
     final savedPct = widget.book.readingProgress;
-    if (savedPct > 0 && _pages.isNotEmpty) {
+    if (widget.initialPageIndex != null && _pages.isNotEmpty) {
+      _pageIndex =
+          widget.initialPageIndex!.clamp(0, _pages.length - 1);
+    } else if (savedPct > 0 && _pages.isNotEmpty) {
       _pageIndex = ((savedPct * (_pages.length - 1)).round())
           .clamp(0, _pages.length - 1);
     }
   }
 
-  void _saveProgress() {
+  Book _buildSavedBook() {
     final pct = _pages.isEmpty ? 0.0 : (_pageIndex / _pages.length).clamp(0.0, 1.0);
-    final updated = widget.book.copyWith(
+    return widget.book.copyWith(
       readingProgress: pct,
       lastReadOffset: _pageIndex,
       lastReadChapter: '正文',
       updatedAt: DateTime.now(),
     );
-    _repo.save(updated);
   }
 
-  void _saveReadingTime() {
+  Future<Book> _saveProgress() async {
+    final updated = _buildSavedBook();
+    await _repo.save(updated);
+    return updated;
+  }
+
+  Future<void> _saveReadingTime() async {
     if (_openedAt == null) return;
     final sec = DateTime.now().difference(_openedAt!).inSeconds;
     if (sec <= 0) return;
@@ -110,7 +141,14 @@ class _ReaderPageState extends State<ReaderPage> {
       readingTimeSec: widget.book.readingTimeSec + sec,
       updatedAt: DateTime.now(),
     );
-    _repo.save(updated);
+    await _repo.save(updated);
+  }
+
+  Future<void> _handleBack() async {
+    final updated = await _saveProgress();
+    await _saveReadingTime();
+    if (!mounted) return;
+    Navigator.of(context).pop(updated);
   }
 
   void _scheduleSave() {
@@ -137,9 +175,36 @@ class _ReaderPageState extends State<ReaderPage> {
   @override
   Widget build(BuildContext context) {
     final themeColors = _bgColors();
-    return CupertinoPageScaffold(
-      backgroundColor: themeColors.background,
-      child: SafeArea(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        await _handleBack();
+      },
+      child: CupertinoPageScaffold(
+        backgroundColor: themeColors.background,
+        navigationBar: CupertinoNavigationBar(
+          leading: CupertinoButton(
+            key: const Key('reader_back'),
+            padding: EdgeInsets.zero,
+            onPressed: _handleBack,
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(CupertinoIcons.back, size: 20),
+                SizedBox(width: 2),
+                Text('返回'),
+              ],
+            ),
+          ),
+          middle: Text(widget.book.title),
+          trailing: CupertinoButton(
+            padding: EdgeInsets.zero,
+            onPressed: _showMore,
+            child: const Icon(CupertinoIcons.ellipsis, size: 22),
+          ),
+        ),
+        child: SafeArea(
         child: _loading
             ? const Center(child: CupertinoActivityIndicator())
             : GestureDetector(
@@ -194,8 +259,9 @@ class _ReaderPageState extends State<ReaderPage> {
                 ),
               ),
       ),
-    );
+    ));
   }
+
 
   String _progressText() {
     if (_pages.isEmpty) return '0%';

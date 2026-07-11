@@ -1,7 +1,11 @@
+import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:ai_audiobook_platform/features/reader/services/reading_settings_service.dart';
 import 'package:ai_audiobook_platform/features/library/pages/library_page.dart';
 import 'package:ai_audiobook_platform/features/library/pages/book_shelf_page.dart';
+import 'package:ai_audiobook_platform/features/library/pages/book_detail_page.dart';
+import 'package:ai_audiobook_platform/features/reader/pages/reader_page.dart';
 import 'package:ai_audiobook_platform/features/library/models/book.dart';
 import 'package:ai_audiobook_platform/features/library/models/book_file_type.dart';
 import 'package:ai_audiobook_platform/features/library/models/book_parse_status.dart';
@@ -40,6 +44,12 @@ Book _makeBook(String id, String title, double progress) => Book(
     );
 
 void main() {
+  // 注入阅读器设置目录，避免 flutter test 环境下 path_provider 触发进程崩溃，
+  // 从而让 ReaderPage._init 能正常完成正文加载。
+  setUpAll(() {
+    ReadingSettingsService.instance.setDirForTest(Directory.systemTemp);
+  });
+
   testWidgets('空书库首页：标题/四个导入入口/无 FAB', (tester) async {
     await tester.pumpWidget(
       CupertinoApp(home: LibraryPage(repository: FakeBookRepository())),
@@ -52,21 +62,19 @@ void main() {
     expect(find.text('粘贴文本'), findsOneWidget);
     expect(find.text('扫描文字'), findsOneWidget);
     expect(find.text('从其他 App 导入'), findsOneWidget);
-    // 书库入口卡片存在，副标题为空状态
     expect(find.text('暂无已导入书籍'), findsOneWidget);
-    // 首页不直接显示具体书籍
     expect(find.text('测试小说'), findsNothing);
     expect(find.byKey(const Key('import_fab')), findsNothing);
   });
 
-  testWidgets('首页只显示“书库”入口卡片，不直接展开书籍列表', (tester) async {
+  testWidgets('首页只显示“书库”入口卡片，不直接展开书籍列表',
+      (tester) async {
     final repo = FakeBookRepository([_makeBook('b1', '测试小说', 0.0)]);
     await tester.pumpWidget(
       CupertinoApp(home: LibraryPage(repository: repo)),
     );
     await pumpUntilFound(tester, find.text('书库'));
     expect(find.text('已导入 1 本书'), findsOneWidget);
-    // 首页不应直接显示书籍书名
     expect(find.text('测试小说'), findsNothing);
   });
 
@@ -80,11 +88,9 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('shelf_entry')));
     await tester.pumpAndSettle();
-    // 独立书架页：分类栏
     expect(find.text('全部'), findsOneWidget);
     expect(find.text('阅读中'), findsOneWidget);
-    expect(find.text('已完成'), findsOneWidget); // 分类栏标签
-    // 书籍以网格封面显示（书名出现 2 次：封面+下方）
+    expect(find.text('已完成'), findsOneWidget);
     expect(find.text('测试小说'), findsWidgets);
   });
 
@@ -132,7 +138,7 @@ void main() {
     expect(find.text('书架空空如也，去首页导入吧'), findsOneWidget);
   });
 
-  testWidgets('删除后书籍从书架消失', (tester) async {
+  testWidgets('编辑模式删除书籍后当前书架立即移除卡片', (tester) async {
     final repo = FakeBookRepository([_makeBook('b1', '测试小说', 0.0)]);
     await tester.pumpWidget(
       CupertinoApp(home: BookShelfPage(repository: repo)),
@@ -150,5 +156,117 @@ void main() {
     await tester.tap(find.text('删除').last);
     await tester.pumpAndSettle();
     expect(find.text('测试小说'), findsNothing);
+  });
+
+  testWidgets('ReaderPage 顶部有返回按钮', (tester) async {
+    final repo = FakeBookRepository([_makeBook('b1', '测试小说', 0.0)]);
+    await tester.pumpWidget(
+      CupertinoApp(home: ReaderPage(book: repo.books.first, repository: repo)),
+    );
+    await pumpUntilFound(tester, find.text('返回'));
+    expect(find.text('返回'), findsWidgets);
+    expect(find.text('测试小说'), findsOneWidget);
+  });
+
+  testWidgets('点击返回前会保存进度', (tester) async {
+    final repo = FakeBookRepository([_makeBook('b1', '测试小说', 0.0)]);
+    await tester.pumpWidget(
+      CupertinoApp(home: ReaderPage(book: repo.books.first, repository: repo)),
+    );
+    await pumpUntilFound(tester, find.text('返回'));
+    final before = repo.savedCount;
+    await tester.tap(find.text('返回'));
+    await tester.pumpAndSettle();
+    expect(repo.savedCount, greaterThan(before));
+  });
+
+  testWidgets('阅读后返回详情页进度立即更新', (tester) async {
+    // 注入内存正文（多页），不依赖真实磁盘读取 / path_provider
+    final longText = '第一章 开局\n' * 600;
+    // 初始进度 0（尚未阅读）
+    final repo = FakeBookRepository([_makeBook('b1', '测试小说', 0.0)]);
+    await tester.pumpWidget(
+      CupertinoApp(
+        home: BookDetailPage(
+          book: repo.books.first,
+          repository: repo,
+          // 详情页透传 contentLoader 给阅读器
+          contentLoader: (_) async => longText,
+          // 进入阅读器时定位到第 1 页（模拟“读到这里”，不依赖手势）
+          initialPageIndex: 1,
+        ),
+      ),
+    );
+    await pumpUntilFound(tester, find.text('书籍详情'));
+    final savedBefore = repo.savedCount;
+    expect(repo.books.first.readingProgress, 0.0);
+    // 详情页初始显示“0%”
+    expect(find.text('0%'), findsWidgets);
+
+    // 进入阅读器，并指定起始阅读页为第 1 页（模拟“读到这里”，不依赖手势）
+    await tester.tap(find.text('继续阅读'));
+    await pumpUntilFound(tester, find.byKey(const Key('reader_back')));
+
+    // 手动推进帧，覆盖注入 loader 异步返回与页面动画（绕开加载指示器持续动画）
+    for (var i = 0; i < 15; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+    // 加载指示器应已停止，证明正文加载完成
+    expect(find.byType(CupertinoActivityIndicator), findsNothing);
+    // 正文加载完成，出现可滚动正文
+    await pumpUntilFound(tester, find.byType(SingleChildScrollView));
+
+    // 点返回：阅读器内部先保存进度（写入第 1 页位置），再 pop updatedBook 给详情页
+    await tester.tap(find.byKey(const Key('reader_back')));
+    await tester.pumpAndSettle();
+
+    // 返回后仍在详情页（原地刷新，未重新进入）
+    expect(find.text('书籍详情'), findsOneWidget);
+    // 返回时已触发 repository.save
+    expect(repo.savedCount, greaterThan(savedBefore));
+    // 阅读进度已写入仓储且大于 0（确实定位到了第 1 页）
+    expect(repo.books.first.readingProgress, greaterThan(0.0));
+    // 详情页进度显示立即更新（不再显示旧的“0%”，出现新的百分比）
+    expect(find.text('0%'), findsNothing);
+    expect(find.textContaining('%'), findsWidgets);
+  });
+
+  testWidgets('删除最后一本后显示空书架状态', (tester) async {
+    final repo = FakeBookRepository([_makeBook('b1', '测试小说', 0.0)]);
+    await tester.pumpWidget(
+      CupertinoApp(home: BookShelfPage(repository: repo)),
+    );
+    await pumpUntilFound(tester, find.byKey(const Key('book_b1')));
+    await tester.longPress(find.byKey(const Key('book_b1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('删除'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('删除').last);
+    await tester.pumpAndSettle();
+    expect(find.text('书架空空如也，去首页导入吧'), findsOneWidget);
+    expect(find.text('测试小说'), findsNothing);
+  });
+
+  testWidgets('从书架返回首页后数量同步为 0', (tester) async {
+    final repo = FakeBookRepository([_makeBook('b1', '测试小说', 0.0)]);
+    await tester.pumpWidget(
+      CupertinoApp(home: LibraryPage(repository: repo)),
+    );
+    await pumpUntilFound(tester, find.text('已导入 1 本书'));
+    await tester.ensureVisible(find.byKey(const Key('shelf_entry')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('shelf_entry')));
+    await tester.pumpAndSettle();
+    await pumpUntilFound(tester, find.byKey(const Key('book_b1')));
+    await tester.longPress(find.byKey(const Key('book_b1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('删除'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('删除').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('返回'));
+    await tester.pumpAndSettle();
+    await pumpUntilFound(tester, find.text('暂无已导入书籍'));
+    expect(find.text('已导入 1 本书'), findsNothing);
   });
 }
