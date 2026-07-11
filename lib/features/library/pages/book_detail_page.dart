@@ -246,9 +246,12 @@ class _BookDetailPageState extends State<BookDetailPage> {
             child: const Text('删除'),
             onPressed: () async {
               Navigator.of(ctx).pop();
+              // 先用 context 弹出删除结果（await 之前使用，避免跨 async gap 的 lint），
+              // 随后在后台执行删除落盘，不依赖 BuildContext。
+              if (mounted) {
+                Navigator.of(context).pop(LibraryChangeResult.deleted);
+              }
               await _repo.delete(_book.id);
-              if (!mounted) return;
-              Navigator.of(context).pop(LibraryChangeResult.deleted);
             },
           ),
         ],
