@@ -1,16 +1,4 @@
-name: CI (Analyze + Test)
-
-# 说明（环境限制，非代码问题）：
-# GitHub 公开 macOS runner 没有 Apple Developer 证书。Xcode 16 在构建
-# iphoneos（设备）目标时会强制校验代码签名，无证书即报
-# "No development certificates available to code sign app for device deployment"。
-# 已用 12 次真实 CI run 日志 + 查 Flutter 官方文档（docs.flutter.dev/deployment/ios、/cd）
-# 确证：Flutter 官方只有“有证书”的发布路径（flutter build ipa + 证书/TestFlight），
-# 无“无证书未签名 CI 构建”方案。archive / build / config-only 均会在签名校验阶段失败。
-#
-# 因此本 CI 只做代码质量门禁：flutter analyze + flutter test（含 TXT 真实字节级往返）。
-# 真实 iOS 构建/打包需自带证书的自托管 runner 或本地有证书的机器，或走官方
-# flutter build ipa 证书路径。业务代码、pbxproj 均不改动。
+name: Build iOS IPA (Unsigned)
 
 on:
   push:
@@ -18,13 +6,13 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ci-analyze-test
+  group: build-ios-unsigned
   cancel-in-progress: true
 
 jobs:
-  quality-gate:
-    name: Flutter Analyze & Test
-    runs-on: ubuntu-latest
+  build-ios:
+    name: Build unsigned IPA on macOS
+    runs-on: macos-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -47,3 +35,35 @@ jobs:
 
       - name: Test
         run: flutter test
+
+      - name: Build unsigned app bundle (no codesign)
+        run: |
+          flutter build ios \
+            --no-codesign \
+            --release \
+            --verbose
+
+      - name: Package unsigned IPA
+        run: |
+          set -e
+          APP="build/ios/iphoneos/Runner.app"
+          if [ ! -d "$APP" ]; then
+            echo "Runner.app not found at $APP"
+            find build/ios -name "*.app" -type d
+            exit 1
+          fi
+          WORKDIR=$(mktemp -d)
+          mkdir -p "$WORKDIR/Payload"
+          cp -R "$APP" "$WORKDIR/Payload/"
+          IPA_NAME="ai_audiobook_platform_unsigned.ipa"
+          pushd "$WORKDIR" >/dev/null
+          zip -r -q "$GITHUB_WORKSPACE/$IPA_NAME" Payload
+          popd >/dev/null
+          ls -lh "$GITHUB_WORKSPACE/$IPA_NAME"
+
+      - name: Upload unsigned IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-audiobook-unsigned-ipa
+          path: ai_audiobook_platform_unsigned.ipa
+          if-no-files-found: error
