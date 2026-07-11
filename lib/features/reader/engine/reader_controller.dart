@@ -140,7 +140,10 @@ class ReaderController {
   ReaderPageModel get currentPage {
     final c = _cache.current;
     if (c == null || c.pages.isEmpty) {
-      return const ReaderPageModel(startOffset: 0, endOffset: 0, text: '');
+      // 第三阶段：禁止用空页兜底掩盖错误。当前章未分页属于非法状态，
+      // 调用方应在 ReaderPage 加载守卫（_loading / _controller==null）下等待就绪，
+      // 而非渲染空白页。
+      throw StateError('currentPage called before chapter paginated');
     }
     return c.pages[_pageIndex.clamp(0, c.pages.length - 1)];
   }
@@ -298,7 +301,8 @@ class ReaderController {
     }
     final c = _cache.current;
     if (c == null || c.pages.isEmpty) {
-      return const ReaderPageModel(startOffset: 0, endOffset: 0, text: '');
+      // 第三阶段：同上，禁止空页兜底。
+      throw StateError('pageAtChapterPage called before chapter paginated');
     }
     return c.pages[pageIndex.clamp(0, c.pages.length - 1)];
   }
