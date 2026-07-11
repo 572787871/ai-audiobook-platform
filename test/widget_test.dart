@@ -65,7 +65,7 @@ void main() {
     expect(find.text('该功能将在后续版本加入'), findsOneWidget);
   });
 
-  testWidgets('有书时显示「已导入书籍」列表，点击进入 Book Detail', (tester) async {
+  testWidgets('有书时显示「书库」分区，点击进入 Book Detail', (tester) async {
     final book = Book(
       id: 'book-1',
       title: '测试小说',
@@ -93,10 +93,10 @@ void main() {
     await pumpUntilFound(tester, find.text('测试小说'));
 
     // 顶部导入入口仍在
-    expect(find.text('书库'), findsOneWidget);
+    expect(find.text('书库'), findsWidgets);
     expect(find.text('本地文件'), findsOneWidget);
-    // 已导入书籍分区标题
-    expect(find.text('已导入书籍'), findsOneWidget);
+    // 书库分区标题
+    expect(find.text('书库'), findsWidgets);
     // 书籍卡片
     expect(find.text('测试小说'), findsOneWidget);
     // 不应再有「最近添加」
@@ -112,10 +112,20 @@ void main() {
     expect(find.text('书籍详情'), findsOneWidget);
     expect(find.text('格式：TXT'), findsOneWidget);
 
+    // 返回首页后，点击「书库」分区标题进入书架页
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    final shelfTitle = find.text('书库');
+    await tester.ensureVisible(shelfTitle.last);
+    await tester.pumpAndSettle();
+    await tester.tap(shelfTitle.last);
+    await tester.pumpAndSettle();
+    // 书架页导航栏标题也是「书库」
+    expect(find.text('书库'), findsWidgets);
+
     // 返回 -> 回到首页（导入入口 + 已导入书籍仍在）
     await tester.pageBack();
     await tester.pumpAndSettle();
-    expect(find.text('书库'), findsOneWidget);
-    expect(find.text('已导入书籍'), findsOneWidget);
+    expect(find.text('书库'), findsWidgets);
   });
 }

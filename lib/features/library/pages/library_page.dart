@@ -13,6 +13,7 @@ import '../../import/file_import_service.dart';
 import '../../import/file_import_result.dart';
 import '../../import/import_progress.dart';
 import 'book_detail_page.dart';
+import 'book_shelf_page.dart';
 
 /// 书库首页
 class LibraryPage extends StatefulWidget {
@@ -164,6 +165,14 @@ class _LibraryPageState extends State<LibraryPage> {
     );
   }
 
+  void _openShelf() {
+    Navigator.of(context).push(
+      CupertinoPageRoute(
+        builder: (_) => BookShelfPage(repository: widget.repository),
+      ),
+    );
+  }
+
   void _showUnsupported() {
     _toast('该功能将在后续版本加入');
   }
@@ -257,9 +266,12 @@ class _LibraryPageState extends State<LibraryPage> {
           onTap: _showUnsupported,
         ),
         const SizedBox(height: 24),
-        // 已导入书籍（仅在有书时显示）
+        // 书库（仅在有书时显示，标题点击进入书架页）
         if (_books.isNotEmpty) ...[
-          _sectionDivider('已导入书籍'),
+          GestureDetector(
+            onTap: _openShelf,
+            child: _sectionDivider('书库'),
+          ),
           const SizedBox(height: 12),
           ..._books.map(
             (b) => BookCard(

@@ -6,6 +6,7 @@ import '../models/book_file_type.dart';
 import '../models/book_parse_status.dart';
 import '../services/book_repository.dart';
 import '../../../shared/utils/file_size_formatter.dart';
+import '../../reader/pages/reader_page.dart';
 
 /// 书籍详情页
 class BookDetailPage extends StatelessWidget {
@@ -71,8 +72,8 @@ class BookDetailPage extends StatelessWidget {
             if (isTxt) ...[
               _actionButton(
                 context,
-                '开始阅读',
-                onPressed: () => _toast(context, '阅读器将在下一阶段加入'),
+                '继续阅读',
+                onPressed: () => _continueReading(context),
               ),
               const SizedBox(height: 12),
               _actionButton(
@@ -81,14 +82,36 @@ class BookDetailPage extends StatelessWidget {
                 onPressed: () => _toast(context, 'AI 模型将在后续阶段加入'),
               ),
             ] else ...[
-              _disabledButton('开始阅读（等待解析）'),
+              _disabledButton('继续阅读（等待解析）'),
               const SizedBox(height: 12),
               _disabledButton('开始听书（等待解析）'),
             ],
+            const SizedBox(height: 16),
+
+            // 阅读统计
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: AppTheme.cardDecoration,
+              child: Column(
+                children: [
+                  _row('阅读进度',
+                      '${(book.readingProgress * 100).round()}%'),
+                  _row('当前章节', book.lastReadChapter ?? '未开始'),
+                  _row('阅读时长',
+                      '${(book.readingTimeSec / 60).floor()} 分钟'),
+                ],
+              ),
+            ),
             const SizedBox(height: 24),
           ],
         ),
       ),
+    );
+  }
+
+  void _continueReading(BuildContext context) {
+    Navigator.of(context).push(
+      CupertinoPageRoute(builder: (_) => ReaderPage(book: book)),
     );
   }
 

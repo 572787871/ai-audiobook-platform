@@ -18,7 +18,9 @@ class Book {
     required this.createdAt,
     required this.updatedAt,
     this.lastReadOffset = 0,
+    this.lastReadChapter,
     this.readingProgress = 0.0,
+    this.readingTimeSec = 0,
     required this.parseStatus,
     this.chapterCount,
     this.coverPath,
@@ -36,7 +38,9 @@ class Book {
   final DateTime createdAt;
   final DateTime updatedAt;
   final int lastReadOffset;
+  final String? lastReadChapter;
   final double readingProgress;
+  final int readingTimeSec;
   final BookParseStatus parseStatus;
   final int? chapterCount;
   final String? coverPath;
@@ -49,7 +53,9 @@ class Book {
     String? encoding,
     DateTime? updatedAt,
     int? lastReadOffset,
+    String? lastReadChapter,
     double? readingProgress,
+    int? readingTimeSec,
     BookParseStatus? parseStatus,
     int? chapterCount,
     String? coverPath,
@@ -67,7 +73,9 @@ class Book {
       createdAt: createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       lastReadOffset: lastReadOffset ?? this.lastReadOffset,
+      lastReadChapter: lastReadChapter ?? this.lastReadChapter,
       readingProgress: readingProgress ?? this.readingProgress,
+      readingTimeSec: readingTimeSec ?? this.readingTimeSec,
       parseStatus: parseStatus ?? this.parseStatus,
       chapterCount: chapterCount ?? this.chapterCount,
       coverPath: coverPath ?? this.coverPath,
@@ -87,7 +95,9 @@ class Book {
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
         'lastReadOffset': lastReadOffset,
+        'lastReadChapter': lastReadChapter,
         'readingProgress': readingProgress,
+        'readingTimeSec': readingTimeSec,
         'parseStatus': parseStatus.name,
         'chapterCount': chapterCount,
         'coverPath': coverPath,
@@ -131,7 +141,9 @@ class Book {
         createdAt: DateTime.parse(createdAt),
         updatedAt: DateTime.parse(updatedAt),
         lastReadOffset: (json['lastReadOffset'] as int?) ?? 0,
+        lastReadChapter: json['lastReadChapter'] as String?,
         readingProgress: (json['readingProgress'] as double?) ?? 0.0,
+        readingTimeSec: (json['readingTimeSec'] as int?) ?? 0,
         parseStatus: parseStatus,
         chapterCount: json['chapterCount'] as int?,
         coverPath: json['coverPath'] as String?,
