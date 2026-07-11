@@ -1,80 +1,298 @@
-import 'reader_engine.dart';
+library;
+
+import 'reader_document.dart';
+import 'reader_layout.dart';
 import 'reader_page_model.dart';
 import 'reader_position.dart';
+import 'chapter_parser.dart';
+import 'chapter_cache.dart';
+import 'page_cache.dart';
+import 'text_paginator.dart';
 
-/// 阅读控制器：持有分页结果，提供翻页、偏移定位、当前句/段/字符偏移查询。
+/// 阅读控制器：按需加载章节、维护三章缓存、提供翻页与偏移定位。
+///
+/// 性能架构（参考 legado-E）：
+///  - 打开书籍 -> 解析章节索引 -> 仅分页当前章 -> 缓存 prev/cur/next 三章；
+///  - 翻页跨章时后台预加载相邻章，远离当前位置的缓存及时释放；
+///  - 不对全书一次性分页，也不一次构建所有 Widget。
 ///
 /// 为 Kokoro 边读边播预留：
-///  - [currentSentence] / [currentParagraph] / [currentCharacterOffset]
-/// 可供 TTS 高亮当前句、自动滚动、按字符同步。
+///  - [currentChapterIndex] / [currentParagraphIndex] / [currentSentence] /
+///    [currentCharacterOffset] 可供 TTS 高亮当前句、自动滚动、按字符同步。
 class ReaderController {
-  final ReaderEngine engine;
-  List<ReaderPageModel> _pages;
-  int _pageIndex;
+  final String fullText;
+  final ReaderLayout layout;
+  final ChapterList chapters;
+  final ChapterCache _cache = ChapterCache();
+  final PageCache _pageCache = PageCache();
 
-  ReaderController({
-    required this.engine,
-    List<ReaderPageModel>? pages,
-    this._pageIndex = 0,
-  })  : _pages = pages ?? engine.paginate();
+  int _chapterIndex;
+  int _pageIndex = 0;
+  final int totalCharacters;
 
-  List<ReaderPageModel> get pages => _pages;
+  ReaderController._({
+    required this.fullText,
+    required this.layout,
+    required this.chapters,
+    required this._chapterIndex,
+    required int chapterOffset,
+    required this.totalCharacters,
+  }) {
+    _paginateAround(_chapterIndex);
+    _pageIndex = _cache.current == null
+        ? 0
+        : _cache.current!.pageIndexAtChapterOffset(chapterOffset);
+  }
+
+  /// 构造并定位到 [globalOffset]（全书字符偏移）。
+  factory ReaderController.load({
+    required String fullText,
+    required ReaderLayout layout,
+    int globalOffset = 0,
+  }) {
+    // 统一先规整全文（首行缩进/换行归一），使章节偏移与分页偏移同源
+    final normalized = ReaderDocument.fromContent(fullText).content;
+    final parsed = ChapterParser.parse(normalized);
+    final ci = parsed.chapterIndexAtOffset(globalOffset);
+    final chOffset = parsed.offsetInChapter(ci, globalOffset);
+    return ReaderController._(
+      fullText: normalized,
+      layout: layout,
+      chapters: parsed,
+      chapterIndex: ci,
+      chapterOffset: chOffset,
+      totalCharacters: parsed.totalCharacters,
+    );
+  }
+
+  // ---- 内部分页 ----
+
+  CachedChapter _paginateChapter(int index) {
+    final sig = LayoutSignature(
+      fontSize: layout.fontSize,
+      lineHeight: layout.lineHeight,
+      paragraphSpacing: layout.paragraphSpacing,
+      horizontalMargin: layout.horizontalMargin,
+      contentWidth: layout.contentWidth,
+      contentHeight: layout.contentHeight,
+      fontFamily: layout.fontFamily ?? '',
+      fontWeightIndex: layout.fontWeight.value,
+    );
+    final ch = chapters.chapters[index];
+    // PageCache 仅缓存章内局部偏移 pages；全局偏移在输出时统一加一次
+    final localPages = _pageCache.get(index, sig) ??
+        TextPaginator(
+          ReaderDocument(content: fullText.substring(ch.start, ch.end), paragraphs: const []),
+          layout,
+        ).paginate();
+    if (!_pageCache.containsKey(index, sig)) _pageCache.put(index, sig, localPages);
+    // 页码偏移转成全书绝对偏移（text 保持章内局部内容），只加一次
+    final pages = localPages
+        .map((p) => ReaderPageModel(
+              startOffset: p.startOffset + ch.start,
+              endOffset: p.endOffset + ch.start,
+              text: p.text,
+            ))
+        .toList();
+    return CachedChapter(
+      index: index,
+      title: ch.title,
+      pages: pages,
+      startOffset: ch.start,
+      endOffset: ch.end,
+    );
+  }
+
+  void _paginateAround(int center) {
+    final prevC =
+        (center - 1 >= 0) ? _paginateChapter(center - 1) : null;
+    final curC = _paginateChapter(center);
+    final nextC = (center + 1 < chapters.chapters.length)
+        ? _paginateChapter(center + 1)
+        : null;
+    _cache.update(
+      prevChapter: prevC,
+      currentChapter: curC,
+      nextChapter: nextC,
+    );
+  }
+
+  // ---- 对外只读 ----
+
+  int get chapterIndex => _chapterIndex;
+  /// 当前缓存章（开发期可用于断言非空）。
+  CachedChapter? get currentChapter => _cache.current;
+  int get chapterCount => chapters.chapters.length;
   int get pageIndex => _pageIndex;
-  int get pageCount => _pages.length;
+  int get pageCount => _cache.currentPageCount;
+  /// 当前章与相邻章的全部页（连续滚动模式用）。
+  List<ReaderPageModel> get currentChapterPagesWithNeighbors {
+    final out = <ReaderPageModel>[];
+    if (_cache.prev != null) out.addAll(_cache.prev!.pages);
+    if (_cache.current != null) out.addAll(_cache.current!.pages);
+    if (_cache.next != null) out.addAll(_cache.next!.pages);
+    if (out.isEmpty) out.add(currentPage);
+    return out;
+  }
 
-  ReaderPageModel get currentPage =>
-      _pages.isEmpty ? const ReaderPageModel(startOffset: 0, endOffset: 0, text: '') : _pages[_pageIndex];
 
-  /// 当前页起始字符偏移。
+
+  ReaderPageModel get currentPage {
+    final c = _cache.current;
+    if (c == null || c.pages.isEmpty) {
+      return const ReaderPageModel(startOffset: 0, endOffset: 0, text: '');
+    }
+    return c.pages[_pageIndex.clamp(0, c.pages.length - 1)];
+  }
+
   int get currentCharacterOffset => currentPage.startOffset;
 
-  /// 重新分页（字号/行距/边距/横竖屏变化后调用），并尽量保持阅读位置。
-  void repaginate({int? keepOffset}) {
-    final anchor = keepOffset ?? currentCharacterOffset;
-    _pages = engine.paginate();
-    _pageIndex = engine.pageIndexForOffset(anchor, _pages);
+  String get currentChapterTitle =>
+      _cache.current?.title ?? chapters.chapters.firstOrNull?.title ?? '';
+
+  ReaderPosition get position {
+    return ReaderPosition.fromOffset(
+      characterOffset: currentCharacterOffset,
+      totalCharacters: totalCharacters,
+      chapterIndex: _chapterIndex,
+    );
   }
 
-  void goToPage(int index) {
-    if (index >= 0 && index < _pages.length) _pageIndex = index;
+  // ---- 翻页 ----
+
+  bool get canNext {
+    final c = _cache.current;
+    if (c == null) return false;
+    if (_pageIndex < c.pages.length - 1) return true;
+    return _chapterIndex < chapters.chapters.length - 1;
   }
 
-  /// 根据字符偏移定位（不依赖页码）。
-  void goToOffset(int offset) {
-    _pageIndex = engine.pageIndexForOffset(offset, _pages);
+  bool get hasNext => canNext;
+  bool get hasPrev => canPrev;
+
+  /// 预览下一页（不移动）。跨章时先确保已分页。
+  ReaderPageModel peekNext() {
+    final c = _cache.current;
+    if (c != null && _pageIndex < c.pages.length - 1) {
+      return c.pages[_pageIndex + 1];
+    }
+    if (_chapterIndex < chapters.chapters.length - 1) {
+      final nextC = _paginateChapter(_chapterIndex + 1);
+      return nextC.pages.isNotEmpty ? nextC.pages.first : currentPage;
+    }
+    return currentPage;
   }
 
-  bool get canNext => _pageIndex < _pages.length - 1;
-  bool get canPrev => _pageIndex > 0;
+  /// 预览上一页（不移动）。
+  ReaderPageModel peekPrev() {
+    if (_pageIndex > 0) {
+      final c = _cache.current;
+      return c == null ? currentPage : c.pages[_pageIndex - 1];
+    }
+    if (_chapterIndex > 0) {
+      final prevC = _paginateChapter(_chapterIndex - 1);
+      return prevC.pages.isNotEmpty ? prevC.pages.last : currentPage;
+    }
+    return currentPage;
+  }
+
+  bool get canPrev {
+    if (_pageIndex > 0) return true;
+    return _chapterIndex > 0;
+  }
 
   void next() {
-    if (canNext) _pageIndex++;
+    final c = _cache.current;
+    if (c == null) return;
+    if (_pageIndex < c.pages.length - 1) {
+      _pageIndex++;
+    } else if (_chapterIndex < chapters.chapters.length - 1) {
+      _chapterIndex++;
+      _paginateAround(_chapterIndex);
+      _pageIndex = 0;
+    }
   }
 
   void prev() {
-    if (canPrev) _pageIndex--;
+    if (_pageIndex > 0) {
+      _pageIndex--;
+    } else if (_chapterIndex > 0) {
+      _chapterIndex--;
+      _paginateAround(_chapterIndex);
+      _pageIndex = (_cache.current?.pages.length ?? 1) - 1;
+    }
   }
 
-  ReaderPosition get position =>
-      engine.positionForOffset(currentCharacterOffset);
+  /// 跳转到指定章的指定页（PageView 当前页）。
+  void goToChapterPage(int chapterIndex, int pageIndex) {
+    if (chapterIndex != _chapterIndex) {
+      _chapterIndex = chapterIndex;
+      _paginateAround(_chapterIndex);
+    }
+    final c = _cache.current;
+    _pageIndex = c == null
+        ? 0
+        : pageIndex.clamp(0, c.pageSize - 1);
+  }
 
-  // ---- Kokoro 预留：句 / 段 / 字符偏移 ----
+  /// 取指定章的指定页（用于 PageView 构建独立页）。
+  ReaderPageModel pageAtChapterPage(int chapterIndex, int pageIndex) {
+    if (chapterIndex != _chapterIndex) {
+      _chapterIndex = chapterIndex;
+      _paginateAround(_chapterIndex);
+    }
+    final c = _cache.current;
+    if (c == null || c.pages.isEmpty) {
+      return const ReaderPageModel(startOffset: 0, endOffset: 0, text: '');
+    }
+    return c.pages[pageIndex.clamp(0, c.pages.length - 1)];
+  }
 
-  /// 当前页文本。
+  void goToOffset(int offset) {
+    final ci = chapters.chapterIndexAtOffset(offset);
+    final chOffset = chapters.offsetInChapter(ci, offset);
+    if (ci != _chapterIndex) {
+      _chapterIndex = ci;
+      _paginateAround(_chapterIndex);
+    }
+    final c = _cache.current;
+    _pageIndex = c == null
+        ? 0
+        : c.pageIndexAtChapterOffset(chOffset).clamp(0, c.pageSize - 1);
+  }
+
+  void repaginate(ReaderLayout newLayout) {
+    final anchor = currentCharacterOffset;
+    _pageCache.clear();
+    _paginateAround(_chapterIndex);
+    goToOffset(anchor);
+  }
+
+  void dispose() {
+    _cache.clear();
+    _pageCache.clear();
+  }
+
+  // ---- Kokoro 预留 ----
+
   String get currentText => currentPage.text;
 
-  /// 当前句子（以句号、叹号、问号、换行断句；简化实现，后续可接 NLP）。
   String get currentSentence {
     final t = currentText;
     if (t.isEmpty) return '';
-    // 取第一段非空句
     final sentences = t.split(RegExp(r'(?<=[。！？\n])'));
     return sentences.firstWhere((s) => s.trim().isNotEmpty, orElse: () => t);
   }
 
-  /// 当前段落（按空行分段，取第一段）。
   String get currentParagraph {
     final paras = currentText.split(RegExp(r'\n\s*\n'));
     return paras.firstWhere((p) => p.trim().isNotEmpty, orElse: () => currentText);
   }
+
+  int get currentParagraphIndex {
+    final parts = currentText.split(RegExp(r'\n\s*\n'));
+    return parts.where((p) => p.trim().isNotEmpty).length - 1;
+  }
+
+  int get currentChapterIndex => _chapterIndex;
 }

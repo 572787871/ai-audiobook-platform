@@ -12,21 +12,33 @@ class ReaderPosition {
   /// 阅读进度（0.0 ~ 1.0），由 characterOffset / totalCharacters 计算。
   final double readingProgress;
 
+  /// 累计阅读时长（秒）。
+  final int readingTimeSec;
+
+  /// 最后阅读时间。
+  final DateTime? lastReadAt;
+
   const ReaderPosition({
     this.chapterIndex = 0,
     this.characterOffset = 0,
     this.readingProgress = 0.0,
+    this.readingTimeSec = 0,
+    this.lastReadAt,
   });
 
   ReaderPosition copyWith({
     int? chapterIndex,
     int? characterOffset,
     double? readingProgress,
+    int? readingTimeSec,
+    DateTime? lastReadAt,
   }) =>
       ReaderPosition(
         chapterIndex: chapterIndex ?? this.chapterIndex,
         characterOffset: characterOffset ?? this.characterOffset,
         readingProgress: readingProgress ?? this.readingProgress,
+        readingTimeSec: readingTimeSec ?? this.readingTimeSec,
+        lastReadAt: lastReadAt ?? this.lastReadAt,
       );
 
   /// 由字符偏移与全文长度推导进度。
@@ -50,9 +62,10 @@ class ReaderPosition {
       other is ReaderPosition &&
       other.chapterIndex == chapterIndex &&
       other.characterOffset == characterOffset &&
-      other.readingProgress == readingProgress;
+      other.readingProgress == readingProgress &&
+      other.readingTimeSec == readingTimeSec;
 
   @override
   int get hashCode =>
-      chapterIndex.hashCode ^ characterOffset.hashCode ^ readingProgress.hashCode;
+      chapterIndex.hashCode ^ characterOffset.hashCode ^ readingProgress.hashCode ^ readingTimeSec.hashCode;
 }

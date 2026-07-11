@@ -23,6 +23,7 @@ class Book {
     this.lastReadChapter,
     this.readingProgress = 0.0,
     this.readingTimeSec = 0,
+    this.lastReadAt,
     required this.parseStatus,
     this.chapterCount,
     this.coverPath,
@@ -50,6 +51,7 @@ class Book {
   final String? lastReadChapter;
   final double readingProgress;
   final int readingTimeSec;
+  final DateTime? lastReadAt;
   final BookParseStatus parseStatus;
   final int? chapterCount;
   final String? coverPath;
@@ -77,6 +79,7 @@ class Book {
     String? lastReadChapter,
     double? readingProgress,
     int? readingTimeSec,
+    DateTime? lastReadAt,
     BookParseStatus? parseStatus,
     int? chapterCount,
     String? coverPath,

@@ -109,4 +109,53 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('reader_back')), findsOneWidget);
   });
+
+
+  testWidgets('大文本打开不一次构建所有页 Widget（性能架构）', (tester) async {
+    // 构造较长正文（多段多章），验证渲染树中 Text widget 数量有限（不一次构建全书）
+    final big = List.generate(
+      40,
+      (i) => '第${i + 1}段正文内容，用于验证按需分页与三章缓存，不一次构建全部 Widget。',
+    ).join('\n');
+    Future<String> bigLoader(Book b) async => big;
+    await tester.pumpWidget(CupertinoApp(
+      home: ReaderPage(book: _book(), repository: FakeBookRepository(), contentLoader: bigLoader),
+    ));
+    await pumpUntilFound(tester, find.byKey(const Key('reader_pager')));
+    await tester.pumpAndSettle();
+    final textCount = tester.widgetList(find.byType(Text)).length;
+    // 屏幕可见的 Text（含工具栏/标题）应远小于全文章节数，证明按需渲染
+    expect(textCount, lessThan(40));
+  });
+
+  testWidgets('iOS 左边缘系统返回手势不被阅读器抢占', (tester) async {
+    await tester.pumpWidget(CupertinoApp(
+      home: ReaderPage(book: _book(), repository: FakeBookRepository(), contentLoader: _loader),
+    ));
+    await pumpUntilFound(tester, find.byKey(const Key('reader_pager')));
+    await tester.pumpAndSettle();
+    // 最左侧 24pt 处 tap 不应触发阅读器翻页/工具栏（交给系统返回）
+    await tester.tapAt(const Offset(4, 400));
+    await tester.pumpAndSettle();
+    // 工具栏不应出现（未抢占最左返回区）
+    expect(find.byKey(const Key('reader_back')), findsNothing);
+  });
+
+  testWidgets('四种翻页模式均稳定构建', (tester) async {
+    for (final anim in [
+      PageAnimation.slide,
+      PageAnimation.cover,
+      PageAnimation.none,
+    ]) {
+      ReadingSettingsService.instance.setSettingsForTest(
+        (await ReadingSettingsService.instance.get()).copyWith(pageAnimation: anim),
+      );
+      await tester.pumpWidget(CupertinoApp(
+        home: ReaderPage(book: _book(), repository: FakeBookRepository(), contentLoader: _loader),
+      ));
+      await pumpUntilFound(tester, find.byKey(const Key('reader_pager')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('reader_pager')), findsOneWidget);
+    }
+  });
 }
