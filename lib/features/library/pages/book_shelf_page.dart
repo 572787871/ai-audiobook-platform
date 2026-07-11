@@ -5,11 +5,11 @@ import '../models/book.dart';
 import '../models/book_file_type.dart';
 import '../models/library_change_result.dart';
 import '../services/book_repository.dart';
-import '../services/book_cover_service.dart';
+import '../widgets/book_cover_widget.dart';
 import 'book_detail_page.dart';
 import '../../reader/pages/reader_page.dart';
 
-/// 书架页：独立页面，分类栏 + 网格封面书架。
+/// 书架页：独立页面，分类栏 + 两列实体书封面书架。
 class BookShelfPage extends StatefulWidget {
   final BookRepositoryBase? repository;
 
@@ -81,8 +81,7 @@ class _BookShelfPageState extends State<BookShelfPage> {
       ),
     );
     if (result != null && result.isNotEmpty && result != book.title) {
-      final updated = book.copyWith(title: result, updatedAt: DateTime.now());
-      await _repo.save(updated);
+      await _repo.save(book.copyWith(title: result, updatedAt: DateTime.now()));
       _load();
     }
   }
@@ -149,6 +148,7 @@ class _BookShelfPageState extends State<BookShelfPage> {
     }
   }
 
+  /// 进入详情（长按下/菜单选「书籍详情」才走这里）。
   Future<void> _openDetail(Book book) async {
     final result = await Navigator.of(context).push<LibraryChangeResult?>(
       CupertinoPageRoute(
@@ -157,14 +157,13 @@ class _BookShelfPageState extends State<BookShelfPage> {
     );
     if (!mounted) return;
     if (result == LibraryChangeResult.deleted) {
-      // 删除后当前书架立即移除卡片，不等重新进入
       setState(() => _books.removeWhere((b) => b.id == book.id));
     }
-    // 兜底：无论结果都重新加载，确保进度/标题最新
     await _load();
   }
 
-  Future<void> _continueReading(Book book) async {
+  /// 点击封面直接进阅读器，返回书架（非详情）。
+  Future<void> _openReader(Book book) async {
     if (book.fileType != BookFileType.txt) {
       _toast('该书暂未解析，无法阅读');
       return;
@@ -174,11 +173,8 @@ class _BookShelfPageState extends State<BookShelfPage> {
         builder: (_) => ReaderPage(book: book, repository: _repo),
       ),
     );
-    // 返回后刷新进度
+    // 返回后刷新进度与连续天数
     await _load();
-    if (!mounted) return;
-    // 有阅读进度变化：返回首页时通知其重新同步数量
-    Navigator.of(context).pop(true);
   }
 
   void _toast(String msg) {
@@ -206,9 +202,16 @@ class _BookShelfPageState extends State<BookShelfPage> {
           CupertinoActionSheetAction(
             onPressed: () {
               Navigator.of(ctx).pop();
-              _continueReading(book);
+              _openReader(book);
             },
             child: const Text('继续阅读'),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _toast('AI 听书将在后续阶段接入 Kokoro');
+            },
+            child: const Text('开始听书'),
           ),
           CupertinoActionSheetAction(
             onPressed: () {
@@ -251,7 +254,10 @@ class _BookShelfPageState extends State<BookShelfPage> {
         leading: CupertinoButton(
           padding: EdgeInsets.zero,
           child: const Text('返回'),
-          onPressed: () => Navigator.of(context).pop(true),
+          onPressed: () {
+            // 返回首页，并通知其刷新数量（删除/新增后同步）
+            Navigator.of(context).pop(true);
+          },
         ),
         trailing: _editing
             ? CupertinoButton(
@@ -304,8 +310,7 @@ class _BookShelfPageState extends State<BookShelfPage> {
             GestureDetector(
               onTap: () => setState(() => _filter = i),
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                 decoration: BoxDecoration(
                   color: _filter == i
                       ? CupertinoColors.activeBlue
@@ -351,11 +356,11 @@ class _BookShelfPageState extends State<BookShelfPage> {
       );
     }
     return GridView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        mainAxisSpacing: 16,
-        crossAxisSpacing: 12,
+        mainAxisSpacing: 18,
+        crossAxisSpacing: 14,
         childAspectRatio: 3 / 4.6,
       ),
       itemCount: items.length,
@@ -364,16 +369,9 @@ class _BookShelfPageState extends State<BookShelfPage> {
   }
 
   Widget _bookCard(Book book) {
-    final colors = BookCoverService.colorsFor(book);
-    final pct = (book.readingProgress * 100).round();
-    final progressLabel = book.readingProgress <= 0
-        ? '未开始'
-        : pct >= 100
-            ? '已完成'
-            : '已读 $pct%';
     final selected = _selected.contains(book.id);
     return GestureDetector(
-      key: Key('book_${book.id}'),
+      behavior: HitTestBehavior.opaque,
       onTap: () {
         if (_editing) {
           setState(() {
@@ -384,83 +382,40 @@ class _BookShelfPageState extends State<BookShelfPage> {
             }
           });
         } else {
-          _openDetail(book);
+          _openReader(book);
         }
       },
-      onLongPress: () {
-        if (!_editing) _showMenu(book);
-      },
-      child: Stack(
+      onLongPress: _editing ? null : () => _showMenu(book),
+      child: Container(
+        color: AppTheme.background,
+        child: Stack(
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: colors,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppTheme.shadowColor,
-                        blurRadius: 6,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
-                  ),
-                  // 书脊效果
-                  foregroundDecoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border(
-                      left: BorderSide(
-                        color: Colors.black.withValues(alpha:0.18),
-                        width: 4,
-                      ),
-                    ),
-                  ),
-                  padding: const EdgeInsets.all(12),
-                  child: Align(
-                    alignment: Alignment.topLeft,
-                    child: Text(
-                      book.title,
-                      maxLines: 4,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                        height: 1.3,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                book.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.primaryText,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                progressLabel,
-                maxLines: 1,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: AppTheme.secondaryText,
-                ),
-              ),
-            ],
+          Positioned.fill(
+            child: BookCoverWidget(
+              key: Key('book_${book.id}'),
+              book: book,
+            ),
           ),
+          // 右上角 ••• 菜单
+          if (!_editing)
+            Positioned(
+              top: 4,
+              right: 4,
+              child: CupertinoButton(
+                padding: EdgeInsets.zero,
+                minimumSize: Size.zero,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.35),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(CupertinoIcons.ellipsis,
+                      size: 18, color: CupertinoColors.white),
+                ),
+                onPressed: () => _showMenu(book),
+              ),
+            ),
           if (_editing)
             Positioned(
               top: 6,
@@ -472,7 +427,7 @@ class _BookShelfPageState extends State<BookShelfPage> {
                   shape: BoxShape.circle,
                   color: selected
                       ? CupertinoColors.activeBlue
-                      : Colors.white.withValues(alpha:0.85),
+                      : Colors.white.withValues(alpha: 0.85),
                   border: Border.all(
                     color: selected
                         ? CupertinoColors.activeBlue
@@ -487,6 +442,7 @@ class _BookShelfPageState extends State<BookShelfPage> {
               ),
             ),
         ],
+        ),
       ),
     );
   }

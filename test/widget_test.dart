@@ -114,7 +114,7 @@ void main() {
     expect(find.text('已完成'), findsAtLeastNWidgets(2));
   });
 
-  testWidgets('点击书籍封面进入详情页', (tester) async {
+  testWidgets('点击书籍封面直接进入阅读器（非详情）', (tester) async {
     final repo = FakeBookRepository([_makeBook('b1', '测试小说', 0.0)]);
     await tester.pumpWidget(
       CupertinoApp(home: BookShelfPage(repository: repo)),
@@ -123,11 +123,10 @@ void main() {
     await tester.ensureVisible(find.byKey(const Key('book_b1')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('book_b1')));
-    await tester.pumpAndSettle();
-    expect(find.text('书籍详情'), findsOneWidget);
-    expect(find.text('格式：TXT'), findsOneWidget);
-    expect(find.text('阅读进度'), findsOneWidget);
-    expect(find.text('上次阅读'), findsOneWidget);
+    // 直接进入阅读器（而非书籍详情页）：ReaderPage 已入栈即满足
+    await pumpUntilFound(tester, find.byType(ReaderPage));
+    expect(find.text('书籍详情'), findsNothing);
+    expect(find.byType(ReaderPage), findsOneWidget);
   });
 
   testWidgets('无书时 bookshelf 显示空状态', (tester) async {
@@ -158,24 +157,43 @@ void main() {
     expect(find.text('测试小说'), findsNothing);
   });
 
-  testWidgets('ReaderPage 顶部有返回按钮', (tester) async {
+  testWidgets('ReaderPage 点击中部显示工具栏与返回按钮', (tester) async {
+    final longText = '第一章 开局\n' * 600;
     final repo = FakeBookRepository([_makeBook('b1', '测试小说', 0.0)]);
     await tester.pumpWidget(
-      CupertinoApp(home: ReaderPage(book: repo.books.first, repository: repo)),
+      CupertinoApp(home: ReaderPage(
+        book: repo.books.first,
+        repository: repo,
+        contentLoader: (_) async => longText,
+        initialPageIndex: 1,
+      )),
     );
-    await pumpUntilFound(tester, find.text('返回'));
-    expect(find.text('返回'), findsWidgets);
+    await pumpUntilFound(tester, find.byType(SingleChildScrollView));
+    // 默认沉浸：返回按钮不显示
+    expect(find.byKey(const Key('reader_back')), findsNothing);
+    // 点击正文区域显示工具栏
+    await tester.tap(find.byKey(const Key('reader_gesture')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('reader_back')), findsOneWidget);
     expect(find.text('测试小说'), findsOneWidget);
   });
 
   testWidgets('点击返回前会保存进度', (tester) async {
+    final longText = '第一章 开局\n' * 600;
     final repo = FakeBookRepository([_makeBook('b1', '测试小说', 0.0)]);
     await tester.pumpWidget(
-      CupertinoApp(home: ReaderPage(book: repo.books.first, repository: repo)),
+      CupertinoApp(home: ReaderPage(
+        book: repo.books.first,
+        repository: repo,
+        contentLoader: (_) async => longText,
+        initialPageIndex: 1,
+      )),
     );
-    await pumpUntilFound(tester, find.text('返回'));
+    await pumpUntilFound(tester, find.byType(SingleChildScrollView));
+    await tester.tap(find.byKey(const Key('reader_gesture')));
+    await tester.pumpAndSettle();
     final before = repo.savedCount;
-    await tester.tap(find.text('返回'));
+    await tester.tap(find.byKey(const Key('reader_back')));
     await tester.pumpAndSettle();
     expect(repo.savedCount, greaterThan(before));
   });
@@ -205,6 +223,11 @@ void main() {
 
     // 进入阅读器，并指定起始阅读页为第 1 页（模拟“读到这里”，不依赖手势）
     await tester.tap(find.text('继续阅读'));
+    await tester.pumpAndSettle();
+    await pumpUntilFound(tester, find.byType(SingleChildScrollView));
+    // 沉浸模式：先点击正文显示工具栏（含返回按钮）
+    await tester.tap(find.byKey(const Key('reader_gesture')));
+    await tester.pumpAndSettle();
     await pumpUntilFound(tester, find.byKey(const Key('reader_back')));
 
     // 手动推进帧，覆盖注入 loader 异步返回与页面动画（绕开加载指示器持续动画）

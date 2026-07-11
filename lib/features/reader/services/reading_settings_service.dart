@@ -79,6 +79,14 @@ enum ReaderTheme {
   night,
 }
 
+/// 翻页动画。
+enum PageAnimation {
+  none,
+  slide,
+  curl,
+  cover,
+}
+
 extension ReaderThemeX on ReaderTheme {
   String get label {
     switch (this) {
@@ -94,33 +102,60 @@ extension ReaderThemeX on ReaderTheme {
   }
 }
 
+extension PageAnimationX on PageAnimation {
+  String get label {
+    switch (this) {
+      case PageAnimation.none:
+        return '无动画';
+      case PageAnimation.slide:
+        return '滑动';
+      case PageAnimation.curl:
+        return '仿真';
+      case PageAnimation.cover:
+        return '覆盖';
+    }
+  }
+}
+
 class ReadingSettings {
   const ReadingSettings({
     this.fontSize = 18.0,
     this.fontFamily = 'system',
+    this.fontWeight = 400,
     this.lineHeight = 1.6,
     this.paragraphSpacing = 12.0,
+    this.horizontalMargin = 20.0,
+    this.pageAnimation = PageAnimation.slide,
     this.theme = ReaderTheme.day,
   });
 
   final double fontSize;
   final String fontFamily;
+  final int fontWeight;
   final double lineHeight;
   final double paragraphSpacing;
+  final double horizontalMargin;
+  final PageAnimation pageAnimation;
   final ReaderTheme theme;
 
   ReadingSettings copyWith({
     double? fontSize,
     String? fontFamily,
+    int? fontWeight,
     double? lineHeight,
     double? paragraphSpacing,
+    double? horizontalMargin,
+    PageAnimation? pageAnimation,
     ReaderTheme? theme,
   }) {
     return ReadingSettings(
       fontSize: fontSize ?? this.fontSize,
       fontFamily: fontFamily ?? this.fontFamily,
+      fontWeight: fontWeight ?? this.fontWeight,
       lineHeight: lineHeight ?? this.lineHeight,
       paragraphSpacing: paragraphSpacing ?? this.paragraphSpacing,
+      horizontalMargin: horizontalMargin ?? this.horizontalMargin,
+      pageAnimation: pageAnimation ?? this.pageAnimation,
       theme: theme ?? this.theme,
     );
   }
@@ -128,8 +163,11 @@ class ReadingSettings {
   Map<String, dynamic> toJson() => {
         'fontSize': fontSize,
         'fontFamily': fontFamily,
+        'fontWeight': fontWeight,
         'lineHeight': lineHeight,
         'paragraphSpacing': paragraphSpacing,
+        'horizontalMargin': horizontalMargin,
+        'pageAnimation': pageAnimation.name,
         'theme': theme.name,
       };
 
@@ -137,11 +175,18 @@ class ReadingSettings {
     final themeStr = json['theme'] as String?;
     final theme = ReaderTheme.values.where((e) => e.name == themeStr).firstOrNull ??
         ReaderTheme.day;
+    final animStr = json['pageAnimation'] as String?;
+    final pageAnimation =
+        PageAnimation.values.where((e) => e.name == animStr).firstOrNull ??
+            PageAnimation.slide;
     return ReadingSettings(
       fontSize: (json['fontSize'] as num?)?.toDouble() ?? 18.0,
       fontFamily: (json['fontFamily'] as String?) ?? 'system',
+      fontWeight: (json['fontWeight'] as num?)?.toInt() ?? 400,
       lineHeight: (json['lineHeight'] as num?)?.toDouble() ?? 1.6,
       paragraphSpacing: (json['paragraphSpacing'] as num?)?.toDouble() ?? 12.0,
+      horizontalMargin: (json['horizontalMargin'] as num?)?.toDouble() ?? 20.0,
+      pageAnimation: pageAnimation,
       theme: theme,
     );
   }
