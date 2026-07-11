@@ -9,7 +9,6 @@ import '../services/book_repository.dart';
 import '../widgets/empty_library_header.dart';
 import '../widgets/import_option_card.dart';
 import '../widgets/book_card.dart';
-import '../widgets/import_action_sheet.dart';
 import '../../import/file_import_service.dart';
 import '../../import/file_import_result.dart';
 import '../../import/import_progress.dart';
@@ -96,10 +95,18 @@ class _LibraryPageState extends State<LibraryPage> {
 
   void _handleResult(FileImportResult result) {
     if (result.success && result.book != null) {
+      // 导入成功：刷新首页数据并停留在书库首页（不进入详情、不 push 新页面）
       _loadBooks();
-      _openDetail(result.book!);
+      _returnToLibrary();
     } else if (result.errorMessage != null) {
       _showError(result.errorMessage!);
+    }
+  }
+
+  /// 确保当前停留在书库首页：关闭任何残留的导入/详情页面，回到根。
+  void _returnToLibrary() {
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).popUntil((route) => route.isFirst);
     }
   }
 
@@ -183,15 +190,10 @@ class _LibraryPageState extends State<LibraryPage> {
     return CupertinoPageScaffold(
       backgroundColor: AppTheme.background,
       child: SafeArea(
-        child: Stack(
+        child: Column(
           children: [
-            Column(
-              children: [
-                _buildHeader(),
-                Expanded(child: _buildContent()),
-              ],
-            ),
-            _buildFab(),
+            _buildHeader(),
+            Expanded(child: _buildContent()),
           ],
         ),
       ),
@@ -224,85 +226,74 @@ class _LibraryPageState extends State<LibraryPage> {
     if (_loading) {
       return const Center(child: CupertinoActivityIndicator());
     }
-    if (_books.isEmpty) {
-      return ListView(
-        padding: const EdgeInsets.symmetric(horizontal: AppTheme.horizontalPadding),
-        children: const [
-          EmptyLibraryHeader(),
-          ImportOptionCard(
-            icon: CupertinoIcons.doc,
-            title: '本地文件',
-            subtitle: 'TXT、EPUB、PDF 等格式',
-          ),
-          ImportOptionCard(
-            icon: CupertinoIcons.doc_on_doc,
-            title: '粘贴文本',
-            subtitle: '输入或粘贴小说内容',
-          ),
-          ImportOptionCard(
-            icon: CupertinoIcons.camera,
-            title: '扫描文字',
-            subtitle: '从图片或文档中识别',
-          ),
-          ImportOptionCard(
-            icon: CupertinoIcons.share,
-            title: '从其他 App 导入',
-            subtitle: '通过系统分享菜单添加',
-          ),
-          SizedBox(height: 32),
-        ],
-      );
-    }
-
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: AppTheme.horizontalPadding),
       children: [
         const SizedBox(height: 8),
-        const Text(
-          '最近添加',
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: AppTheme.primaryText,
-          ),
+        // 导入入口区：首页本身就是导入入口
+        const EmptyLibraryHeader(),
+        ImportOptionCard(
+          icon: CupertinoIcons.doc,
+          title: '本地文件',
+          subtitle: 'TXT、EPUB、PDF',
+          onTap: _pickAndImport,
         ),
-        const SizedBox(height: 12),
-        ..._books.map(
-          (b) => BookCard(
-            book: b,
-            onTap: () => _openDetail(b),
-          ),
+        ImportOptionCard(
+          icon: CupertinoIcons.doc_on_doc,
+          title: '粘贴文本',
+          subtitle: '输入或粘贴小说内容',
+          onTap: _showUnsupported,
+        ),
+        ImportOptionCard(
+          icon: CupertinoIcons.camera,
+          title: '扫描文字',
+          subtitle: '从图片或文档中识别',
+          onTap: _showUnsupported,
+        ),
+        ImportOptionCard(
+          icon: CupertinoIcons.share,
+          title: '从其他 App 导入',
+          subtitle: '通过系统分享菜单添加',
+          onTap: _showUnsupported,
         ),
         const SizedBox(height: 24),
+        // 已导入书籍（仅在有书时显示）
+        if (_books.isNotEmpty) ...[
+          _sectionDivider('已导入书籍'),
+          const SizedBox(height: 12),
+          ..._books.map(
+            (b) => BookCard(
+              book: b,
+              onTap: () => _openDetail(b),
+            ),
+          ),
+          const SizedBox(height: 24),
+        ],
       ],
     );
   }
 
-  Widget _buildFab() {
-    return Positioned(
-        right: 20,
-        bottom: 20,
-        child: CupertinoButton(
-        key: const Key('import_fab'),
-        color: CupertinoColors.activeBlue,
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          onPressed: () {
-            ImportActionSheet.show(
-              context: context,
-              onLocalFile: _pickAndImport,
-              onUnsupported: _showUnsupported,
-            );
-          },
-          child: const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(CupertinoIcons.add, size: 18, color: CupertinoColors.white),
-              SizedBox(width: 4),
-              Text('导入小说'),
-            ],
+  Widget _sectionDivider(String title) {
+    return Row(
+      children: [
+        Expanded(
+          child: Container(height: 1, color: AppTheme.iconBackground),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 15,
+              color: AppTheme.secondaryText,
+            ),
           ),
         ),
-      );
+        Expanded(
+          child: Container(height: 1, color: AppTheme.iconBackground),
+        ),
+      ],
+    );
   }
 
 }

@@ -20,7 +20,7 @@ Future<void> pumpUntilFound(
 }
 
 void main() {
-  testWidgets('空书库首页结构正确且可触发导入入口', (tester) async {
+  testWidgets('空书库首页：标题/文案/四个导入入口/无右下角 FAB', (tester) async {
     await tester.pumpWidget(
       CupertinoApp(
         home: LibraryPage(repository: FakeBookRepository()),
@@ -30,42 +30,42 @@ void main() {
     // 等待 _loadBooks 异步完成，空状态出现
     await pumpUntilFound(tester, find.text('开始听第一本书'));
 
-    // 顶部标题与空状态
+    // 顶部标题与空状态引导文案
     expect(find.text('书库'), findsOneWidget);
     expect(find.text('开始听第一本书'), findsOneWidget);
     expect(find.text('导入小说，让 AI 为你实时朗读'), findsOneWidget);
 
-    // 空状态导入卡片及副标题
+    // 四个导入入口卡片及副标题
     expect(find.text('本地文件'), findsOneWidget);
     expect(find.text('粘贴文本'), findsOneWidget);
     expect(find.text('扫描文字'), findsOneWidget);
     expect(find.text('从其他 App 导入'), findsOneWidget);
-    expect(find.text('TXT、EPUB、PDF 等格式'), findsOneWidget);
+    expect(find.text('TXT、EPUB、PDF'), findsOneWidget);
     expect(find.text('输入或粘贴小说内容'), findsOneWidget);
     expect(find.text('从图片或文档中识别'), findsOneWidget);
     expect(find.text('通过系统分享菜单添加'), findsOneWidget);
 
-    // 右下角导入按钮
-    expect(find.byKey(const Key('import_fab')), findsOneWidget);
+    // 首页本身是导入入口，不应再出现右下角 FloatingActionButton
+    expect(find.byKey(const Key('import_fab')), findsNothing);
+  });
 
-    // 点击「导入小说」弹出 Action Sheet
-    await tester.tap(find.byKey(const Key('import_fab')));
-    await tester.pumpAndSettle();
-    expect(find.text('选择导入方式'), findsOneWidget);
-    expect(find.text('本地文件'), findsWidgets);
-    expect(find.text('粘贴文本'), findsWidgets);
-    expect(find.text('扫描文字'), findsWidgets);
-    expect(find.text('从其他 App 导入'), findsWidgets);
+  testWidgets('点击「粘贴文本」入口弹出后续版本提示（不开发该功能）', (tester) async {
+    await tester.pumpWidget(
+      CupertinoApp(
+        home: LibraryPage(repository: FakeBookRepository()),
+      ),
+    );
+    await pumpUntilFound(tester, find.text('粘贴文本'));
 
-    // 选择「粘贴文本」（本期未实现）→ 提示将在后续版本加入
-    final actions = find.byType(CupertinoActionSheetAction);
-    await tester.tap(actions.at(1));
-    await tester.pump();
+    // 点击「粘贴文本」卡片
+    await tester.tap(find.text('粘贴文本'));
     await tester.pumpAndSettle();
+
+    // 提示将在后续版本加入
     expect(find.text('该功能将在后续版本加入'), findsOneWidget);
   });
 
-  testWidgets('有书时显示书籍列表和导入按钮', (tester) async {
+  testWidgets('有书时显示「已导入书籍」列表，点击进入 Book Detail', (tester) async {
     final book = Book(
       id: 'book-1',
       title: '测试小说',
@@ -92,9 +92,30 @@ void main() {
 
     await pumpUntilFound(tester, find.text('测试小说'));
 
-    // 书籍卡片与导入按钮都存在
+    // 顶部导入入口仍在
+    expect(find.text('书库'), findsOneWidget);
+    expect(find.text('本地文件'), findsOneWidget);
+    // 已导入书籍分区标题
+    expect(find.text('已导入书籍'), findsOneWidget);
+    // 书籍卡片
     expect(find.text('测试小说'), findsOneWidget);
-    expect(find.text('最近添加'), findsOneWidget);
-    expect(find.byKey(const Key('import_fab')), findsOneWidget);
+    // 不应再有「最近添加」
+    expect(find.text('最近添加'), findsNothing);
+    // 无右下角 FAB
+    expect(find.byKey(const Key('import_fab')), findsNothing);
+
+    // 点击书籍卡片 -> 进入 Book Detail（非重新导入）
+    await tester.ensureVisible(find.text('测试小说'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('测试小说'));
+    await tester.pumpAndSettle();
+    expect(find.text('书籍详情'), findsOneWidget);
+    expect(find.text('格式：TXT'), findsOneWidget);
+
+    // 返回 -> 回到首页（导入入口 + 已导入书籍仍在）
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.text('书库'), findsOneWidget);
+    expect(find.text('已导入书籍'), findsOneWidget);
   });
 }
