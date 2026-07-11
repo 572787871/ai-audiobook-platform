@@ -12,6 +12,8 @@ import '../engine/reader_layout.dart';
 import '../widgets/slide_reader.dart';
 import '../widgets/scroll_reader.dart';
 import '../widgets/cover_reader.dart';
+import '../widgets/no_anim_reader.dart';
+import '../widgets/simulation_reader.dart';
 import '../widgets/reader_toolbar.dart';
 import 'reader_settings_page.dart';
 import 'directory_page.dart';
@@ -125,6 +127,7 @@ class _ReaderPageState extends State<ReaderPage> {
       lastReadOffset: pos.characterOffset,
       readingProgress: pos.readingProgress,
       chapterIndex: pos.chapterIndex,
+      pageIndex: pos.pageIndex,
       readingTimeSec: widget.book.readingTimeSec,
       lastReadAt: DateTime.now(),
       updatedAt: DateTime.now(),
@@ -278,11 +281,17 @@ class _ReaderPageState extends State<ReaderPage> {
                     if (d.localPosition.dx > w / 3 && d.localPosition.dx < w * 2 / 3) {
                       _toggleToolbar();
                     } else if (d.localPosition.dx >= w * 2 / 3) {
-                      _controller!.next();
-                      _onPageSettled(_controller!.currentCharacterOffset);
+                      if (_controller!.hasNext) {
+                        _controller!.moveNext().then((_) {
+                          if (mounted) _onPageSettled(_controller!.currentCharacterOffset);
+                        });
+                      }
                     } else if (d.localPosition.dx >= 24) {
-                      _controller!.prev();
-                      _onPageSettled(_controller!.currentCharacterOffset);
+                      if (_controller!.hasPrev) {
+                        _controller!.movePrevious().then((_) {
+                          if (mounted) _onPageSettled(_controller!.currentCharacterOffset);
+                        });
+                      }
                     }
                   },
                 ),
@@ -366,7 +375,12 @@ class _ReaderPageState extends State<ReaderPage> {
     final style = _textStyle(colors.text);
     switch (_settings.pageAnimation) {
       case PageAnimation.none:
-        return ScrollReader(controller: ctrl, textStyle: style, textColor: colors.text);
+        return NoAnimReader(
+          controller: ctrl,
+          textStyle: style,
+          textColor: colors.text,
+          onPageSettled: _onPageSettled,
+        );
       case PageAnimation.slide:
         return SlideReader(
           controller: ctrl,
@@ -381,9 +395,14 @@ class _ReaderPageState extends State<ReaderPage> {
           textColor: colors.text,
           onPageSettled: _onPageSettled,
         );
+      case PageAnimation.scroll:
+        return ScrollReader(
+          controller: ctrl,
+          textStyle: style,
+          textColor: colors.text,
+        );
       case PageAnimation.curl:
-        // 仿真暂关闭，回退到滑动
-        return SlideReader(
+        return SimulationReader(
           controller: ctrl,
           textStyle: style,
           textColor: colors.text,

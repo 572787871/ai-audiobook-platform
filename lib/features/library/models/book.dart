@@ -20,6 +20,7 @@ class Book {
     required this.updatedAt,
     this.lastReadOffset = 0,
     this.chapterIndex = 0,
+    this.pageIndex = 0,
     this.lastReadChapter,
     this.readingProgress = 0.0,
     this.readingTimeSec = 0,
@@ -48,6 +49,7 @@ class Book {
   final DateTime updatedAt;
   final int lastReadOffset;
   final int chapterIndex;
+  final int pageIndex;
   final String? lastReadChapter;
   final double readingProgress;
   final int readingTimeSec;
@@ -76,6 +78,7 @@ class Book {
     DateTime? updatedAt,
     int? lastReadOffset,
     int? chapterIndex,
+    int? pageIndex,
     String? lastReadChapter,
     double? readingProgress,
     int? readingTimeSec,
@@ -104,6 +107,7 @@ class Book {
       updatedAt: updatedAt ?? this.updatedAt,
       lastReadOffset: lastReadOffset ?? this.lastReadOffset,
       chapterIndex: chapterIndex ?? this.chapterIndex,
+      pageIndex: pageIndex ?? this.pageIndex,
       lastReadChapter: lastReadChapter ?? this.lastReadChapter,
       readingProgress: readingProgress ?? this.readingProgress,
       readingTimeSec: readingTimeSec ?? this.readingTimeSec,
@@ -133,6 +137,7 @@ class Book {
         'updatedAt': updatedAt.toIso8601String(),
         'lastReadOffset': lastReadOffset,
         'chapterIndex': chapterIndex,
+        'pageIndex': pageIndex,
         'lastReadChapter': lastReadChapter,
         'readingProgress': readingProgress,
         'readingTimeSec': readingTimeSec,

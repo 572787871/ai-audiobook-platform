@@ -4,7 +4,9 @@ import 'package:flutter/cupertino.dart';
 import '../engine/reader_controller.dart';
 import '../engine/reader_page_model.dart';
 
-/// 左右滑动翻页（默认）。每页独立 Text，不重叠、不重复。
+/// 左右滑动翻页（默认）。使用三页窗口（上一页/当前页/下一页），
+/// 跨章节由 [ReaderController.moveNext] / [ReaderController.movePrevious] 统一处理，
+/// UI 始终停留在窗口中间（index=1），翻页后跳回中间，避免各模式自行维护章节。
 class SlideReader extends StatefulWidget {
   final ReaderController controller;
   final TextStyle textStyle;
@@ -25,27 +27,12 @@ class SlideReader extends StatefulWidget {
 
 class _SlideReaderState extends State<SlideReader> {
   late PageController _pageController;
-  int _lastChapter = -1;
-  int _lastPage = -1;
+  static const int _mid = 1;
 
   @override
   void initState() {
     super.initState();
-    _sync();
-  }
-
-  void _sync() {
-    _pageController = PageController(
-      initialPage: widget.controller.pageIndex,
-    );
-    _lastChapter = widget.controller.chapterIndex;
-    _lastPage = widget.controller.pageIndex;
-  }
-
-  @override
-  void didUpdateWidget(covariant SlideReader old) {
-    super.didUpdateWidget(old);
-    if (old.controller != widget.controller) _sync();
+    _pageController = PageController(initialPage: _mid);
   }
 
   @override
@@ -54,24 +41,45 @@ class _SlideReaderState extends State<SlideReader> {
     super.dispose();
   }
 
-  void _onPage(int index) {
-    // index 是 PageView 当前页（章内页）；若跨章由 controller.next/prev 维护
-    if (index == _lastPage) return;
-    _lastPage = index;
-    widget.controller.goToChapterPage(_lastChapter, index);
-    widget.onPageSettled(widget.controller.currentCharacterOffset);
+  // 三页窗口：[上一页, 当前页, 下一页]
+  List<ReaderPageModel> _window() {
+    final prev = widget.controller.previousPage;
+    final cur = widget.controller.currentPage;
+    final next = widget.controller.nextPage;
+    return [
+      prev ?? cur,
+      cur,
+      next ?? cur,
+    ];
+  }
+
+  Future<void> _onPageChanged(int index) async {
+    if (index == _mid) return;
+    // 先回弹到窗口中间，再让 controller 真正翻页，保持窗口稳定
+    if (index > _mid) {
+      await widget.controller.moveNext();
+    } else {
+      await widget.controller.movePrevious();
+    }
+    if (mounted) {
+      _pageController.jumpToPage(_mid);
+      widget.onPageSettled(widget.controller.currentCharacterOffset);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final count = widget.controller.pageCount;
+    final window = _window();
     return PageView.builder(
       controller: _pageController,
-      itemCount: count,
-      onPageChanged: _onPage,
+      itemCount: window.length,
+      onPageChanged: _onPageChanged,
       itemBuilder: (_, i) {
-        final page = widget.controller.pageAtChapterPage(_lastChapter, i);
-        return _PageContent(page: page, style: widget.textStyle, color: widget.textColor);
+        return _PageContent(
+          page: window[i],
+          style: widget.textStyle,
+          color: widget.textColor,
+        );
       },
     );
   }

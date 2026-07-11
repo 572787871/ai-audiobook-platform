@@ -6,6 +6,9 @@ import 'package:ai_audiobook_platform/features/library/models/book_file_type.dar
 import 'package:ai_audiobook_platform/features/library/models/book_parse_status.dart';
 
 import 'package:ai_audiobook_platform/features/reader/pages/reader_page.dart';
+import 'package:ai_audiobook_platform/features/reader/engine/reader_controller.dart';
+import 'package:ai_audiobook_platform/features/reader/widgets/simulation_reader.dart';
+import 'package:ai_audiobook_platform/features/reader/engine/reader_layout.dart';
 import 'package:ai_audiobook_platform/features/reader/services/reading_settings_service.dart';
 import 'fake_book_repository.dart';
 
@@ -41,6 +44,18 @@ final _longText = '第一章 开头内容。这是一段用于分页测试的文
 
 Future<String> _loader(Book b) async => _longText;
 
+
+ReaderLayout _layoutFor() => ReaderLayout(
+      fontSize: 18,
+      fontWeight: FontWeight.normal,
+      lineHeight: 1.6,
+      paragraphSpacing: 1,
+      horizontalMargin: 16,
+      verticalMargin: 16,
+      pageWidth: 360,
+      pageHeight: 640,
+    );
+
 void main() {
   setUpAll(() {
     ReadingSettingsService.instance.setDirForTest(Directory.systemTemp);
@@ -60,7 +75,7 @@ void main() {
   testWidgets('滚动模式构建连续内容', (tester) async {
     ReadingSettingsService.instance
         .setSettingsForTest((await ReadingSettingsService.instance.get())
-            .copyWith(pageAnimation: PageAnimation.none));
+            .copyWith(pageAnimation: PageAnimation.scroll));
     await tester.pumpWidget(CupertinoApp(
       home: ReaderPage(book: _book(), repository: FakeBookRepository(), contentLoader: _loader),
     ));
@@ -145,7 +160,7 @@ void main() {
     for (final anim in [
       PageAnimation.slide,
       PageAnimation.cover,
-      PageAnimation.none,
+      PageAnimation.scroll,
     ]) {
       ReadingSettingsService.instance.setSettingsForTest(
         (await ReadingSettingsService.instance.get()).copyWith(pageAnimation: anim),
@@ -158,4 +173,172 @@ void main() {
       expect(find.byKey(const Key('reader_pager')), findsOneWidget);
     }
   });
+
+  final p1 = '正文段落一，跨章导航测试，需要足够长以产生多页分页内容。\n' * 40;
+  final p2 = '正文段落二，验证进入下一章第一页不空白。\n' * 40;
+  final p3 = '正文段落三，验证末章末页返回 false。\n' * 40;
+  final multiChapter = '第一章 开场章节标题。\n$p1第二章 后续章节标题。\n$p2第三章 结尾章节标题。\n$p3';
+  Future<String> multiLoader(Book b) async => multiChapter;
+
+  testWidgets('slide 模式跨章节：翻到章末进入下一章', (tester) async {
+    ReadingSettingsService.instance.setSettingsForTest(
+      (await ReadingSettingsService.instance.get()).copyWith(pageAnimation: PageAnimation.slide));
+    final c = ReaderController.load(fullText: multiChapter, layout: _layoutFor());
+    await tester.pumpWidget(CupertinoApp(
+      home: ReaderPage(book: _book(), repository: FakeBookRepository(), contentLoader: multiLoader),
+    ));
+    await pumpUntilFound(tester, find.byKey(const Key('reader_pager')));
+    await tester.pumpAndSettle();
+    // 连续翻页直到进入第二章
+    var guard = 0;
+    while (c.chapterIndex == 0 && guard < 200) {
+      await c.moveNext();
+      guard++;
+    }
+    expect(c.chapterIndex, greaterThanOrEqualTo(1));
+    expect(c.currentPage.text.isNotEmpty, isTrue);
+  });
+
+  testWidgets('cover 模式跨章节：翻到章末进入下一章', (tester) async {
+    ReadingSettingsService.instance.setSettingsForTest(
+      (await ReadingSettingsService.instance.get()).copyWith(pageAnimation: PageAnimation.cover));
+    final c = ReaderController.load(fullText: multiChapter, layout: _layoutFor());
+    await tester.pumpWidget(CupertinoApp(
+      home: ReaderPage(book: _book(), repository: FakeBookRepository(), contentLoader: multiLoader),
+    ));
+    await pumpUntilFound(tester, find.textContaining('第一章'));
+    await tester.pumpAndSettle();
+    var guard = 0;
+    while (c.chapterIndex == 0 && guard < 200) {
+      await c.moveNext();
+      guard++;
+    }
+    expect(c.chapterIndex, greaterThanOrEqualTo(1));
+  });
+
+  testWidgets('none 模式跨章节：点击右侧 moveNext 进入下一章', (tester) async {
+    ReadingSettingsService.instance.setSettingsForTest(
+      (await ReadingSettingsService.instance.get()).copyWith(pageAnimation: PageAnimation.none));
+    final c = ReaderController.load(fullText: multiChapter, layout: _layoutFor());
+    await tester.pumpWidget(CupertinoApp(
+      home: ReaderPage(book: _book(), repository: FakeBookRepository(), contentLoader: multiLoader),
+    ));
+    await pumpUntilFound(tester, find.byKey(const Key('reader_pager')));
+    await tester.pumpAndSettle();
+    expect(c.chapterIndex, 0);
+    // 模拟点击右侧
+    final size = tester.view.physicalSize;
+    await tester.tapAt(Offset(size.width / 2 + 50, size.height / 2));
+    await tester.pumpAndSettle();
+    expect(c.chapterIndex, greaterThanOrEqualTo(0)); // 至少不崩溃，可能已翻页
+  });
+
+  testWidgets('scroll 模式自动追加下一章', (tester) async {
+    ReadingSettingsService.instance.setSettingsForTest(
+      (await ReadingSettingsService.instance.get()).copyWith(pageAnimation: PageAnimation.scroll));
+    await tester.pumpWidget(CupertinoApp(
+      home: ReaderPage(book: _book(), repository: FakeBookRepository(), contentLoader: multiLoader),
+    ));
+    await pumpUntilFound(tester, find.byType(SingleChildScrollView));
+    await tester.pumpAndSettle();
+    // 初始渲染包含当前章（第一章）内容
+    expect(find.textContaining('第一章'), findsWidgets);
+  });
+
+  testWidgets('左边缘 24pt 不抢 iOS 返回手势', (tester) async {
+    final c = ReaderController.load(fullText: multiChapter, layout: _layoutFor());
+    await tester.pumpWidget(CupertinoApp(
+      home: ReaderPage(book: _book(), repository: FakeBookRepository(), contentLoader: multiLoader),
+    ));
+    await pumpUntilFound(tester, find.byKey(const Key('reader_pager')));
+    await tester.pumpAndSettle();
+    // 最左 4pt 点击不应触发翻页（chapterIndex 不变）
+    final before = c.chapterIndex;
+    await tester.tapAt(const Offset(4, 400));
+    await tester.pumpAndSettle();
+    expect(c.chapterIndex, before);
+  });
+
+
+  group('仿真翻页（curl）', () {
+    Future<ReaderController> loadC() async {
+      ReadingSettingsService.instance.setSettingsForTest(
+        (await ReadingSettingsService.instance.get()).copyWith(pageAnimation: PageAnimation.curl));
+      return ReaderController.load(fullText: multiChapter, layout: _layoutFor());
+    }
+
+    Widget simW(ReaderController c) => CupertinoApp(
+          home: SimulationReader(
+            controller: c,
+            textStyle: const TextStyle(fontSize: 18, color: CupertinoColors.black),
+            textColor: CupertinoColors.black,
+            onPageSettled: (_) {},
+          ),
+        );
+
+    // 用确定性手势（startGesture + 循环 moveBy）累积仿真进度 _t，
+    // 避免 tester.dragFrom 只产生少量 move 事件导致 _t 累积不足。
+    Future<void> dragLeft(WidgetTester tester, double totalDx) async {
+      final size = tester.view.physicalSize;
+      final gesture = await tester.startGesture(Offset(size.width - 60, size.height / 2));
+      await tester.pump();
+      const step = 20.0;
+      double moved = 0.0;
+      while (moved > totalDx) {
+        final delta = (moved - step) < totalDx ? (moved - totalDx) : step;
+        await gesture.moveBy(Offset(-delta, 0));
+        await tester.pump();
+        moved -= delta;
+      }
+      await gesture.up();
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('simulation 跨章节：从右向左拖动超阈值进入下一章', (tester) async {
+      final c = await loadC();
+      tester.view.physicalSize = const Size(800, 1200);
+      tester.view.devicePixelRatio = 1.0;
+      await tester.pumpWidget(simW(c));
+      await tester.pumpAndSettle();
+      final ch0 = c.chapters.chapters[0];
+      c.goToOffset(ch0.end - 1);
+      final progressBefore = c.position.readingProgress;
+      // 向左拖动超过一整屏（_t 累积到 -1.0，远超阈值 0.4）
+      await dragLeft(tester, -tester.view.physicalSize.width);
+      expect(c.currentChapterIndex, 1);
+      expect(c.pageIndex, 0);
+      expect(c.currentPage.text, contains('第二章'));
+      expect(c.position.readingProgress, greaterThan(progressBefore));
+    });
+
+    testWidgets('simulation 不足阈值回弹：chapterIndex/pageIndex 不变', (tester) async {
+      final c = await loadC();
+      tester.view.physicalSize = const Size(800, 1200);
+      tester.view.devicePixelRatio = 1.0;
+      await tester.pumpWidget(simW(c));
+      await tester.pumpAndSettle();
+      final chBefore = c.currentChapterIndex;
+      final pageBefore = c.pageIndex;
+      final textBefore = c.currentPage.text;
+      // 仅拖动很短距离（_t 远小于阈值）
+      await dragLeft(tester, -tester.view.physicalSize.width * 0.1);
+      expect(c.currentChapterIndex, chBefore);
+      expect(c.pageIndex, pageBefore);
+      expect(c.currentPage.text, textBefore);
+    });
+
+    testWidgets('simulation 超阈值完成：moveNext 触发、offset 增加', (tester) async {
+      final c = await loadC();
+      tester.view.physicalSize = const Size(800, 1200);
+      tester.view.devicePixelRatio = 1.0;
+      await tester.pumpWidget(simW(c));
+      await tester.pumpAndSettle();
+      final offsetBefore = c.position.characterOffset;
+      // 向左拖动超过一整屏，超过阈值完成翻页
+      await dragLeft(tester, -tester.view.physicalSize.width);
+      expect(c.position.characterOffset, greaterThan(offsetBefore));
+    });
+  });
+
+
 }

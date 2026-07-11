@@ -88,8 +88,9 @@ enum ReaderTheme {
 enum PageAnimation {
   none,
   slide,
-  curl,
   cover,
+  scroll,
+  curl,
 }
 
 extension ReaderThemeX on ReaderTheme {
@@ -114,10 +115,12 @@ extension PageAnimationX on PageAnimation {
         return '无动画';
       case PageAnimation.slide:
         return '滑动';
-      case PageAnimation.curl:
-        return '仿真';
       case PageAnimation.cover:
         return '覆盖';
+      case PageAnimation.scroll:
+        return '滚动';
+      case PageAnimation.curl:
+        return '仿真';
     }
   }
 }

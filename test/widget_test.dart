@@ -162,7 +162,7 @@ void main() {
     final repo = FakeBookRepository([_makeBook('b1', '测试小说', 0.0)]);
     ReadingSettingsService.instance
         .setSettingsForTest((await ReadingSettingsService.instance.get())
-            .copyWith(pageAnimation: PageAnimation.none));
+            .copyWith(pageAnimation: PageAnimation.scroll));
     await tester.pumpWidget(
       CupertinoApp(home: ReaderPage(
         book: repo.books.first,
@@ -185,10 +185,10 @@ void main() {
     final repo = FakeBookRepository([_makeBook('b1', '测试小说', 0.0)]);
     ReadingSettingsService.instance
         .setSettingsForTest((await ReadingSettingsService.instance.get())
-            .copyWith(pageAnimation: PageAnimation.none));
+            .copyWith(pageAnimation: PageAnimation.scroll));
     ReadingSettingsService.instance
         .setSettingsForTest((await ReadingSettingsService.instance.get())
-            .copyWith(pageAnimation: PageAnimation.none));
+            .copyWith(pageAnimation: PageAnimation.scroll));
     await tester.pumpWidget(
       CupertinoApp(home: ReaderPage(
         book: repo.books.first,
@@ -229,7 +229,7 @@ void main() {
     // 进入阅读器，并指定起始阅读页为第 1 页（模拟“读到这里”，不依赖手势）
     ReadingSettingsService.instance
         .setSettingsForTest((await ReadingSettingsService.instance.get())
-            .copyWith(pageAnimation: PageAnimation.none));
+            .copyWith(pageAnimation: PageAnimation.scroll));
     await tester.tap(find.text('继续阅读'));
     await tester.pumpAndSettle();
     await pumpUntilFound(tester, find.byType(SingleChildScrollView));
@@ -360,7 +360,7 @@ void main() {
     // 点击封面进入阅读器
     ReadingSettingsService.instance
         .setSettingsForTest((await ReadingSettingsService.instance.get())
-            .copyWith(pageAnimation: PageAnimation.none));
+            .copyWith(pageAnimation: PageAnimation.scroll));
     await tester.tap(find.byKey(const Key('book_b1')));
     await pumpUntilFound(tester, find.byType(SingleChildScrollView));
     await tester.pumpAndSettle();

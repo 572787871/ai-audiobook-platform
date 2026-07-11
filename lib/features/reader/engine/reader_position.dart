@@ -6,6 +6,9 @@ class ReaderPosition {
   /// 章节索引（单文件 TXT 通常为 0；多章节解析后用于跳转）。
   final int chapterIndex;
 
+  /// 当前章内页码（用于调试/快照，恢复仍以 characterOffset 为主）。
+  final int pageIndex;
+
   /// 正文中的字符偏移（从 0 开始），用于精确定位。
   final int characterOffset;
 
@@ -20,6 +23,7 @@ class ReaderPosition {
 
   const ReaderPosition({
     this.chapterIndex = 0,
+    this.pageIndex = 0,
     this.characterOffset = 0,
     this.readingProgress = 0.0,
     this.readingTimeSec = 0,
@@ -28,6 +32,7 @@ class ReaderPosition {
 
   ReaderPosition copyWith({
     int? chapterIndex,
+    int? pageIndex,
     int? characterOffset,
     double? readingProgress,
     int? readingTimeSec,
@@ -35,6 +40,7 @@ class ReaderPosition {
   }) =>
       ReaderPosition(
         chapterIndex: chapterIndex ?? this.chapterIndex,
+        pageIndex: pageIndex ?? this.pageIndex,
         characterOffset: characterOffset ?? this.characterOffset,
         readingProgress: readingProgress ?? this.readingProgress,
         readingTimeSec: readingTimeSec ?? this.readingTimeSec,
@@ -46,12 +52,14 @@ class ReaderPosition {
     required int characterOffset,
     required int totalCharacters,
     int chapterIndex = 0,
+    int pageIndex = 0,
   }) {
     final progress = totalCharacters <= 0
         ? 0.0
         : (characterOffset / totalCharacters).clamp(0.0, 1.0);
     return ReaderPosition(
       chapterIndex: chapterIndex,
+      pageIndex: pageIndex,
       characterOffset: characterOffset.clamp(0, totalCharacters),
       readingProgress: progress,
     );

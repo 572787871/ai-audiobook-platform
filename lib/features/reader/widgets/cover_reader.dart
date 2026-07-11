@@ -6,8 +6,10 @@ import '../engine/reader_page_model.dart';
 
 /// 覆盖翻页（稳定版，不使用仿真动画）。
 ///
-/// 手势左滑：下一页从右侧覆盖当前页（FractionalTranslation 跟手）；
-/// 手势右滑：当前页向右揭开露出上一页；松手按阈值决定停留或回弹。
+/// - 手势左滑：下一页从右侧覆盖当前页（FractionalTranslation 跟手）；
+/// - 手势右滑：当前页向右揭开露出上一页；
+/// 松手按阈值决定停留或回弹。跨章节通过 [ReaderController.moveNext] /
+/// [ReaderController.movePrevious] 统一处理，动画完成后才修改页码。
 class CoverReader extends StatefulWidget {
   final ReaderController controller;
   final TextStyle textStyle;
@@ -31,12 +33,10 @@ class _CoverReaderState extends State<CoverReader> {
   bool _dragging = false;
 
   ReaderPageModel get _cur => widget.controller.currentPage;
-  ReaderPageModel get _next => widget.controller.hasNext
-      ? widget.controller.peekNext()
-      : _cur;
-  ReaderPageModel get _prev => widget.controller.hasPrev
-      ? widget.controller.peekPrev()
-      : _cur;
+  ReaderPageModel get _next =>
+      widget.controller.nextPage ?? widget.controller.currentPage;
+  ReaderPageModel get _prev =>
+      widget.controller.previousPage ?? widget.controller.currentPage;
 
   void _onHorizontalDragUpdate(DragUpdateDetails d) {
     setState(() {
@@ -45,21 +45,22 @@ class _CoverReaderState extends State<CoverReader> {
     });
   }
 
-  void _onHorizontalDragEnd(DragEndDetails d) {
+  Future<void> _onHorizontalDragEnd(DragEndDetails d) async {
     final width = MediaQuery.of(context).size.width;
     final threshold = width * 0.33;
     final settleNext = _drag <= -threshold && widget.controller.hasNext;
     final settlePrev = _drag >= threshold && widget.controller.hasPrev;
-    if (settleNext) {
-      widget.controller.next();
-    } else if (settlePrev) {
-      widget.controller.prev();
-    }
+    // 先回弹，避免空白闪现
     setState(() {
       _dragging = false;
       _drag = 0.0;
     });
-    widget.onPageSettled(widget.controller.currentCharacterOffset);
+    if (settleNext) {
+      await widget.controller.moveNext();
+    } else if (settlePrev) {
+      await widget.controller.movePrevious();
+    }
+    if (mounted) widget.onPageSettled(widget.controller.currentCharacterOffset);
   }
 
   @override

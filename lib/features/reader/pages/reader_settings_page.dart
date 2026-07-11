@@ -36,11 +36,13 @@ class _ReaderSettingsPageState extends State<ReaderSettingsPage> {
   String _animLabel(PageAnimation a) {
     switch (a) {
       case PageAnimation.none:
-        return '滚动';
+        return '无动画';
       case PageAnimation.slide:
         return '滑动';
       case PageAnimation.cover:
         return '覆盖';
+      case PageAnimation.scroll:
+        return '滚动';
       case PageAnimation.curl:
         return '仿真';
     }
@@ -50,10 +52,11 @@ class _ReaderSettingsPageState extends State<ReaderSettingsPage> {
   Widget build(BuildContext context) {
     final themes = ReaderTheme.values;
     final animations = const [
-      PageAnimation.none,
       PageAnimation.slide,
       PageAnimation.cover,
-      // curl（仿真）按需求暂隐藏入口，等分页/缓存/进度稳定后再单独实现
+      PageAnimation.scroll,
+      PageAnimation.none,
+      PageAnimation.curl,
     ];
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(

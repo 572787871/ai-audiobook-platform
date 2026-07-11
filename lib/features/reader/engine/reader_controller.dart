@@ -147,6 +147,49 @@ class ReaderController {
 
   int get currentCharacterOffset => currentPage.startOffset;
 
+  /// 上一页（含跨章预取上一章末页）；首章首页返回 null。
+  ReaderPageModel? get previousPage {
+    if (_pageIndex > 0) {
+      final c = _cache.current;
+      return c == null ? null : c.pages[_pageIndex - 1];
+    }
+    if (_chapterIndex > 0) {
+      final prevC = _paginateChapter(_chapterIndex - 1);
+      return prevC.pages.isNotEmpty ? prevC.pages.last : null;
+    }
+    return null;
+  }
+
+  /// 下一页（含跨章预取下一章首页）；末章末页返回 null。
+  ReaderPageModel? get nextPage {
+    final c = _cache.current;
+    if (c != null && _pageIndex < c.pages.length - 1) {
+      return c.pages[_pageIndex + 1];
+    }
+    if (_chapterIndex < chapters.chapters.length - 1) {
+      final nextC = _paginateChapter(_chapterIndex + 1);
+      return nextC.pages.isNotEmpty ? nextC.pages.first : null;
+    }
+    return null;
+  }
+  /// 三章页块（prev/cur/next），供连续滚动模式拼接。
+  ({List<ReaderPageModel>? prev, List<ReaderPageModel> cur, List<ReaderPageModel>? next})
+      get threeChapterBlocks {
+    final cur = _cache.current?.pages ?? const <ReaderPageModel>[];
+    List<ReaderPageModel>? prev;
+    List<ReaderPageModel>? next;
+    if (_chapterIndex > 0) {
+      final prevC = _paginateChapter(_chapterIndex - 1);
+      prev = prevC.pages;
+    }
+    if (_chapterIndex < chapters.chapters.length - 1) {
+      final nextC = _paginateChapter(_chapterIndex + 1);
+      next = nextC.pages;
+    }
+    return (prev: prev, cur: cur, next: next);
+  }
+
+
   String get currentChapterTitle =>
       _cache.current?.title ?? chapters.chapters.firstOrNull?.title ?? '';
 
@@ -155,6 +198,7 @@ class ReaderController {
       characterOffset: currentCharacterOffset,
       totalCharacters: totalCharacters,
       chapterIndex: _chapterIndex,
+      pageIndex: _pageIndex,
     );
   }
 
@@ -167,60 +211,71 @@ class ReaderController {
     return _chapterIndex < chapters.chapters.length - 1;
   }
 
-  bool get hasNext => canNext;
-  bool get hasPrev => canPrev;
-
-  /// 预览下一页（不移动）。跨章时先确保已分页。
-  ReaderPageModel peekNext() {
-    final c = _cache.current;
-    if (c != null && _pageIndex < c.pages.length - 1) {
-      return c.pages[_pageIndex + 1];
-    }
-    if (_chapterIndex < chapters.chapters.length - 1) {
-      final nextC = _paginateChapter(_chapterIndex + 1);
-      return nextC.pages.isNotEmpty ? nextC.pages.first : currentPage;
-    }
-    return currentPage;
-  }
-
-  /// 预览上一页（不移动）。
-  ReaderPageModel peekPrev() {
-    if (_pageIndex > 0) {
-      final c = _cache.current;
-      return c == null ? currentPage : c.pages[_pageIndex - 1];
-    }
-    if (_chapterIndex > 0) {
-      final prevC = _paginateChapter(_chapterIndex - 1);
-      return prevC.pages.isNotEmpty ? prevC.pages.last : currentPage;
-    }
-    return currentPage;
-  }
-
   bool get canPrev {
     if (_pageIndex > 0) return true;
     return _chapterIndex > 0;
   }
 
-  void next() {
+  bool get hasNext => canNext;
+  bool get hasPrev => canPrev;
+
+  /// 预览下一页（不移动，可能跨章）。
+  ReaderPageModel peekNext() => nextPage ?? currentPage;
+
+  /// 预览上一页（不移动，可能跨章）。
+  ReaderPageModel peekPrev() => previousPage ?? currentPage;
+
+  /// 翻到下一页（含跨章）。返回 false 表示已到末章末页。
+  Future<bool> moveNext() async {
     final c = _cache.current;
-    if (c == null) return;
-    if (_pageIndex < c.pages.length - 1) {
+    if (c != null && _pageIndex < c.pages.length - 1) {
       _pageIndex++;
-    } else if (_chapterIndex < chapters.chapters.length - 1) {
+      return true;
+    }
+    if (_chapterIndex < chapters.chapters.length - 1) {
       _chapterIndex++;
       _paginateAround(_chapterIndex);
       _pageIndex = 0;
+      return true;
     }
+    return false;
   }
 
-  void prev() {
+  /// 翻到上一页（含跨章）。返回 false 表示已到首章首页。
+  Future<bool> movePrevious() async {
     if (_pageIndex > 0) {
       _pageIndex--;
-    } else if (_chapterIndex > 0) {
+      return true;
+    }
+    if (_chapterIndex > 0) {
       _chapterIndex--;
       _paginateAround(_chapterIndex);
       _pageIndex = (_cache.current?.pages.length ?? 1) - 1;
+      return true;
     }
+    return false;
+  }
+
+  /// 跳到下一章第一页。
+  Future<bool> moveToNextChapter() async {
+    if (_chapterIndex < chapters.chapters.length - 1) {
+      _chapterIndex++;
+      _paginateAround(_chapterIndex);
+      _pageIndex = 0;
+      return true;
+    }
+    return false;
+  }
+
+  /// 跳到上一章最后一页。
+  Future<bool> moveToPreviousChapter() async {
+    if (_chapterIndex > 0) {
+      _chapterIndex--;
+      _paginateAround(_chapterIndex);
+      _pageIndex = (_cache.current?.pages.length ?? 1) - 1;
+      return true;
+    }
+    return false;
   }
 
   /// 跳转到指定章的指定页（PageView 当前页）。

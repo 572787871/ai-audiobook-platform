@@ -218,4 +218,91 @@ void main() {
     final doc = ReaderDocument.fromContent('段落一内容。\n段落二内容。');
     expect(doc.paragraphs.first.startsWith('  '), isTrue);
   });
+  group('跨章节导航（统一 move API）', () {
+    final ch1 = '正文段落内容，用于跨章导航测试，需要足够长以产生多页分页。\n' * 40;
+    final ch2 = '后续章节正文内容，验证进入下一章第一页不空白不重复。\n' * 40;
+    final ch3 = '最后一章正文内容，验证末章末页 moveNext 返回 false。\n' * 40;
+    final text =
+        '第一章 开场。\n$ch1第二章 后续。\n$ch2第三章 结尾。\n$ch3';
+    ReaderController make() => ReaderController.load(fullText: text, layout: _layout());
+
+    test('当前章最后一页 moveNext 进入下一章第一页', () async {
+      final ctrl = make();
+      final ch0 = ctrl.chapters.chapters[0];
+      ctrl.goToOffset(ch0.end - 1);
+      final beforeChapter = ctrl.currentChapterTitle;
+      final ok = await ctrl.moveNext();
+      expect(ok, isTrue);
+      expect(ctrl.currentChapterTitle, isNot(equals(beforeChapter)));
+      expect(ctrl.currentChapterTitle, contains('第二章'));
+      expect(ctrl.currentPage.text.isNotEmpty, isTrue);
+      expect(ctrl.pageIndex, 0);
+    });
+
+    test('当前章第一页 movePrevious 进入上一章最后一页', () async {
+      final ctrl = make();
+      final ch1start = ctrl.chapters.chapters[1].start;
+      ctrl.goToOffset(ch1start);
+      expect(ctrl.currentChapterTitle, contains('第二章'));
+      expect(ctrl.pageIndex, 0);
+      final ok = await ctrl.movePrevious();
+      expect(ok, isTrue);
+      expect(ctrl.currentChapterTitle, contains('第一章'));
+      expect(ctrl.pageIndex, ctrl.currentChapter!.pages.length - 1);
+      expect(ctrl.currentPage.text.isNotEmpty, isTrue);
+    });
+
+    test('最后一章最后一页 moveNext 返回 false', () async {
+      final ctrl = make();
+      final last = ctrl.chapters.chapters.last;
+      ctrl.goToOffset(last.end - 1);
+      expect(ctrl.currentChapterTitle, contains('第三章'));
+      final ok = await ctrl.moveNext();
+      expect(ok, isFalse);
+      expect(ctrl.nextPage, isNull);
+    });
+
+    test('第一章第一页 movePrevious 返回 false', () async {
+      final ctrl = make();
+      ctrl.goToOffset(0);
+      expect(ctrl.chapterIndex, 0);
+      expect(ctrl.pageIndex, 0);
+      final ok = await ctrl.movePrevious();
+      expect(ok, isFalse);
+      expect(ctrl.previousPage, isNull);
+    });
+
+    test('跨章节后 offset 与 progress 正确', () async {
+      final ctrl = make();
+      final ch1start = ctrl.chapters.chapters[1].start;
+      ctrl.goToOffset(ch1start);
+      final pos = ctrl.position;
+      expect(pos.chapterIndex, 1);
+      expect(pos.characterOffset, greaterThanOrEqualTo(ch1start - 1));
+      expect(pos.readingProgress, inInclusiveRange(0.0, 1.0));
+    });
+
+    test('连续翻 100 页无空白、无重复、无重叠', () async {
+      final ctrl = make();
+      final seen = <String>[];
+      var ok = true;
+      for (var i = 0; i < 100; i++) {
+        final page = ctrl.currentPage;
+        if (page.text.isEmpty) {
+          ok = false;
+          break;
+        }
+        seen.add(page.text);
+        final moved = await ctrl.moveNext();
+        if (!moved) break;
+      }
+      expect(ok, isTrue);
+      var dup = false;
+      for (var i = 1; i < seen.length; i++) {
+        if (seen[i] == seen[i - 1]) dup = true;
+      }
+      expect(dup, isFalse);
+    });
+  });
+
 }
