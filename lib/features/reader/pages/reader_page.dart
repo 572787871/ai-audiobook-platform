@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import '../../../theme/app_theme.dart';
+import '../widgets/reader_pager.dart';
 import '../../library/models/book.dart';
 import '../../library/models/book_file_type.dart';
 import '../../library/services/book_repository.dart';
@@ -77,49 +78,53 @@ class _ReaderPageState extends State<ReaderPage> {
         child: SafeArea(
           child: _loading
               ? const Center(child: CupertinoActivityIndicator())
-              : GestureDetector(
-                  key: const Key('reader_gesture'),
-                  onTap: () => setState(() => _showToolbar = !_showToolbar),
-                  onHorizontalDragEnd: (d) {
-                    if (d.primaryVelocity != null && d.primaryVelocity! < 0) {
-                      _nextPage();
-                    } else if (d.primaryVelocity != null &&
-                        d.primaryVelocity! > 0) {
-                      _prevPage();
-                    }
-                  },
+              : KeyedSubtree(
+                  key: const Key('reader_pager'),
                   child: Stack(
                     children: [
                       Column(
                         children: [
                           Expanded(
-                            child: Padding(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: _settings.horizontalMargin,
-                                vertical: 16,
-                              ),
-                              child: _pages.isEmpty
-                                  ? Center(
-                                      child: Text('暂无正文内容',
-                                          style: TextStyle(color: themeColors.text)))
-                                  : SingleChildScrollView(
-                                      child: Text(
-                                        _pages[_pageIndex],
-                                        style: TextStyle(
-                                          fontSize: _settings.fontSize,
-                                          height: _settings.lineHeight,
-                                          fontWeight: FontWeight.values
-                                              .firstWhere(
-                                            (w) => w.value == _settings.fontWeight,
-                                            orElse: () => FontWeight.normal,
+                            child: ReaderPager(
+                              key: ValueKey(_settings.pageAnimation),
+                              pages: _pages
+                                  .map(
+                                    (pg) => SingleChildScrollView(
+                                      key: ValueKey(pg),
+                                      child: Padding(
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: _settings.horizontalMargin,
+                                          vertical: 16,
+                                        ),
+                                        child: Text(
+                                          pg,
+                                          style: TextStyle(
+                                            fontSize: _settings.fontSize,
+                                            height: _settings.lineHeight,
+                                            fontWeight: FontWeight.values
+                                                .firstWhere(
+                                              (w) => w.value == _settings.fontWeight,
+                                              orElse: () => FontWeight.normal,
+                                            ),
+                                            color: themeColors.text,
+                                            fontFamily: _settings.fontFamily == 'system'
+                                                ? null
+                                                : _settings.fontFamily,
                                           ),
-                                          color: themeColors.text,
-                                          fontFamily: _settings.fontFamily == 'system'
-                                              ? null
-                                              : _settings.fontFamily,
                                         ),
                                       ),
                                     ),
+                                  )
+                                  .toList(),
+                              initialIndex: _pageIndex,
+                              animation: _settings.pageAnimation,
+                              onToggleToolbar: () =>
+                                  setState(() => _showToolbar = !_showToolbar),
+                              onPageChanged: (i) {
+                                _pageIndex = i;
+                                _saveProgress();
+                                _scheduleSave();
+                              },
                             ),
                           ),
                           Padding(
@@ -283,22 +288,6 @@ class _ReaderPageState extends State<ReaderPage> {
   void _scheduleSave() {
     _saveTimer?.cancel();
     _saveTimer = Timer(const Duration(seconds: 2), _saveProgress);
-  }
-
-  void _nextPage() {
-    if (_pageIndex < _pages.length - 1) {
-      setState(() => _pageIndex++);
-      _saveProgress();
-      _scheduleSave();
-    }
-  }
-
-  void _prevPage() {
-    if (_pageIndex > 0) {
-      setState(() => _pageIndex--);
-      _saveProgress();
-      _scheduleSave();
-    }
   }
 
   Widget _buildBottomBar() {

@@ -12,8 +12,9 @@ import '../../reader/pages/reader_page.dart';
 /// 书架页：独立页面，分类栏 + 两列实体书封面书架。
 class BookShelfPage extends StatefulWidget {
   final BookRepositoryBase? repository;
+  final Future<String> Function(Book book)? contentLoader;
 
-  const BookShelfPage({super.key, this.repository});
+  const BookShelfPage({super.key, this.repository, this.contentLoader});
 
   @override
   State<BookShelfPage> createState() => _BookShelfPageState();
@@ -35,15 +36,24 @@ class _BookShelfPageState extends State<BookShelfPage> {
   }
 
   Future<void> _load() async {
+    // 保留旧列表：不先清空，避免返回时书架闪空
+    if (mounted) setState(() => _loading = true);
     final books = await _repo.loadAll();
     books.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-    if (mounted) {
-      setState(() {
-        _books
-          ..clear()
-          ..addAll(books);
-        _loading = false;
-      });
+    if (!mounted) return;
+    setState(() {
+      _books
+        ..clear()
+        ..addAll(books);
+      _loading = false;
+    });
+  }
+
+  /// 原地替换某本书（返回进度/重命名后轻量刷新，不闪空、不全量 reload）
+  void _replaceBook(Book updated) {
+    final idx = _books.indexWhere((b) => b.id == updated.id);
+    if (idx >= 0) {
+      setState(() => _books[idx] = updated);
     }
   }
 
@@ -158,8 +168,10 @@ class _BookShelfPageState extends State<BookShelfPage> {
     if (!mounted) return;
     if (result == LibraryChangeResult.deleted) {
       setState(() => _books.removeWhere((b) => b.id == book.id));
+    } else {
+      // 非删除：后台平滑刷新（_load 已保留旧列表，不闪空）
+      await _load();
     }
-    await _load();
   }
 
   /// 点击封面直接进阅读器，返回书架（非详情）。
@@ -168,13 +180,22 @@ class _BookShelfPageState extends State<BookShelfPage> {
       _toast('该书暂未解析，无法阅读');
       return;
     }
-    await Navigator.of(context).push<Book?>(
+    final updated = await Navigator.of(context).push<Book?>(
       CupertinoPageRoute(
-        builder: (_) => ReaderPage(book: book, repository: _repo),
+        builder: (_) => ReaderPage(
+              book: book,
+              repository: _repo,
+              contentLoader: widget.contentLoader,
+            ),
       ),
     );
-    // 返回后刷新进度与连续天数
-    await _load();
+    if (!mounted) return;
+    // 单一刷新策略：原地替换返回的最近阅读进度，不闪空
+    if (updated != null) {
+      _replaceBook(updated);
+    } else {
+      _replaceBook(book);
+    }
   }
 
   void _toast(String msg) {
@@ -287,14 +308,18 @@ class _BookShelfPageState extends State<BookShelfPage> {
               ),
       ),
       child: SafeArea(
-        child: _loading
-            ? const Center(child: CupertinoActivityIndicator())
-            : Column(
-                children: [
-                  _buildFilterBar(),
-                  Expanded(child: _buildBody()),
-                ],
-              ),
+        child: Column(
+          children: [
+            _buildFilterBar(),
+            Expanded(
+              child: _books.isNotEmpty
+                  ? _buildBody() // 有书时保留列表，后台刷新不闪空
+                  : (_loading
+                      ? const Center(child: CupertinoActivityIndicator())
+                      : _buildBody()), // 空状态仅当 !loading && 无书
+            ),
+          ],
+        ),
       ),
     );
   }

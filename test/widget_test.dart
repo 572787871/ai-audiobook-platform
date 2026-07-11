@@ -171,8 +171,8 @@ void main() {
     await pumpUntilFound(tester, find.byType(SingleChildScrollView));
     // 默认沉浸：返回按钮不显示
     expect(find.byKey(const Key('reader_back')), findsNothing);
-    // 点击正文区域显示工具栏
-    await tester.tap(find.byKey(const Key('reader_gesture')));
+    // 点击正文区域显示工具栏（中间 1/3 触发 onToggleToolbar）
+    await tester.tapAt(const Offset(400, 300));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('reader_back')), findsOneWidget);
     expect(find.text('测试小说'), findsOneWidget);
@@ -190,7 +190,7 @@ void main() {
       )),
     );
     await pumpUntilFound(tester, find.byType(SingleChildScrollView));
-    await tester.tap(find.byKey(const Key('reader_gesture')));
+    await tester.tapAt(const Offset(400, 300));
     await tester.pumpAndSettle();
     final before = repo.savedCount;
     await tester.tap(find.byKey(const Key('reader_back')));
@@ -226,7 +226,7 @@ void main() {
     await tester.pumpAndSettle();
     await pumpUntilFound(tester, find.byType(SingleChildScrollView));
     // 沉浸模式：先点击正文显示工具栏（含返回按钮）
-    await tester.tap(find.byKey(const Key('reader_gesture')));
+    await tester.tapAt(const Offset(400, 300));
     await tester.pumpAndSettle();
     await pumpUntilFound(tester, find.byKey(const Key('reader_back')));
 
@@ -291,5 +291,74 @@ void main() {
     await tester.pumpAndSettle();
     await pumpUntilFound(tester, find.text('暂无已导入书籍'));
     expect(find.text('已导入 1 本书'), findsNothing);
+  });
+
+  testWidgets('返回书架时保留旧列表不闪空', (tester) async {
+    final repo = FakeBookRepository([
+      _makeBook('b1', '书一', 0.1),
+      _makeBook('b2', '书二', 0.2),
+    ]);
+    await tester.pumpWidget(CupertinoApp(home: BookShelfPage(repository: repo)));
+    await pumpUntilFound(tester, find.byKey(const Key('book_b2')));
+    // 通过长按 -> 书籍详情 进入（封面默认进阅读器）
+    await tester.longPress(find.byKey(const Key('book_b1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('书籍详情'));
+    await pumpUntilFound(tester, find.text('书籍详情'));
+    // 详情页返回书架
+    final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+    navigator.pop();
+    await tester.pump();
+    // 立即检查：返回瞬间旧书目仍存在（未闪空为空白）
+    expect(find.byKey(const Key('book_b1')), findsOneWidget);
+    expect(find.byKey(const Key('book_b2')), findsOneWidget);
+  });
+
+  testWidgets('删除时只移除对应书籍而非整书架', (tester) async {
+    final repo = FakeBookRepository([
+      _makeBook('b1', '书一', 0.1),
+      _makeBook('b2', '书二', 0.2),
+    ]);
+    await tester.pumpWidget(CupertinoApp(home: BookShelfPage(repository: repo)));
+    await pumpUntilFound(tester, find.byKey(const Key('book_b2')));
+    // 长按 b1 菜单删除
+    await tester.longPress(find.byKey(const Key('book_b1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('删除'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('删除'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('book_b1')), findsNothing);
+    expect(find.byKey(const Key('book_b2')), findsOneWidget);
+  });
+
+  testWidgets('仅 loading=false 且无书时显示空书架', (tester) async {
+    final repo = FakeBookRepository([]);
+    await tester.pumpWidget(CupertinoApp(home: BookShelfPage(repository: repo)));
+    await tester.pumpAndSettle();
+    expect(find.text('书架空空如也，去首页导入吧'), findsWidgets);
+  });
+
+  testWidgets('阅读器返回后原地更新进度不闪空', (tester) async {
+    final longText = '第一章 开局\n' * 600;
+    final repo = FakeBookRepository([
+      _makeBook('b1', '书一', 0.0),
+      _makeBook('b2', '书二', 0.0),
+    ]);
+    Future<String> longLoader(Book _) async => longText;
+    await tester.pumpWidget(
+        CupertinoApp(home: BookShelfPage(repository: repo, contentLoader: longLoader)));
+    await pumpUntilFound(tester, find.byKey(const Key('book_b2')));
+    // 点击封面进入阅读器
+    await tester.tap(find.byKey(const Key('book_b1')));
+    await pumpUntilFound(tester, find.byType(SingleChildScrollView));
+    await tester.pumpAndSettle();
+    await tester.tapAt(const Offset(400, 300));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('reader_back')));
+    await tester.pumpAndSettle();
+    // 返回后两本书仍在（无闪空）
+    expect(find.byKey(const Key('book_b1')), findsOneWidget);
+    expect(find.byKey(const Key('book_b2')), findsOneWidget);
   });
 }
