@@ -35,6 +35,7 @@ class BookDetailPage extends StatefulWidget {
 class _BookDetailPageState extends State<BookDetailPage> {
   late Book _book;
   BookRepositoryBase get _repo => widget.repository ?? BookRepository.instance;
+  String? _deleteError;
 
   @override
   void initState() {
@@ -61,6 +62,15 @@ class _BookDetailPageState extends State<BookDetailPage> {
         child: ListView(
           padding: const EdgeInsets.all(AppTheme.horizontalPadding),
           children: [
+            // 删除失败提示
+            if (_deleteError != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Text(
+                  _deleteError!,
+                  style: const TextStyle(color: CupertinoColors.destructiveRed),
+                ),
+              ),
             // 标题
             Text(
               _book.title,
@@ -245,13 +255,23 @@ class _BookDetailPageState extends State<BookDetailPage> {
             isDestructiveAction: true,
             child: const Text('删除'),
             onPressed: () async {
+              // await 之前取得 NavigatorState，避免跨 async gap 使用 BuildContext 的 lint
+              final navigator = Navigator.of(context);
+              // 关闭确认弹窗（使用弹窗自身的 context，不影响详情页）
               Navigator.of(ctx).pop();
-              // 先用 context 弹出删除结果（await 之前使用，避免跨 async gap 的 lint），
-              // 随后在后台执行删除落盘，不依赖 BuildContext。
-              if (mounted) {
-                Navigator.of(context).pop(LibraryChangeResult.deleted);
+              try {
+                // 等待真实删除完成，不允许 fire-and-forget / 提前 pop
+                await _repo.delete(_book.id);
+              } catch (e) {
+                // 删除失败：留在详情页并显示错误，不返回 deleted
+                if (mounted) {
+                  setState(() => _deleteError = e.toString());
+                }
+                return;
               }
-              await _repo.delete(_book.id);
+              // 删除完成后才返回结果（navigator 在 await 前已取得，无需再用 context）
+              if (!mounted || !navigator.mounted) return;
+              navigator.pop(LibraryChangeResult.deleted);
             },
           ),
         ],
