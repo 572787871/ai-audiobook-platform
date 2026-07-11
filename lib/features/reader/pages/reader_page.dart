@@ -10,14 +10,17 @@ import '../services/reading_settings_service.dart';
 /// 阅读器：分页阅读，支持字体/背景/行距，自动保存进度。
 class ReaderPage extends StatefulWidget {
   final Book book;
+  final BookRepositoryBase? repository;
 
-  const ReaderPage({super.key, required this.book});
+  const ReaderPage({super.key, required this.book, this.repository});
 
   @override
   State<ReaderPage> createState() => _ReaderPageState();
 }
 
 class _ReaderPageState extends State<ReaderPage> {
+  BookRepositoryBase get _repo => widget.repository ?? BookRepository.instance;
+
   List<String> _pages = [];
   int _pageIndex = 0;
   ReadingSettings _settings = const ReadingSettings();
@@ -96,7 +99,7 @@ class _ReaderPageState extends State<ReaderPage> {
       lastReadChapter: '正文',
       updatedAt: DateTime.now(),
     );
-    BookRepository.instance.save(updated);
+    _repo.save(updated);
   }
 
   void _saveReadingTime() {
@@ -107,7 +110,7 @@ class _ReaderPageState extends State<ReaderPage> {
       readingTimeSec: widget.book.readingTimeSec + sec,
       updatedAt: DateTime.now(),
     );
-    BookRepository.instance.save(updated);
+    _repo.save(updated);
   }
 
   void _scheduleSave() {

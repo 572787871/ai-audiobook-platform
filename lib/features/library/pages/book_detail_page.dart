@@ -10,9 +10,12 @@ import '../../reader/pages/reader_page.dart';
 
 /// 书籍详情页
 class BookDetailPage extends StatelessWidget {
-  const BookDetailPage({super.key, required this.book});
+  const BookDetailPage({super.key, required this.book, this.repository});
 
   final Book book;
+  final BookRepositoryBase? repository;
+
+  BookRepositoryBase get _repo => repository ?? BookRepository.instance;
 
   @override
   Widget build(BuildContext context) {
@@ -58,6 +61,7 @@ class BookDetailPage extends StatelessWidget {
                   _row('文件大小', FileSizeFormatter.format(book.fileSize)),
                   _row('字符数', isTxt ? '${book.characterCount ?? 0} 字' : '—'),
                   _row('导入时间', created),
+                  _row('上次阅读', DateFormat('yyyy-MM-dd HH:mm').format(book.updatedAt)),
                   _row('解析状态', book.parseStatus.label),
                   _row('章节状态', isTxt ? '未分章' : '不可用'),
                   _row('AI 模型', '未下载'),
@@ -111,7 +115,7 @@ class BookDetailPage extends StatelessWidget {
 
   void _continueReading(BuildContext context) {
     Navigator.of(context).push(
-      CupertinoPageRoute(builder: (_) => ReaderPage(book: book)),
+      CupertinoPageRoute(builder: (_) => ReaderPage(book: book, repository: _repo)),
     );
   }
 
@@ -167,7 +171,7 @@ class BookDetailPage extends StatelessWidget {
             child: const Text('重命名'),
             onPressed: () {
               Navigator.of(ctx).pop();
-              _toast(context, '重命名将在后续阶段加入');
+              _rename(context);
             },
           ),
           CupertinoActionSheetAction(
@@ -204,8 +208,7 @@ class BookDetailPage extends StatelessWidget {
             child: const Text('删除'),
             onPressed: () async {
               Navigator.of(ctx).pop();
-              final repo = BookRepository.instance;
-              await repo.delete(book.id);
+              await _repo.delete(book.id);
               if (context.mounted) {
                 Navigator.of(context).pop(); // 返回书库
               }
@@ -214,6 +217,31 @@ class BookDetailPage extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _rename(BuildContext context) async {
+    final controller = TextEditingController(text: book.title);
+    final result = await showCupertinoDialog<String?>(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('重命名'),
+        content: CupertinoTextField(controller: controller),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('取消'),
+            onPressed: () => Navigator.of(ctx).pop(),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            child: const Text('确定'),
+            onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
+          ),
+        ],
+      ),
+    );
+    if (result != null && result.isNotEmpty && result != book.title) {
+      await _repo.save(book.copyWith(title: result, updatedAt: DateTime.now()));
+    }
   }
 
   void _toast(BuildContext context, String message) {

@@ -8,11 +8,9 @@ import '../models/book.dart';
 import '../services/book_repository.dart';
 import '../widgets/empty_library_header.dart';
 import '../widgets/import_option_card.dart';
-import '../widgets/book_card.dart';
 import '../../import/file_import_service.dart';
 import '../../import/file_import_result.dart';
 import '../../import/import_progress.dart';
-import 'book_detail_page.dart';
 import 'book_shelf_page.dart';
 
 /// 书库首页
@@ -157,14 +155,6 @@ class _LibraryPageState extends State<LibraryPage> {
     );
   }
 
-  void _openDetail(Book book) {
-    Navigator.of(context).push(
-      CupertinoPageRoute(
-        builder: (_) => BookDetailPage(book: book),
-      ),
-    );
-  }
-
   void _openShelf() {
     Navigator.of(context).push(
       CupertinoPageRoute(
@@ -266,47 +256,76 @@ class _LibraryPageState extends State<LibraryPage> {
           onTap: _showUnsupported,
         ),
         const SizedBox(height: 24),
-        // 书库（仅在有书时显示，标题点击进入书架页）
-        if (_books.isNotEmpty) ...[
-          GestureDetector(
-            onTap: _openShelf,
-            child: _sectionDivider('书库'),
-          ),
-          const SizedBox(height: 12),
-          ..._books.map(
-            (b) => BookCard(
-              book: b,
-              onTap: () => _openDetail(b),
-            ),
-          ),
-          const SizedBox(height: 24),
-        ],
+        // 书库入口卡片（不在此直接展示书籍列表）
+        _buildShelfEntry(),
+        const SizedBox(height: 24),
       ],
     );
   }
 
-  Widget _sectionDivider(String title) {
-    return Row(
-      children: [
-        Expanded(
-          child: Container(height: 1, color: AppTheme.iconBackground),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Text(
-            title,
-            style: const TextStyle(
-              fontSize: 15,
+  Widget _buildShelfEntry() {
+    final count = _books.length;
+    final subtitle = count == 0
+        ? '暂无已导入书籍'
+        : count == 1
+            ? '已导入 1 本书'
+            : '已导入 $count 本书';
+    return GestureDetector(
+      key: const Key('shelf_entry'),
+      onTap: _openShelf,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: AppTheme.cardDecoration,
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: AppTheme.iconBackground,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Center(
+                child: Icon(CupertinoIcons.square_stack_3d_up,
+                    size: 24, color: AppTheme.primaryText),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '书库',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.primaryText,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AppTheme.secondaryText,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              CupertinoIcons.chevron_right,
+              size: 16,
               color: AppTheme.secondaryText,
             ),
-          ),
+          ],
         ),
-        Expanded(
-          child: Container(height: 1, color: AppTheme.iconBackground),
-        ),
-      ],
+      ),
     );
   }
+
+
 
 }
 
