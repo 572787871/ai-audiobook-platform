@@ -25,6 +25,11 @@ class ReadingSettingsService {
     _cache = const ReadingSettings();
   }
 
+  /// 测试用：直接写入内存缓存，不写磁盘、不访问 path_provider。
+  void setSettingsForTest(ReadingSettings settings) {
+    _cache = settings;
+  }
+
   void resetForTest() {
     _dir = null;
     _file = null;

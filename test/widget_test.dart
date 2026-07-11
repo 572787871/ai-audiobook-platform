@@ -24,7 +24,7 @@ Future<void> pumpUntilFound(
   throw TestFailure('Widget not found: $finder');
 }
 
-Book _makeBook(String id, String title, double progress) => Book(
+Book _makeBook(String id, String title, double progress, {int lastReadOffset = 0}) => Book(
       id: id,
       title: title,
       originalFileName: '$title.txt',
@@ -36,7 +36,7 @@ Book _makeBook(String id, String title, double progress) => Book(
       encoding: 'UTF-8',
       createdAt: DateTime(2026, 7, 11),
       updatedAt: DateTime(2026, 7, 11),
-      lastReadOffset: 0,
+      lastReadOffset: lastReadOffset,
       readingProgress: progress,
       parseStatus: BookParseStatus.ready,
       chapterCount: 0,
@@ -160,12 +160,14 @@ void main() {
   testWidgets('ReaderPage 点击中部显示工具栏与返回按钮', (tester) async {
     final longText = '第一章 开局\n' * 600;
     final repo = FakeBookRepository([_makeBook('b1', '测试小说', 0.0)]);
+    ReadingSettingsService.instance
+        .setSettingsForTest((await ReadingSettingsService.instance.get())
+            .copyWith(pageAnimation: PageAnimation.none));
     await tester.pumpWidget(
       CupertinoApp(home: ReaderPage(
         book: repo.books.first,
         repository: repo,
         contentLoader: (_) async => longText,
-        initialPageIndex: 1,
       )),
     );
     await pumpUntilFound(tester, find.byType(SingleChildScrollView));
@@ -181,12 +183,17 @@ void main() {
   testWidgets('点击返回前会保存进度', (tester) async {
     final longText = '第一章 开局\n' * 600;
     final repo = FakeBookRepository([_makeBook('b1', '测试小说', 0.0)]);
+    ReadingSettingsService.instance
+        .setSettingsForTest((await ReadingSettingsService.instance.get())
+            .copyWith(pageAnimation: PageAnimation.none));
+    ReadingSettingsService.instance
+        .setSettingsForTest((await ReadingSettingsService.instance.get())
+            .copyWith(pageAnimation: PageAnimation.none));
     await tester.pumpWidget(
       CupertinoApp(home: ReaderPage(
         book: repo.books.first,
         repository: repo,
         contentLoader: (_) async => longText,
-        initialPageIndex: 1,
       )),
     );
     await pumpUntilFound(tester, find.byType(SingleChildScrollView));
@@ -202,7 +209,7 @@ void main() {
     // 注入内存正文（多页），不依赖真实磁盘读取 / path_provider
     final longText = '第一章 开局\n' * 600;
     // 初始进度 0（尚未阅读）
-    final repo = FakeBookRepository([_makeBook('b1', '测试小说', 0.0)]);
+    final repo = FakeBookRepository([_makeBook('b1', '测试小说', 0.0, lastReadOffset: 1500)]);
     await tester.pumpWidget(
       CupertinoApp(
         home: BookDetailPage(
@@ -210,8 +217,6 @@ void main() {
           repository: repo,
           // 详情页透传 contentLoader 给阅读器
           contentLoader: (_) async => longText,
-          // 进入阅读器时定位到第 1 页（模拟“读到这里”，不依赖手势）
-          initialPageIndex: 1,
         ),
       ),
     );
@@ -222,6 +227,9 @@ void main() {
     expect(find.text('0%'), findsWidgets);
 
     // 进入阅读器，并指定起始阅读页为第 1 页（模拟“读到这里”，不依赖手势）
+    ReadingSettingsService.instance
+        .setSettingsForTest((await ReadingSettingsService.instance.get())
+            .copyWith(pageAnimation: PageAnimation.none));
     await tester.tap(find.text('继续阅读'));
     await tester.pumpAndSettle();
     await pumpUntilFound(tester, find.byType(SingleChildScrollView));
@@ -350,6 +358,9 @@ void main() {
         CupertinoApp(home: BookShelfPage(repository: repo, contentLoader: longLoader)));
     await pumpUntilFound(tester, find.byKey(const Key('book_b2')));
     // 点击封面进入阅读器
+    ReadingSettingsService.instance
+        .setSettingsForTest((await ReadingSettingsService.instance.get())
+            .copyWith(pageAnimation: PageAnimation.none));
     await tester.tap(find.byKey(const Key('book_b1')));
     await pumpUntilFound(tester, find.byType(SingleChildScrollView));
     await tester.pumpAndSettle();

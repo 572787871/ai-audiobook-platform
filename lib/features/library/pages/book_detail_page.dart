@@ -16,7 +16,6 @@ class BookDetailPage extends StatefulWidget {
     required this.book,
     this.repository,
     this.contentLoader,
-    this.initialPageIndex,
   });
 
   final Book book;
@@ -26,7 +25,6 @@ class BookDetailPage extends StatefulWidget {
   final Future<String> Function(Book book)? contentLoader;
 
   /// 进入阅读器时的起始页索引；null 时由阅读器按 book.readingProgress 恢复。
-  final int? initialPageIndex;
 
   @override
   State<BookDetailPage> createState() => _BookDetailPageState();
@@ -155,7 +153,6 @@ class _BookDetailPageState extends State<BookDetailPage> {
           book: _book,
           repository: _repo,
           contentLoader: widget.contentLoader,
-          initialPageIndex: widget.initialPageIndex,
         ),
       ),
     );

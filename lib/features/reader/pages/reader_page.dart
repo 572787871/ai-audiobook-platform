@@ -1,31 +1,33 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/cupertino.dart';
-import '../../../theme/app_theme.dart';
-import '../widgets/reader_pager.dart';
 import '../../library/models/book.dart';
-import '../../library/models/book_file_type.dart';
+import '../../library/pages/book_detail_page.dart';
 import '../../library/services/book_repository.dart';
 import '../services/reading_settings_service.dart';
+import '../engine/reader_controller.dart';
+import '../engine/reader_document.dart';
+import '../engine/reader_engine.dart';
+import '../engine/reader_layout.dart';
+import '../engine/reader_page_model.dart';
 
-/// 阅读器：分页阅读，沉浸模式，完整阅读设置与听书入口。
+/// 阅读器（Phase 3 重构）：基于 [ReaderController] 引擎驱动。
+///
+/// - 连续滚动 / PageView 左右翻页 / 覆盖翻页三种模式，默认 PageView。
+/// - 每一页是真正独立的数据（[ReaderPageModel]），逐页用独立 Text 渲染，
+///   禁止整本裁剪、禁止两页共用一个 Text、禁止 Transform 对全文动画。
+/// - 阅读位置以字符偏移（[Book.lastReadOffset]）保存与恢复，不依赖页码。
+/// - 保留 iOS 左边缘右滑返回（PopScope(canPop:true)，不被 PageView 抢占）。
 class ReaderPage extends StatefulWidget {
   final Book book;
-  final BookRepositoryBase? repository;
-
-  /// 正文加载器。生产环境为 null，默认从 `book.contentPath` 读取本地文件；
-  /// 测试环境可注入内存字符串，避免依赖真实磁盘 IO。
+  final BookRepositoryBase repository;
   final Future<String> Function(Book book)? contentLoader;
-
-  /// 起始阅读页索引（0 基）。默认 null：按 `book.readingProgress` 恢复上次位置。
-  final int? initialPageIndex;
 
   const ReaderPage({
     super.key,
     required this.book,
-    this.repository,
+    required this.repository,
     this.contentLoader,
-    this.initialPageIndex,
   });
 
   @override
@@ -33,24 +35,194 @@ class ReaderPage extends StatefulWidget {
 }
 
 class _ReaderPageState extends State<ReaderPage> {
-  BookRepositoryBase get _repo => widget.repository ?? BookRepository.instance;
+  BookRepositoryBase get _repo => widget.repository;
 
-  List<String> _pages = [];
-  int _pageIndex = 0;
+  ReaderController? _controller;
   ReadingSettings _settings = const ReadingSettings();
   bool _loading = true;
   bool _showToolbar = false;
-  DateTime? _openedAt;
   Timer? _saveTimer;
   bool _listening = false;
 
   @override
+  void initState() {
+    super.initState();
+    _listening = widget.book.isListening;
+    _load();
+  }
+
+  Future<void> _load() async {
+    _settings = await ReadingSettingsService.instance.get();
+    final loader = widget.contentLoader;
+    final content = loader != null
+        ? await loader(widget.book)
+        : await File(widget.book.contentPath ?? '').readAsString();
+    if (!mounted) return;
+    final doc = ReaderDocument.fromContent(content, firstLineIndent: 2);
+    final layout = _buildLayout(_settings);
+    final engine = ReaderEngine(doc, layout);
+    final controller = ReaderController(engine: engine);
+    // 根据字符偏移恢复位置（不依赖页码）
+    controller.goToOffset(widget.book.lastReadOffset);
+    setState(() {
+      _controller = controller;
+      _loading = false;
+    });
+  }
+
+  ReaderLayout _buildLayout(ReadingSettings s) {
+    final size = MediaQuery.of(context).size;
+    final top = MediaQuery.of(context).padding.top;
+    final bottom = MediaQuery.of(context).padding.bottom;
+    return ReaderLayout(
+      fontSize: s.fontSize,
+      fontWeight: FontWeight.values.firstWhere(
+        (w) => w.value == s.fontWeight,
+        orElse: () => FontWeight.normal,
+      ),
+      fontFamily: s.fontFamily == 'system' ? null : s.fontFamily,
+      lineHeight: s.lineHeight,
+      paragraphSpacing: s.paragraphSpacing,
+      horizontalMargin: s.horizontalMargin,
+      verticalMargin: 16 + top,
+      pageWidth: size.width,
+      pageHeight: size.height - bottom,
+    );
+  }
+
+  @override
+  void dispose() {
+    _saveTimer?.cancel();
+    _saveProgress();
+    super.dispose();
+  }
+
+  Future<Book> _saveProgress() async {
+    if (_controller == null) return widget.book;
+    final pos = _controller!.position;
+    final updated = widget.book.copyWith(
+      lastReadOffset: pos.characterOffset,
+      readingProgress: pos.readingProgress,
+      chapterIndex: pos.chapterIndex,
+      updatedAt: DateTime.now(),
+    );
+    await _repo.save(updated);
+    return updated;
+  }
+
+  void _scheduleSave() {
+    _saveTimer?.cancel();
+    _saveTimer = Timer(const Duration(seconds: 2), _saveProgress);
+  }
+
+  Future<void> _handleBack() async {
+    final updated = await _saveProgress();
+    if (mounted) Navigator.of(context).pop(updated);
+  }
+
+  void _toggleToolbar() => setState(() => _showToolbar = !_showToolbar);
+
+  void _showMore() {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (ctx) => CupertinoActionSheet(
+        title: Text(widget.book.title),
+        actions: [
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _openDetail();
+            },
+            child: const Text('书籍详情'),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _toggleListening();
+            },
+            child: Text(_listening ? '停止听书' : '开始听书'),
+          ),
+          CupertinoActionSheetAction(
+            isDestructiveAction: true,
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              await _confirmDelete();
+            },
+            child: const Text('删除'),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: const Text('取消'),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openDetail() async {
+    final updated = await _saveProgress();
+    if (!mounted) return;
+    final result = await Navigator.of(context).push(
+      CupertinoPageRoute(
+        builder: (_) => BookDetailPage(book: updated, repository: widget.repository),
+      ),
+    );
+    if (result is Book) {
+      // 详情页可能修改了进度/标题，返回后应用
+      setState(() {});
+    }
+  }
+
+  Future<void> _toggleListening() async {
+    setState(() => _listening = !_listening);
+    await _repo.save(widget.book.copyWith(isListening: _listening));
+  }
+
+  Future<void> _confirmDelete() async {
+    final confirm = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('删除本书'),
+        content: const Text('确定从书库删除？此操作不可撤销。'),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('取消'),
+            onPressed: () => Navigator.of(ctx).pop(false),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            child: const Text('删除'),
+            onPressed: () => Navigator.of(ctx).pop(true),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      await _repo.delete(widget.book.id);
+      if (mounted) Navigator.of(context).pop(null);
+    }
+  }
+
+  ({Color background, Color text}) _bgColors() {
+    switch (_settings.theme) {
+      case ReaderTheme.day:
+        return (background: const Color(0xFFF7F7F7), text: const Color(0xFF1A1A1A));
+      case ReaderTheme.sepia:
+        return (background: const Color(0xFFF5ECD8), text: const Color(0xFF4A3F2E));
+      case ReaderTheme.dark:
+        return (background: const Color(0xFF1C1C1E), text: const Color(0xFFD6D6D6));
+      case ReaderTheme.night:
+        return (background: const Color(0xFF000000), text: const Color(0xFF9A9A9A));
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final themeColors = _bgColors();
+    final colors = _bgColors();
     return PopScope(
-      canPop: true, // 不拦截 pop，保留 CupertinoPageRoute 默认 iOS 左边缘右滑
+      canPop: true,
       child: CupertinoPageScaffold(
-        backgroundColor: themeColors.background,
+        backgroundColor: colors.background,
         navigationBar: _showToolbar
             ? CupertinoNavigationBar(
                 leading: CupertinoButton(
@@ -76,562 +248,412 @@ class _ReaderPageState extends State<ReaderPage> {
               )
             : null,
         child: SafeArea(
-          child: _loading
+          child: _loading || _controller == null
               ? const Center(child: CupertinoActivityIndicator())
-              : KeyedSubtree(
-                  key: const Key('reader_pager'),
-                  child: Stack(
-                    children: [
-                      Column(
-                        children: [
-                          Expanded(
-                            child: ReaderPager(
-                              key: ValueKey(_settings.pageAnimation),
-                              pages: _pages
-                                  .map(
-                                    (pg) => SingleChildScrollView(
-                                      key: ValueKey(pg),
-                                      child: Padding(
-                                        padding: EdgeInsets.symmetric(
-                                          horizontal: _settings.horizontalMargin,
-                                          vertical: 16,
-                                        ),
-                                        child: Text(
-                                          pg,
-                                          style: TextStyle(
-                                            fontSize: _settings.fontSize,
-                                            height: _settings.lineHeight,
-                                            fontWeight: FontWeight.values
-                                                .firstWhere(
-                                              (w) => w.value == _settings.fontWeight,
-                                              orElse: () => FontWeight.normal,
-                                            ),
-                                            color: themeColors.text,
-                                            fontFamily: _settings.fontFamily == 'system'
-                                                ? null
-                                                : _settings.fontFamily,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  )
-                                  .toList(),
-                              initialIndex: _pageIndex,
-                              animation: _settings.pageAnimation,
-                              onToggleToolbar: () =>
-                                  setState(() => _showToolbar = !_showToolbar),
-                              onPageChanged: (i) {
-                                _pageIndex = i;
-                                _saveProgress();
-                                _scheduleSave();
-                              },
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 20, vertical: 8),
-                            child: Row(
-                              children: [
-                                Text(_progressText(),
-                                    style: TextStyle(
-                                        fontSize: 12, color: themeColors.subtext)),
-                                const Spacer(),
-                                Text('${_pageIndex + 1}/${_pages.length}',
-                                    style: TextStyle(
-                                        fontSize: 12, color: themeColors.subtext)),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (_showToolbar) _buildBottomBar(),
-                    ],
-                  ),
+              : Stack(
+                  children: [
+                    KeyedSubtree(
+                      key: ValueKey(_settings.pageAnimation),
+                      child: _buildBody(colors),
+                    ),
+                    if (_showToolbar) _buildBottomToolbar(colors),
+                  ],
                 ),
         ),
       ),
     );
   }
 
-  String _progressText() {
-    if (_pages.isEmpty) return '0%';
-    final pct = ((_pageIndex + 1) / _pages.length * 100).round();
-    return '$pct%';
-  }
-
-  _ThemeColors _bgColors() {
-    switch (_settings.theme) {
-      case ReaderTheme.day:
-        return _ThemeColors(const Color(0xFFFFFFFF), const Color(0xFF000000),
-            const Color(0xFF8E8E93));
-      case ReaderTheme.sepia:
-        return _ThemeColors(const Color(0xFFF5ECD8), const Color(0xFF5B4636),
-            const Color(0xFF9C8A6B));
-      case ReaderTheme.dark:
-        return _ThemeColors(const Color(0xFF1C1C1E), const Color(0xFFE5E5EA),
-            const Color(0xFF8E8E93));
-      case ReaderTheme.night:
-        return _ThemeColors(const Color(0xFF000000), const Color(0xFFBDBDBD),
-            const Color(0xFF757575));
+  Widget _buildBody(({Color background, Color text}) colors) {
+    switch (_settings.pageAnimation) {
+      case PageAnimation.none:
+        return _ScrollReader(
+          controller: _controller!,
+          settings: _settings,
+          colors: colors,
+          onToggleToolbar: _toggleToolbar,
+        );
+      case PageAnimation.cover:
+        return _CoverReader(
+          controller: _controller!,
+          settings: _settings,
+          colors: colors,
+          onToggleToolbar: _toggleToolbar,
+          onPageChanged: (i) {
+            _controller!.goToPage(i);
+            _saveProgress();
+            _scheduleSave();
+          },
+        );
+      case PageAnimation.curl:
+        // 拟真翻页暂未接入，回退到 PageView 滑动，避免不稳定。
+        return _PageViewReader(
+          controller: _controller!,
+          settings: _settings,
+          colors: colors,
+          onToggleToolbar: _toggleToolbar,
+          onPageChanged: (i) {
+            _controller!.goToPage(i);
+            _saveProgress();
+            _scheduleSave();
+          },
+        );
+      case PageAnimation.slide:
+        return _PageViewReader(
+          controller: _controller!,
+          settings: _settings,
+          colors: colors,
+          onToggleToolbar: _toggleToolbar,
+          onPageChanged: (i) {
+            _controller!.goToPage(i);
+            _saveProgress();
+            _scheduleSave();
+          },
+        );
     }
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _openedAt = DateTime.now();
-    _init();
-  }
-
-  @override
-  void dispose() {
-    _saveTimer?.cancel();
-    _saveProgress();
-    _saveReadingTime();
-    super.dispose();
-  }
-
-  Future<void> _init() async {
-    _settings = await ReadingSettingsService.instance.get();
-    final content = await _loadContent();
-    if (content.isEmpty) {
-      if (mounted) setState(() => _loading = false);
-      return;
-    }
-    _buildPages(content);
-    if (mounted) setState(() => _loading = false);
-  }
-
-  Future<String> _loadContent() async {
-    if (widget.book.fileType != BookFileType.txt) return '';
-    final loader = widget.contentLoader;
-    if (loader != null) {
-      try {
-        return await loader(widget.book);
-      } catch (_) {
-        return '';
-      }
-    }
-    final file = File(widget.book.contentPath ?? '');
-    if (!await file.exists()) return '';
-    try {
-      return await file.readAsString();
-    } catch (_) {
-      return '';
-    }
-  }
-
-  void _buildPages(String content) {
-    const perPage = 900;
-    final buffer = StringBuffer();
-    var count = 0;
-    final pages = <String>[];
-    final paragraphs = content.split(String.fromCharCode(10));
-    for (final para in paragraphs) {
-      if (para.isEmpty) continue;
-      if (count + para.length > perPage && buffer.isNotEmpty) {
-        pages.add(buffer.toString());
-        buffer.clear();
-        count = 0;
-      }
-      buffer.writeln(para);
-      count += para.length;
-    }
-    if (buffer.isNotEmpty) pages.add(buffer.toString());
-    _pages = pages.isEmpty ? [''] : pages;
-
-    final savedPct = widget.book.readingProgress;
-    if (widget.initialPageIndex != null && _pages.isNotEmpty) {
-      _pageIndex = widget.initialPageIndex!.clamp(0, _pages.length - 1);
-    } else if (savedPct > 0 && _pages.isNotEmpty) {
-      _pageIndex =
-          ((savedPct * (_pages.length - 1)).round()).clamp(0, _pages.length - 1);
-    }
-  }
-
-  Book _buildSavedBook() {
-    final pct = _pages.isEmpty
-        ? 0.0
-        : (_pageIndex / _pages.length).clamp(0.0, 1.0);
-    return widget.book.copyWith(
-      readingProgress: pct,
-      lastReadOffset: _pageIndex,
-      lastReadChapter: '正文',
-      updatedAt: DateTime.now(),
-    ).withReadingToday(DateTime.now());
-  }
-
-  Future<Book> _saveProgress() async {
-    final updated = _buildSavedBook();
-    await _repo.save(updated);
-    if (mounted) widget.book.copyWith(readingProgress: updated.readingProgress);
-    return updated;
-  }
-
-  Future<void> _saveReadingTime() async {
-    if (_openedAt == null) return;
-    final sec = DateTime.now().difference(_openedAt!).inSeconds;
-    if (sec <= 0) return;
-    await _repo.save(widget.book.copyWith(
-      readingTimeSec: widget.book.readingTimeSec + sec,
-      updatedAt: DateTime.now(),
-    ));
-  }
-
-  Future<void> _handleBack() async {
-    final updated = await _saveProgress();
-    await _saveReadingTime();
-    if (!mounted) return;
-    Navigator.of(context).pop(updated);
-  }
-
-  void _scheduleSave() {
-    _saveTimer?.cancel();
-    _saveTimer = Timer(const Duration(seconds: 2), _saveProgress);
-  }
-
-  Widget _buildBottomBar() {
+  Widget _buildBottomToolbar(({Color background, Color text}) colors) {
+    final progress = _controller!.position.readingProgress;
     return Positioned(
       left: 0,
       right: 0,
       bottom: 0,
       child: Container(
-        decoration: BoxDecoration(
-          color: _bgColors().background,
-          border: const Border(top: BorderSide(color: Color(0x1A000000))),
+        color: colors.background.withValues(alpha: 0.96),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: SafeArea(
+          top: false,
+          child: Row(
+            children: [
+              CupertinoButton(
+                padding: EdgeInsets.zero,
+                onPressed: () => _showSettings(colors),
+                child: const Icon(CupertinoIcons.slider_horizontal_3, size: 24),
+              ),
+              const Spacer(),
+              Text('${(progress * 100).toStringAsFixed(0)}%',
+                  style: TextStyle(color: colors.text)),
+              const Spacer(),
+              CupertinoButton(
+                padding: EdgeInsets.zero,
+                onPressed: _toggleListening,
+                child: Icon(
+                  _listening ? CupertinoIcons.pause : CupertinoIcons.volume_up,
+                  size: 24,
+                ),
+              ),
+            ],
+          ),
         ),
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
+      ),
+    );
+  }
+
+  void _showSettings(({Color background, Color text}) colors) {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (ctx) => _ReaderSettingsSheet(
+        settings: _settings,
+        onChanged: (next) async {
+          await ReadingSettingsService.instance.save(next);
+          final layout = _buildLayout(next);
+          final engine = ReaderEngine(_controller!.engine.document, layout);
+          final keep = _controller!.currentCharacterOffset;
+          setState(() {
+            _settings = next;
+            _controller = ReaderController(engine: engine);
+            _controller!.goToOffset(keep);
+          });
+        },
+      ),
+    );
+  }
+}
+
+/// 阅读设置底部弹窗：字体/字号/字重/行距/段距/边距/主题/翻页方式，全部实时生效。
+class _ReaderSettingsSheet extends StatefulWidget {
+  final ReadingSettings settings;
+  final void Function(ReadingSettings) onChanged;
+  const _ReaderSettingsSheet({required this.settings, required this.onChanged});
+
+  @override
+  State<_ReaderSettingsSheet> createState() => _ReaderSettingsSheetState();
+}
+
+class _ReaderSettingsSheetState extends State<_ReaderSettingsSheet> {
+  late ReadingSettings _s;
+
+  @override
+  void initState() {
+    super.initState();
+    _s = widget.settings;
+  }
+
+  void _update(ReadingSettings next) {
+    _s = next;
+    widget.onChanged(next);
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final themes = ReaderTheme.values;
+    final animations = const [PageAnimation.none, PageAnimation.slide, PageAnimation.cover];
+    return Container(
+      color: CupertinoColors.systemBackground.resolveFrom(context),
+      padding: const EdgeInsets.all(16),
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            _toolBtn('目录', CupertinoIcons.list_bullet, _showToc),
-            _toolBtn('进度', CupertinoIcons.percent, _showProgress),
-            _toolBtn('听书', CupertinoIcons.speaker_2_fill, _toggleListen),
-            _toolBtn('字体', CupertinoIcons.textformat, _showFont),
-            _toolBtn('设置', CupertinoIcons.gear, _showSettings),
+            Row(
+              children: [
+                const Text('字号'),
+                CupertinoButton(onPressed: () => _update(_s.copyWith(fontSize: (_s.fontSize - 1).clamp(12, 36))), child: const Icon(CupertinoIcons.minus)),
+                Text(_s.fontSize.toStringAsFixed(0)),
+                CupertinoButton(onPressed: () => _update(_s.copyWith(fontSize: (_s.fontSize + 1).clamp(12, 36))), child: const Icon(CupertinoIcons.plus)),
+              ],
+            ),
+            Row(
+              children: [
+                const Text('行距'),
+                CupertinoSlider(value: _s.lineHeight, min: 1.0, max: 2.4, onChanged: (v) => _update(_s.copyWith(lineHeight: v))),
+                Text(_s.lineHeight.toStringAsFixed(1)),
+              ],
+            ),
+            Row(
+              children: [
+                const Text('字重'),
+                CupertinoSlider(value: _s.fontWeight.toDouble(), min: 300, max: 700, divisions: 4, onChanged: (v) => _update(_s.copyWith(fontWeight: v.round()))),
+              ],
+            ),
+            Row(
+              children: [
+                const Text('段距'),
+                CupertinoSlider(value: _s.paragraphSpacing, min: 0, max: 32, onChanged: (v) => _update(_s.copyWith(paragraphSpacing: v))),
+              ],
+            ),
+            Row(
+              children: [
+                const Text('边距'),
+                CupertinoSlider(value: _s.horizontalMargin, min: 8, max: 48, onChanged: (v) => _update(_s.copyWith(horizontalMargin: v))),
+              ],
+            ),
+            Wrap(
+              spacing: 8,
+              children: themes.map((t) => CupertinoButton(
+                padding: EdgeInsets.zero,
+                onPressed: () => _update(_s.copyWith(theme: t)),
+                child: Text(t.label, style: TextStyle(fontWeight: _s.theme == t ? FontWeight.bold : FontWeight.normal)),
+              )).toList(),
+            ),
+            Wrap(
+              spacing: 8,
+              children: animations.map((a) => CupertinoButton(
+                padding: EdgeInsets.zero,
+                onPressed: () => _update(_s.copyWith(pageAnimation: a)),
+                child: Text(_animLabel(a), style: TextStyle(fontWeight: _s.pageAnimation == a ? FontWeight.bold : FontWeight.normal)),
+              )).toList(),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _toolBtn(String label, IconData icon, VoidCallback onTap) {
-    return CupertinoButton(
-      minimumSize: Size.zero,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      onPressed: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 20, color: AppTheme.primaryText),
-          const SizedBox(height: 2),
-          Text(label, style: const TextStyle(fontSize: 11)),
-        ],
-      ),
-    );
-  }
-
-  void _showToc() {
-    showCupertinoModalPopup<void>(
-      context: context,
-      builder: (ctx) => CupertinoActionSheet(
-        title: const Text('目录'),
-        message: const Text('正文（后续自动升级为章节列表）'),
-        cancelButton: CupertinoActionSheetAction(
-          isDefaultAction: true,
-          onPressed: () => Navigator.of(ctx).pop(),
-          child: const Text('关闭'),
-        ),
-      ),
-    );
-  }
-
-  void _showProgress() {
-    final pct = _progressText();
-    final mins = (widget.book.readingTimeSec / 60).floor();
-    showCupertinoDialog<void>(
-      context: context,
-      builder: (ctx) => CupertinoAlertDialog(
-        title: const Text('阅读进度'),
-        content: Text(
-            '当前进度：$pct  ·  阅读时长：$mins 分钟  ·  连续阅读 ${widget.book.streakDays} 天'),
-        actions: [
-          CupertinoDialogAction(
-            isDefaultAction: true,
-            child: const Text('好的'),
-            onPressed: () => Navigator.of(ctx).pop(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _toggleListen() async {
-    if (!_listening) {
-      // 预留：后续接入 Kokoro 本地 TTS，实现文字同步高亮 + 自动滚动 + 句控。
-      setState(() => _listening = true);
-      await _repo.save(widget.book
-          .copyWith(isListening: true, listenVoice: 'af_heart', listenRate: 1.0));
-      if (mounted) _toast('AI 听书已开启（后续接入 Kokoro 本地引擎）');
-    } else {
-      setState(() => _listening = false);
-      await _repo.save(widget.book.copyWith(isListening: false));
+  String _animLabel(PageAnimation a) {
+    switch (a) {
+      case PageAnimation.none:
+        return '滚动';
+      case PageAnimation.slide:
+        return '滑动';
+      case PageAnimation.cover:
+        return '覆盖';
+      case PageAnimation.curl:
+        return '拟真';
     }
-  }
-
-  void _toast(String message) {
-    showCupertinoDialog<void>(
-      context: context,
-      builder: (ctx) => CupertinoAlertDialog(
-        title: const Text('提示'),
-        content: Text(message),
-        actions: [
-          CupertinoDialogAction(
-            isDefaultAction: true,
-            child: const Text('好的'),
-            onPressed: () => Navigator.of(ctx).pop(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showFont() {
-    showCupertinoModalPopup<void>(
-      context: context,
-      builder: (ctx) => CupertinoActionSheet(
-        title: const Text('字体与排版'),
-        message: Text('字号 ${_settings.fontSize.round()} · '
-            '字重 ${_settings.fontWeight} · 行距 ${_settings.lineHeight.toStringAsFixed(1)}'),
-        actions: [
-          CupertinoActionSheetAction(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              _changeFontSize(2);
-            },
-            child: const Text('增大字号'),
-          ),
-          CupertinoActionSheetAction(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              _changeFontSize(-2);
-            },
-            child: const Text('减小字号'),
-          ),
-          CupertinoActionSheetAction(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              _changeFontWeight(100);
-            },
-            child: const Text('加粗'),
-          ),
-          CupertinoActionSheetAction(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              _changeFontWeight(-100);
-            },
-            child: const Text('变细'),
-          ),
-          CupertinoActionSheetAction(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              _changeLineHeight(0.1);
-            },
-            child: const Text('增大行距'),
-          ),
-          CupertinoActionSheetAction(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              _changeLineHeight(-0.1);
-            },
-            child: const Text('减小行距'),
-          ),
-          CupertinoActionSheetAction(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              _changeParagraphSpacing(4);
-            },
-            child: const Text('增大段距'),
-          ),
-          CupertinoActionSheetAction(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              _changeParagraphSpacing(-4);
-            },
-            child: const Text('减小段距'),
-          ),
-        ],
-        cancelButton: CupertinoActionSheetAction(
-          isDefaultAction: true,
-          onPressed: () => Navigator.of(ctx).pop(),
-          child: const Text('关闭'),
-        ),
-      ),
-    );
-  }
-
-  void _showSettings() {
-    showCupertinoModalPopup<void>(
-      context: context,
-      builder: (ctx) => CupertinoActionSheet(
-        title: const Text('阅读设置'),
-        actions: [
-          CupertinoActionSheetAction(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              _showThemePicker();
-            },
-            child: const Text('主题'),
-          ),
-          CupertinoActionSheetAction(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              _showAnimationPicker();
-            },
-            child: const Text('翻页动画'),
-          ),
-          CupertinoActionSheetAction(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              _changeMargin(10);
-            },
-            child: const Text('增大边距'),
-          ),
-          CupertinoActionSheetAction(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              _changeMargin(-10);
-            },
-            child: const Text('减小边距'),
-          ),
-        ],
-        cancelButton: CupertinoActionSheetAction(
-          isDefaultAction: true,
-          onPressed: () => Navigator.of(ctx).pop(),
-          child: const Text('关闭'),
-        ),
-      ),
-    );
-  }
-
-  void _showMore() {
-    showCupertinoModalPopup<void>(
-      context: context,
-      builder: (ctx) => CupertinoActionSheet(
-        title: const Text('更多'),
-        actions: [
-          CupertinoActionSheetAction(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              _showThemePicker();
-            },
-            child: const Text('背景主题'),
-          ),
-          CupertinoActionSheetAction(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              _showAnimationPicker();
-            },
-            child: const Text('翻页动画'),
-          ),
-        ],
-        cancelButton: CupertinoActionSheetAction(
-          isDefaultAction: true,
-          onPressed: () => Navigator.of(ctx).pop(),
-          child: const Text('关闭'),
-        ),
-      ),
-    );
-  }
-
-  void _showThemePicker() {
-    showCupertinoModalPopup<void>(
-      context: context,
-      builder: (ctx) => CupertinoActionSheet(
-        title: const Text('背景主题'),
-        actions: ReaderTheme.values
-            .map((t) => CupertinoActionSheetAction(
-                  onPressed: () {
-                    Navigator.of(ctx).pop();
-                    _changeTheme(t);
-                  },
-                  child: Text(t.label),
-                ))
-            .toList(),
-        cancelButton: CupertinoActionSheetAction(
-          isDefaultAction: true,
-          onPressed: () => Navigator.of(ctx).pop(),
-          child: const Text('关闭'),
-        ),
-      ),
-    );
-  }
-
-  void _showAnimationPicker() {
-    showCupertinoModalPopup<void>(
-      context: context,
-      builder: (ctx) => CupertinoActionSheet(
-        title: const Text('翻页动画'),
-        actions: PageAnimation.values
-            .map((a) => CupertinoActionSheetAction(
-                  onPressed: () {
-                    Navigator.of(ctx).pop();
-                    _changeAnimation(a);
-                  },
-                  child: Text(a.label),
-                ))
-            .toList(),
-        cancelButton: CupertinoActionSheetAction(
-          isDefaultAction: true,
-          onPressed: () => Navigator.of(ctx).pop(),
-          child: const Text('关闭'),
-        ),
-      ),
-    );
-  }
-
-  void _changeFontSize(double delta) {
-    final v = (_settings.fontSize + delta).clamp(12.0, 30.0);
-    _applySettings(_settings.copyWith(fontSize: v));
-  }
-
-  void _changeFontWeight(int delta) {
-    final v = (_settings.fontWeight + delta).clamp(300, 700);
-    _applySettings(_settings.copyWith(fontWeight: v));
-  }
-
-  void _changeLineHeight(double delta) {
-    final v = (_settings.lineHeight + delta).clamp(1.2, 2.4);
-    _applySettings(_settings.copyWith(lineHeight: v));
-  }
-
-  void _changeParagraphSpacing(double delta) {
-    final v = (_settings.paragraphSpacing + delta).clamp(4.0, 28.0);
-    _applySettings(_settings.copyWith(paragraphSpacing: v));
-  }
-
-  void _changeMargin(double delta) {
-    final v = (_settings.horizontalMargin + delta).clamp(8.0, 48.0);
-    _applySettings(_settings.copyWith(horizontalMargin: v));
-  }
-
-  void _changeTheme(ReaderTheme theme) {
-    _applySettings(_settings.copyWith(theme: theme));
-  }
-
-  void _changeAnimation(PageAnimation animation) {
-    _applySettings(_settings.copyWith(pageAnimation: animation));
-  }
-
-  void _applySettings(ReadingSettings s) {
-    ReadingSettingsService.instance.save(s);
-    setState(() => _settings = s);
   }
 }
 
-class _ThemeColors {
-  const _ThemeColors(this.background, this.text, this.subtext);
-  final Color background;
-  final Color text;
-  final Color subtext;
+/// 连续滚动阅读：所有页文本拼接为单个可滚动列，每页仍是独立 Text 单元。
+class _ScrollReader extends StatelessWidget {
+  final ReaderController controller;
+  final ReadingSettings settings;
+  final ({Color background, Color text}) colors;
+  final VoidCallback onToggleToolbar;
+
+  const _ScrollReader({
+    required this.controller,
+    required this.settings,
+    required this.colors,
+    required this.onToggleToolbar,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onToggleToolbar,
+      child: SingleChildScrollView(
+        padding: EdgeInsets.symmetric(horizontal: settings.horizontalMargin, vertical: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final page in controller.pages)
+              _PageText(page: page, settings: settings, colors: colors),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// PageView 左右翻页（默认模式）：每页独立 Widget，无重叠/重复绘制。
+class _PageViewReader extends StatelessWidget {
+  final ReaderController controller;
+  final ReadingSettings settings;
+  final ({Color background, Color text}) colors;
+  final VoidCallback onToggleToolbar;
+  final void Function(int) onPageChanged;
+
+  const _PageViewReader({
+    required this.controller,
+    required this.settings,
+    required this.colors,
+    required this.onToggleToolbar,
+    required this.onPageChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return PageView.builder(
+      key: const Key('reader_pager'),
+      controller: PageController(initialPage: controller.pageIndex),
+      itemCount: controller.pageCount,
+      onPageChanged: onPageChanged,
+      itemBuilder: (_, i) => GestureDetector(
+        onTap: onToggleToolbar,
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: settings.horizontalMargin, vertical: 16),
+          child: _PageText(page: controller.pages[i], settings: settings, colors: colors),
+        ),
+      ),
+    );
+  }
+}
+
+/// 覆盖翻页：基于拖拽进度做覆盖过渡，每页独立渲染。
+class _CoverReader extends StatefulWidget {
+  final ReaderController controller;
+  final ReadingSettings settings;
+  final ({Color background, Color text}) colors;
+  final VoidCallback onToggleToolbar;
+  final void Function(int) onPageChanged;
+
+  const _CoverReader({
+    required this.controller,
+    required this.settings,
+    required this.colors,
+    required this.onToggleToolbar,
+    required this.onPageChanged,
+  });
+
+  @override
+  State<_CoverReader> createState() => _CoverReaderState();
+}
+
+class _CoverReaderState extends State<_CoverReader> {
+  late int _index;
+  double _drag = 0.0; // 0..1 拖拽进度
+  bool _dragging = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _index = widget.controller.pageIndex;
+  }
+
+  void _commit(bool forward) {
+    if (forward && widget.controller.canNext) {
+      widget.controller.next();
+      widget.onPageChanged(widget.controller.pageIndex);
+    } else if (!forward && widget.controller.canPrev) {
+      widget.controller.prev();
+      widget.onPageChanged(widget.controller.pageIndex);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pages = widget.controller.pages;
+    final current = pages[_index.clamp(0, pages.length - 1)];
+    final target = (widget.controller.canNext && _drag > 0) || (widget.controller.canPrev && _drag < 0)
+        ? pages[(_index + (_drag > 0 ? 1 : -1)).clamp(0, pages.length - 1)]
+        : current;
+    final offset = _drag * MediaQuery.of(context).size.width;
+    return GestureDetector(
+      onTap: widget.onToggleToolbar,
+      onHorizontalDragUpdate: (d) {
+        if (d.delta.dx == 0) return;
+        setState(() {
+          _dragging = true;
+          _drag -= d.delta.dx / MediaQuery.of(context).size.width;
+          _drag = _drag.clamp(-1.0, 1.0);
+        });
+      },
+      onHorizontalDragEnd: (_) {
+        final forward = _drag > 0.33;
+        final backward = _drag < -0.33;
+        if (forward) _commit(true);
+        if (backward) _commit(false);
+        setState(() {
+          _dragging = false;
+          _drag = 0.0;
+          _index = widget.controller.pageIndex;
+        });
+      },
+      child: Stack(
+        children: [
+          _PageText(page: current, settings: widget.settings, colors: widget.colors),
+          if (_dragging)
+            Transform.translate(
+              offset: Offset(-offset, 0),
+              child: Container(
+                color: widget.colors.background,
+                child: _PageText(page: target, settings: widget.settings, colors: widget.colors),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 单页文本：真正独立的渲染单元。每页一个 Text，不共享、不裁剪全文。
+class _PageText extends StatelessWidget {
+  final ReaderPageModel page;
+  final ReadingSettings settings;
+  final ({Color background, Color text}) colors;
+
+  const _PageText({required this.page, required this.settings, required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: Text(
+        page.text,
+        style: TextStyle(
+          fontSize: settings.fontSize,
+          height: settings.lineHeight,
+          fontWeight: FontWeight.values.firstWhere(
+            (w) => w.value == settings.fontWeight,
+            orElse: () => FontWeight.normal,
+          ),
+          color: colors.text,
+          fontFamily: settings.fontFamily == 'system' ? null : settings.fontFamily,
+        ),
+      ),
+    );
+  }
 }

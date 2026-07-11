@@ -19,6 +19,7 @@ class Book {
     required this.createdAt,
     required this.updatedAt,
     this.lastReadOffset = 0,
+    this.chapterIndex = 0,
     this.lastReadChapter,
     this.readingProgress = 0.0,
     this.readingTimeSec = 0,
@@ -45,6 +46,7 @@ class Book {
   final DateTime createdAt;
   final DateTime updatedAt;
   final int lastReadOffset;
+  final int chapterIndex;
   final String? lastReadChapter;
   final double readingProgress;
   final int readingTimeSec;
@@ -71,6 +73,7 @@ class Book {
     String? encoding,
     DateTime? updatedAt,
     int? lastReadOffset,
+    int? chapterIndex,
     String? lastReadChapter,
     double? readingProgress,
     int? readingTimeSec,
@@ -97,6 +100,7 @@ class Book {
       createdAt: createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       lastReadOffset: lastReadOffset ?? this.lastReadOffset,
+      chapterIndex: chapterIndex ?? this.chapterIndex,
       lastReadChapter: lastReadChapter ?? this.lastReadChapter,
       readingProgress: readingProgress ?? this.readingProgress,
       readingTimeSec: readingTimeSec ?? this.readingTimeSec,
@@ -125,6 +129,7 @@ class Book {
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
         'lastReadOffset': lastReadOffset,
+        'chapterIndex': chapterIndex,
         'lastReadChapter': lastReadChapter,
         'readingProgress': readingProgress,
         'readingTimeSec': readingTimeSec,
@@ -177,6 +182,7 @@ class Book {
         createdAt: DateTime.parse(createdAt),
         updatedAt: DateTime.parse(updatedAt),
         lastReadOffset: (json['lastReadOffset'] as int?) ?? 0,
+        chapterIndex: (json['chapterIndex'] as int?) ?? 0,
         lastReadChapter: json['lastReadChapter'] as String?,
         readingProgress: (json['readingProgress'] as double?) ?? 0.0,
         readingTimeSec: (json['readingTimeSec'] as int?) ?? 0,
