@@ -1,13 +1,7 @@
 import Foundation
 import UniformTypeIdentifiers
 
-/// 导入解析：把用户选择的文本/电子书文件解析为统一的 (标题, 正文, 格式)。
-/// 抽离到独立模块，便于在 macOS runner 上用 XCTest 覆盖（无需 UI / 沙盒授权）。
 enum BookImporter {
-  /// 解析用户从 fileImporter 选中的文件。
-  /// fileImporter 已自带安全作用域授权，URL 可直接读取，不应再调用
-  /// startAccessingSecurityScopedResource——在多数真机/模拟器下它会返回 false，
-  /// 一旦用 guard 校验就会把本来能导入的 TXT/EPUB 全部拒绝。
   static func importResult(_ result: Result<URL, Error>) throws -> (title: String, content: String, format: String) {
     let url = try result.get()
     let ext = url.pathExtension.lowercased()
@@ -30,16 +24,12 @@ enum BookImporter {
     return (title: url.deletingPathExtension().lastPathComponent, content: text, format: "txt")
   }
 
-  /// EPUB = zip 容器，内含 OEBPS XHTML 内容文档。
-  /// 最小可用实现：解析 OPF 元数据与 spine 顺序，抽取 XHTML 正文并转为纯文本。
   static func importEpub(url: URL) throws -> (title: String, content: String, format: String) {
     let entries = try ZipArchive.entries(at: url)
     guard !entries.isEmpty else { throw ImportError.epubCorrupt }
-
     let containerData = try ZipArchive.data(for: "META-INF/container.xml", in: entries, at: url)
     let opfPath = try EpubManifest.opfPath(from: containerData)
     let opfData = try ZipArchive.data(for: opfPath, in: entries, at: url)
-
     let meta = try EpubManifest.parseOPF(opfData, opfPath: opfPath)
     var parts: [(title: String, text: String)] = []
     for href in meta.spine {
@@ -49,7 +39,6 @@ enum BookImporter {
       let title = meta.titles[href] ?? meta.fallbackTitle
       parts.append((title: title, text: EpubText.strip(html: html)))
     }
-
     let content = parts.map { "\($0.title)\n\n\($0.text)" }.joined(separator: "\n\n")
     guard !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
       throw ImportError.epubCorrupt
@@ -70,8 +59,6 @@ enum ImportError: LocalizedError {
     }
   }
 }
-
-// MARK: - 最小 zip 读取（仅读，支持 deflate + store）
 
 struct ZipArchive {
   static func entries(at url: URL) throws -> [ZipEntry] {
@@ -141,8 +128,6 @@ struct ZipEntry {
   let localHeaderOffset: Int
 }
 
-// MARK: - EPUB 元数据 / 顺序解析
-
 struct EpubManifest {
   struct Meta {
     var bookTitle: String = ""
@@ -170,7 +155,7 @@ struct EpubManifest {
     }
     var hrefById: [String: String] = [:]
     var titleById: [String: String] = [:]
-    let itemRegex = try NSRegularExpression(pattern: #"<item[^>]*>"#, options: .dotMatchesLineSeparators)
+    let itemRegex = try NSRegularExpression(pattern: #"<item\b[^>]*>"#, options: .dotMatchesLineSeparators)
     let ns = xml as NSString
     for m in itemRegex.matches(in: xml, range: NSRange(xml.startIndex..., in: xml)) {
       let tag = ns.substring(with: m.range)
@@ -179,9 +164,9 @@ struct EpubManifest {
         if let title = attr(tag, "title") { titleById[id] = title }
       }
     }
-    if let spineRange = xml.range(of: #"<spine[\s\S]*?</spine>"#, options: .regularExpression) {
+    if let spineRange = xml.range(of: #"<spine\b[\s\S]*?</spine>"#, options: .regularExpression) {
       let spineXml = String(xml[spineRange])
-      let itemRefRegex = try NSRegularExpression(pattern: #"<itemref[^>]*>"#, options: [])
+      let itemRefRegex = try NSRegularExpression(pattern: #"<itemref\b[^>]*>"#, options: [])
       let sns = spineXml as NSString
       for m in itemRefRegex.matches(in: spineXml, range: NSRange(spineXml.startIndex..., in: spineXml)) {
         let tag = sns.substring(with: m.range)
@@ -216,28 +201,21 @@ struct EpubManifest {
   }
 }
 
-// MARK: - HTML -> 纯文本
-
 struct EpubText {
   static func strip(html: String) -> String {
     var s = html
-    s = s.replacingOccurrences(of: #"(?i)</(h[1-6]|p|div|br|li|tr|section)>"#, with: "
-", options: .regularExpression)
-    s = s.replacingOccurrences(of: #"(?i)<br\s*/?>"#, with: "
-", options: .regularExpression)
+    s = s.replacingOccurrences(of: #"(?i)</(h[1-6]|p|div|br|li|tr|section)>"#, with: "\n", options: .regularExpression)
+    s = s.replacingOccurrences(of: #"(?i)<br\s*/?>"#, with: "\n", options: .regularExpression)
     s = s.replacingOccurrences(of: #"(?i)<[^>]+>"#, with: "", options: .regularExpression)
     s = s.replacingOccurrences(of: "&nbsp;", with: " ")
     s = s.replacingOccurrences(of: "&amp;", with: "&")
     s = s.replacingOccurrences(of: "&lt;", with: "<")
     s = s.replacingOccurrences(of: "&gt;", with: ">")
-    s = s.replacingOccurrences(of: "&quot;", with: """)
+    s = s.replacingOccurrences(of: "&quot;", with: "\"")
     s = s.replacingOccurrences(of: "&#39;", with: "'")
     s = stripNumericEntities(s)
-    s = s.replacingOccurrences(of: #"[ 	]+"#, with: " ", options: .regularExpression)
-    s = s.replacingOccurrences(of: #"
-{3,}"#, with: "
-
-", options: .regularExpression)
+    s = s.replacingOccurrences(of: #"[ \t]+"#, with: " ", options: .regularExpression)
+    s = s.replacingOccurrences(of: #"\n{3,}"#, with: "\n\n", options: .regularExpression)
     return s.trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
@@ -257,12 +235,6 @@ struct EpubText {
   }
 }
 
-private extension String {
-  var strippedTags: String {
-    replacingOccurrences(of: #"<[^>]+>"#, with: "", options: .regularExpression)
-      .trimmingCharacters(in: .whitespacesAndNewlines)
-  }
-}
 private extension String {
   var strippedTags: String {
     replacingOccurrences(of: #"<[^>]+>"#, with: "", options: .regularExpression)
