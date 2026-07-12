@@ -74,11 +74,11 @@ enum Inflater {
       index += len
     }
 
-    func construct(_ lengths: [Int], _ n: Int) -> ([Int], [Int], Int)? {
+    func construct(_ lengths: [Int], _ n: Int) -> (count: [Int], symbol: [Int], maxbits: Int)? {
       var count = Array(repeating: 0, count: 16)
       var offs = Array(repeating: 0, count: 17)
       for sym in 0..<n { count[lengths[sym]] += 1 }
-      if count[0] == n { return (count, Array(repeating: -1, count: n), 0) }
+      if count[0] == n { return (count: count, symbol: Array(repeating: -1, count: n), maxbits: 0) }
       var left = 1
       for l in 1..<16 {
         left <<= 1
@@ -96,10 +96,10 @@ enum Inflater {
         }
       }
       let maxbits = lengths.filter { $0 > 0 }.max() ?? 0
-      return (count, symbol, maxbits)
+      return (count: count, symbol: symbol, maxbits: maxbits)
     }
 
-    mutating func decode(_ h: ([Int], [Int], Int)) -> Int {
+    mutating func decode(_ h: (count: [Int], symbol: [Int], maxbits: Int)) -> Int {
       var code = 0, first = 0, idx = 0
       for l in 1...h.maxbits {
         code |= bits(1)
@@ -110,8 +110,8 @@ enum Inflater {
       return -10
     }
 
-    mutating func codes(_ lencode: ([Int], [Int], Int),
-                        _ distcode: ([Int], [Int], Int)) -> Int {
+    mutating func codes(_ lencode: (count: [Int], symbol: [Int], maxbits: Int),
+                        _ distcode: (count: [Int], symbol: [Int], maxbits: Int)) -> Int {
       while true {
         let symbol = decode(lencode)
         if symbol < 0 { return 2 }
@@ -140,8 +140,8 @@ enum Inflater {
     }
     func fixedDists() -> [Int] { Array(repeating: 5, count: 30) }
 
-    mutating func dynamic() -> (([Int], [Int], Int),
-                                ([Int], [Int], Int))? {
+    mutating func dynamic() -> ((count: [Int], symbol: [Int], maxbits: Int),
+                                (count: [Int], symbol: [Int], maxbits: Int))? {
       let nlen = bits(5) + 257
       let ndist = bits(5) + 1
       let ncode = bits(4) + 4
