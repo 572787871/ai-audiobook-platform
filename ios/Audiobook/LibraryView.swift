@@ -45,7 +45,7 @@ struct LibraryView: View {
       }
       .fileImporter(
         isPresented: $importing,
-        allowedContentTypes: [UTType("org.idpf.epub-container") ?? .data, .plainText, .text],
+        allowedContentTypes: [.item],
         allowsMultipleSelection: false
       ) { result in
         guard let url = try? result.get().first else { return }
@@ -105,6 +105,10 @@ struct LibraryView: View {
   }
 
   @MainActor private func importBook(_ url: URL) async {
+    // 从「文件」App 选来的 URL 是安全作用域资源，读取前需先访问；
+    // fileImporter 多数情况下已授权、可直接读，因此访问失败时也不要拒绝。
+    let accessed = url.startAccessingSecurityScopedResource()
+    defer { if accessed { url.stopAccessingSecurityScopedResource() } }
     do {
       let parsed = try BookImporter.importResult(.success(url))
       context.insert(Book(title: parsed.title, content: parsed.content, format: parsed.format))
