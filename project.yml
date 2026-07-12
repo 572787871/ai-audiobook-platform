@@ -39,3 +39,17 @@ targets:
       - path: ios/AudiobookTests
     dependencies:
       - target: Audiobook
+schemes:
+  Audiobook:
+    build:
+      targets:
+        Audiobook: all
+        AudiobookTests: [test]
+    test:
+      targets:
+        - AudiobookTests
+      gatherCoverageData: true
+    run:
+      config: Debug
+    archive:
+      config: Release
