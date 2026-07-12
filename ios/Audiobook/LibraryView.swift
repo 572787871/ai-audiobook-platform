@@ -45,8 +45,12 @@ struct LibraryView: View {
       }
       .fileImporter(
         isPresented: $importing,
-        allowedContentTypes: [.plainText, UTType(filenameExtension: "epub") ?? .data]
-      ) { result in Task { await importBook(result) } }
+        allowedContentTypes: [UTType("org.idpf.epub-container") ?? .data, .plainText, .text],
+        allowsMultipleSelection: false
+      ) { result in
+        guard let url = try? result.get().first else { return }
+        Task { await importBook(url) }
+      }
       .alert("导入失败", isPresented: .constant(importError != nil)) {
         Button("好") { importError = nil }
       } message: { Text(importError ?? "") }
@@ -100,30 +104,13 @@ struct LibraryView: View {
     switch filter { case .all: books.count; case .reading: books.filter { $0.progress > 0 && !$0.isCompleted }.count; case .completed: books.filter(\.isCompleted).count }
   }
 
-  @MainActor private func importBook(_ result: Result<URL, Error>) async {
+  @MainActor private func importBook(_ url: URL) async {
     do {
-      let url = try result.get()
-      guard url.startAccessingSecurityScopedResource() else { throw ImportError.accessDenied }
-      defer { url.stopAccessingSecurityScopedResource() }
-      let ext = url.pathExtension.lowercased()
-      guard ext == "txt" else { throw ImportError.epubPending }
-      let data = try Data(contentsOf: url)
-      let text = String(data: data, encoding: .utf8)
-        ?? String(data: data, encoding: .utf16)
-      guard let text, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw ImportError.encoding }
-      context.insert(Book(title: url.deletingPathExtension().lastPathComponent, content: text))
+      let parsed = try BookImporter.importResult(.success(url))
+      context.insert(Book(title: parsed.title, content: parsed.content, format: parsed.format))
       try context.save()
-    } catch { importError = error.localizedDescription }
-  }
-}
-
-enum ImportError: LocalizedError {
-  case accessDenied, encoding, epubPending
-  var errorDescription: String? {
-    switch self {
-    case .accessDenied: "无法读取所选文件"
-    case .encoding: "无法识别文本编码或文件为空"
-    case .epubPending: "EPUB 解析器正在接入，本构建暂不导入 EPUB"
+    } catch {
+      importError = (error as? ImportError)?.errorDescription ?? error.localizedDescription
     }
   }
 }
