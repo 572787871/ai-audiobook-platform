@@ -45,7 +45,7 @@ jobs:
       - name: Package unsigned IPA
         run: |
           set -e
-          APP="build/ios/Build/Products/Release-iphoneos/听书AI.app"
+          APP="build/ios/Build/Products/Release-iphoneos/Audiobook.app"
           if [ ! -d "$APP" ]; then
             echo "Native app not found at $APP"
             find build/ios -name "*.app" -type d

@@ -16,7 +16,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.ai.audiobook.reader
-        PRODUCT_NAME: 听书AI
+        PRODUCT_NAME: Audiobook
         INFOPLIST_KEY_CFBundleDisplayName: 听书 AI
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.books
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
