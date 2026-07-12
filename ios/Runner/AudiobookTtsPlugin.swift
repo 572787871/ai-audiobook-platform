@@ -2,12 +2,12 @@ import AVFoundation
 import Flutter
 
 /// Flutter 与 iOS 系统语音合成之间的轻量桥接。
-final class AudiobookTtsPlugin: NSObject, FlutterPlugin, AVSpeechSynthesizerDelegate {
+final class AudiobookTtsPlugin: NSObject, AVSpeechSynthesizerDelegate {
   private let synthesizer = AVSpeechSynthesizer()
   private var channel: FlutterMethodChannel?
   private var shouldReportCompletion = false
 
-  static func register(with registrar: FlutterPluginRegistrar) {
+  static func register(with registrar: FlutterApplicationRegistrar) {
     let channel = FlutterMethodChannel(
       name: "ai_audiobook/tts",
       binaryMessenger: registrar.messenger()
@@ -15,7 +15,7 @@ final class AudiobookTtsPlugin: NSObject, FlutterPlugin, AVSpeechSynthesizerDele
     let instance = AudiobookTtsPlugin()
     instance.channel = channel
     instance.synthesizer.delegate = instance
-    registrar.addMethodCallDelegate(instance, channel: channel)
+    channel.setMethodCallHandler(instance.handle)
   }
 
   func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
