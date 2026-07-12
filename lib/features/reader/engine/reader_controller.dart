@@ -80,19 +80,27 @@ class ReaderController {
     );
     final ch = chapters.chapters[index];
     // PageCache 仅缓存章内局部偏移 pages；全局偏移在输出时统一加一次
-    final localPages = _pageCache.get(index, sig) ??
+    final localPages =
+        _pageCache.get(index, sig) ??
         TextPaginator(
-          ReaderDocument(content: fullText.substring(ch.start, ch.end), paragraphs: const []),
+          ReaderDocument(
+            content: fullText.substring(ch.start, ch.end),
+            paragraphs: const [],
+          ),
           layout,
         ).paginate();
-    if (!_pageCache.containsKey(index, sig)) _pageCache.put(index, sig, localPages);
+    if (!_pageCache.containsKey(index, sig)) {
+      _pageCache.put(index, sig, localPages);
+    }
     // 页码偏移转成全书绝对偏移（text 保持章内局部内容），只加一次
     final pages = localPages
-        .map((p) => ReaderPageModel(
-              startOffset: p.startOffset + ch.start,
-              endOffset: p.endOffset + ch.start,
-              text: p.text,
-            ))
+        .map(
+          (p) => ReaderPageModel(
+            startOffset: p.startOffset + ch.start,
+            endOffset: p.endOffset + ch.start,
+            text: p.text,
+          ),
+        )
         .toList();
     return CachedChapter(
       index: index,
@@ -104,27 +112,24 @@ class ReaderController {
   }
 
   void _paginateAround(int center) {
-    final prevC =
-        (center - 1 >= 0) ? _paginateChapter(center - 1) : null;
+    final prevC = (center - 1 >= 0) ? _paginateChapter(center - 1) : null;
     final curC = _paginateChapter(center);
     final nextC = (center + 1 < chapters.chapters.length)
         ? _paginateChapter(center + 1)
         : null;
-    _cache.update(
-      prevChapter: prevC,
-      currentChapter: curC,
-      nextChapter: nextC,
-    );
+    _cache.update(prevChapter: prevC, currentChapter: curC, nextChapter: nextC);
   }
 
   // ---- 对外只读 ----
 
   int get chapterIndex => _chapterIndex;
+
   /// 当前缓存章（开发期可用于断言非空）。
   CachedChapter? get currentChapter => _cache.current;
   int get chapterCount => chapters.chapters.length;
   int get pageIndex => _pageIndex;
   int get pageCount => _cache.currentPageCount;
+
   /// 当前章与相邻章的全部页（连续滚动模式用）。
   List<ReaderPageModel> get currentChapterPagesWithNeighbors {
     final out = <ReaderPageModel>[];
@@ -134,8 +139,6 @@ class ReaderController {
     if (out.isEmpty) out.add(currentPage);
     return out;
   }
-
-
 
   ReaderPageModel get currentPage {
     final c = _cache.current;
@@ -175,9 +178,14 @@ class ReaderController {
     }
     return null;
   }
+
   /// 三章页块（prev/cur/next），供连续滚动模式拼接。
-  ({List<ReaderPageModel>? prev, List<ReaderPageModel> cur, List<ReaderPageModel>? next})
-      get threeChapterBlocks {
+  ({
+    List<ReaderPageModel>? prev,
+    List<ReaderPageModel> cur,
+    List<ReaderPageModel>? next,
+  })
+  get threeChapterBlocks {
     final cur = _cache.current?.pages ?? const <ReaderPageModel>[];
     List<ReaderPageModel>? prev;
     List<ReaderPageModel>? next;
@@ -191,7 +199,6 @@ class ReaderController {
     }
     return (prev: prev, cur: cur, next: next);
   }
-
 
   String get currentChapterTitle =>
       _cache.current?.title ?? chapters.chapters.firstOrNull?.title ?? '';
@@ -288,9 +295,7 @@ class ReaderController {
       _paginateAround(_chapterIndex);
     }
     final c = _cache.current;
-    _pageIndex = c == null
-        ? 0
-        : pageIndex.clamp(0, c.pageSize - 1);
+    _pageIndex = c == null ? 0 : pageIndex.clamp(0, c.pageSize - 1);
   }
 
   /// 取指定章的指定页（用于 PageView 构建独立页）。
@@ -345,7 +350,10 @@ class ReaderController {
 
   String get currentParagraph {
     final paras = currentText.split(RegExp(r'\n\s*\n'));
-    return paras.firstWhere((p) => p.trim().isNotEmpty, orElse: () => currentText);
+    return paras.firstWhere(
+      (p) => p.trim().isNotEmpty,
+      orElse: () => currentText,
+    );
   }
 
   int get currentParagraphIndex {

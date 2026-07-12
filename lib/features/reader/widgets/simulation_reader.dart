@@ -115,7 +115,8 @@ class _SimulationReaderState extends State<SimulationReader>
     final forward = _t < 0; // 向左拖动 = 下一页
     final fling = d.velocity.pixelsPerSecond.dx.abs() > 500;
     final willSettle = progress > kCurlThreshold || (fling && progress > 0.12);
-    if (!willSettle || (forward ? !widget.controller.hasNext : !widget.controller.hasPrev)) {
+    if (!willSettle ||
+        (forward ? !widget.controller.hasNext : !widget.controller.hasPrev)) {
       // ⑤ 回弹：未过阈值或已到边界，动画回弹到 0，绝不渲染空页
       setState(() {});
       await _runAnim(0.0);
@@ -276,7 +277,9 @@ class _CurlStack extends StatelessWidget {
                 top: 0,
                 bottom: 0,
                 width: 1.5,
-                child: Container(color: CupertinoColors.white.withValues(alpha: 0.5)),
+                child: Container(
+                  color: CupertinoColors.white.withValues(alpha: 0.5),
+                ),
               ),
           ],
         );
@@ -315,7 +318,11 @@ class _LeafClipper extends CustomClipper<Path> {
   final double curl; // 0..1
   final Size size;
 
-  const _LeafClipper({required this.forward, required this.curl, required this.size});
+  const _LeafClipper({
+    required this.forward,
+    required this.curl,
+    required this.size,
+  });
 
   @override
   Path getClip(Size s) {

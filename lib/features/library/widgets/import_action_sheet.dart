@@ -20,28 +20,36 @@ class ImportActionSheet {
           CupertinoActionSheetAction(
             onPressed: () {
               Navigator.of(ctx).pop();
-              WidgetsBinding.instance.addPostFrameCallback((_) => onLocalFile());
+              WidgetsBinding.instance.addPostFrameCallback(
+                (_) => onLocalFile(),
+              );
             },
             child: const Text('本地文件'),
           ),
           CupertinoActionSheetAction(
             onPressed: () {
               Navigator.of(ctx).pop();
-              WidgetsBinding.instance.addPostFrameCallback((_) => onUnsupported());
+              WidgetsBinding.instance.addPostFrameCallback(
+                (_) => onUnsupported(),
+              );
             },
             child: const Text('粘贴文本'),
           ),
           CupertinoActionSheetAction(
             onPressed: () {
               Navigator.of(ctx).pop();
-              WidgetsBinding.instance.addPostFrameCallback((_) => onUnsupported());
+              WidgetsBinding.instance.addPostFrameCallback(
+                (_) => onUnsupported(),
+              );
             },
             child: const Text('扫描文字'),
           ),
           CupertinoActionSheetAction(
             onPressed: () {
               Navigator.of(ctx).pop();
-              WidgetsBinding.instance.addPostFrameCallback((_) => onUnsupported());
+              WidgetsBinding.instance.addPostFrameCallback(
+                (_) => onUnsupported(),
+              );
             },
             child: const Text('从其他 App 导入'),
           ),

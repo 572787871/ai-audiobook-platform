@@ -18,11 +18,7 @@ class AppTheme {
     color: cardBackground,
     borderRadius: BorderRadius.all(Radius.circular(cardRadius)),
     boxShadow: [
-      BoxShadow(
-        color: shadowColor,
-        blurRadius: 8,
-        offset: Offset(0, 2),
-      ),
+      BoxShadow(color: shadowColor, blurRadius: 8, offset: Offset(0, 2)),
     ],
   );
 }

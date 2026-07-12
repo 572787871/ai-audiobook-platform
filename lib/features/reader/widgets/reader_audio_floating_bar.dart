@@ -4,12 +4,12 @@ import 'package:flutter/cupertino.dart';
 
 /// 听书悬浮条（左下角）。当听书模式开启时显示。
 ///
-/// 真实接口预留：play / pause / stop / previousSentence / nextSentence /
-/// setRate / setVoice。当前 Kokoro 未完成时，点击播放必须显示真实提示
-/// 「本地听书模型尚未准备」，不允许伪造播放、不启动假计时器。
+/// 由 iOS AVSpeechSynthesizer 驱动真实播放，支持播放/暂停与前后翻页。
 class ReaderAudioFloatingBar extends StatelessWidget {
   final bool listening; // 听书模式是否开启（UI 显示依据）
-  final bool modelReady; // 本地听书模型是否就绪（Kokoro）
+  final bool modelReady; // 当前平台是否支持系统语音
+  final bool playing;
+  final String title;
   final String statusText; // 当前真实状态文案
   final double progress; // 0..1 当前句/段落进度（真实模型接入后由 TTS 提供）
   final void Function() onPrevSentence;
@@ -22,6 +22,8 @@ class ReaderAudioFloatingBar extends StatelessWidget {
     super.key,
     required this.listening,
     required this.modelReady,
+    required this.playing,
+    required this.title,
     required this.statusText,
     this.progress = 0.0,
     required this.onPrevSentence,
@@ -40,13 +42,19 @@ class ReaderAudioFloatingBar extends StatelessWidget {
       child: Align(
         alignment: Alignment.bottomLeft,
         child: Container(
-          margin: const EdgeInsets.only(left: 12, bottom: 84),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          margin: const EdgeInsets.fromLTRB(12, 0, 12, 86),
+          padding: const EdgeInsets.fromLTRB(14, 10, 10, 8),
           decoration: BoxDecoration(
-            color: CupertinoColors.systemBackground.resolveFrom(context).withValues(alpha: 0.96),
-            borderRadius: BorderRadius.circular(24),
+            color: CupertinoColors.systemBackground
+                .resolveFrom(context)
+                .withValues(alpha: 0.96),
+            borderRadius: BorderRadius.circular(18),
             boxShadow: const [
-              BoxShadow(color: Color(0x22000000), blurRadius: 6, offset: Offset(0, 2)),
+              BoxShadow(
+                color: Color(0x22000000),
+                blurRadius: 6,
+                offset: Offset(0, 2),
+              ),
             ],
           ),
           child: Column(
@@ -55,15 +63,31 @@ class ReaderAudioFloatingBar extends StatelessWidget {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(CupertinoIcons.music_note_2, size: 20),
+                  const Icon(CupertinoIcons.headphones, size: 20),
                   const SizedBox(width: 8),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 160),
-                    child: Text(
-                      statusText,
-                      style: TextStyle(color: fg, fontSize: 12),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: TextStyle(
+                            color: fg,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          statusText,
+                          style: TextStyle(
+                            color: fg.withValues(alpha: 0.6),
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -73,7 +97,9 @@ class ReaderAudioFloatingBar extends StatelessWidget {
                     onPressed: modelReady ? onPlayPause : onPlayPause,
                     child: Icon(
                       modelReady
-                          ? (listening ? CupertinoIcons.pause : CupertinoIcons.play)
+                          ? (playing
+                                ? CupertinoIcons.pause_fill
+                                : CupertinoIcons.play_fill)
                           : CupertinoIcons.play,
                       size: 22,
                     ),

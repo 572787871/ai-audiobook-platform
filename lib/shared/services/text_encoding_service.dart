@@ -6,10 +6,7 @@ import 'package:charset_converter/charset_converter.dart';
 
 /// 文本编码识别与解码结果
 class DecodedText {
-  const DecodedText({
-    required this.text,
-    required this.encoding,
-  });
+  const DecodedText({required this.text, required this.encoding});
   final String text;
   final String encoding;
 }

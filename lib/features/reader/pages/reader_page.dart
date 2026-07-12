@@ -8,6 +8,7 @@ import '../../library/models/book.dart';
 import '../../library/pages/book_detail_page.dart';
 import '../../library/services/book_repository.dart';
 import '../services/reading_settings_service.dart';
+import '../services/audiobook_tts_service.dart';
 import '../engine/reader_controller.dart';
 import '../engine/reader_layout.dart';
 import '../widgets/slide_reader.dart';
@@ -55,7 +56,9 @@ class _ReaderPageState extends State<ReaderPage> {
   bool _showToolbar = false;
   Timer? _saveTimer;
   bool _listening = false;
-  final bool _audioModelReady = false; // 本地听书模型（Kokoro）是否已就绪
+  bool _audioPlaying = false;
+  bool _audioPaused = false;
+  late final AudiobookTtsService _tts;
   bool _autoReading = false;
   Timer? _autoReadTimer;
   // 屏幕方向（横竖屏）：进入时锁定为当前设置，切换实时重排版。
@@ -65,6 +68,13 @@ class _ReaderPageState extends State<ReaderPage> {
   void initState() {
     super.initState();
     _listening = widget.book.isListening;
+    _tts = AudiobookTtsService.instance
+      ..onCompleted = _onAudioCompleted
+      ..onError = (message) {
+        if (!mounted) return;
+        setState(() => _audioPlaying = false);
+        _toast(message);
+      };
     _applyOrientation();
     _load();
   }
@@ -120,20 +130,22 @@ class _ReaderPageState extends State<ReaderPage> {
   }
 
   TextStyle _textStyle(Color textColor) => TextStyle(
-        fontSize: _settings.fontSize,
-        fontWeight: FontWeight.values.firstWhere(
-          (w) => w.value == _settings.fontWeight,
-          orElse: () => FontWeight.normal,
-        ),
-        fontFamily: _settings.fontFamily == 'system' ? null : _settings.fontFamily,
-        height: _settings.lineHeight,
-        color: textColor,
-      );
+    fontSize: _settings.fontSize,
+    fontWeight: FontWeight.values.firstWhere(
+      (w) => w.value == _settings.fontWeight,
+      orElse: () => FontWeight.normal,
+    ),
+    fontFamily: _settings.fontFamily == 'system' ? null : _settings.fontFamily,
+    height: _settings.lineHeight,
+    color: textColor,
+  );
 
   @override
   void dispose() {
     _saveTimer?.cancel();
     _autoReadTimer?.cancel();
+    _tts.stop();
+    _tts.detach();
     _saveProgress();
     _controller?.dispose();
     super.dispose();
@@ -144,8 +156,12 @@ class _ReaderPageState extends State<ReaderPage> {
     final pos = _controller!.position;
     final now = DateTime.now();
     // 阅读时长与最后阅读时间：进入即记录、每次落点累加，恢复时仍可读。
-    final readingTimeSec = widget.book.readingTimeSec +
-        (now.difference(widget.book.lastReadAt ?? now).inSeconds.clamp(0, 1 << 30));
+    final readingTimeSec =
+        widget.book.readingTimeSec +
+        (now
+            .difference(widget.book.lastReadAt ?? now)
+            .inSeconds
+            .clamp(0, 1 << 30));
     final updated = widget.book.copyWith(
       lastReadOffset: pos.characterOffset,
       readingProgress: pos.readingProgress,
@@ -185,7 +201,8 @@ class _ReaderPageState extends State<ReaderPage> {
       return;
     }
     if (_controller == null) return;
-    if (!_controller!.hasNext && _controller!.pageIndex >= _controller!.pageCount - 1) {
+    if (!_controller!.hasNext &&
+        _controller!.pageIndex >= _controller!.pageCount - 1) {
       _toast('已是最后一页');
       return;
     }
@@ -223,6 +240,7 @@ class _ReaderPageState extends State<ReaderPage> {
       ReadingSettingsService.instance.save(_settings);
     }
   }
+
   void _onAutoRead() => _toggleAutoRead();
 
   void _toast(String msg) {
@@ -232,7 +250,10 @@ class _ReaderPageState extends State<ReaderPage> {
         title: const Text('提示'),
         content: Text(msg),
         actions: [
-          CupertinoDialogAction(child: const Text('好'), onPressed: () => Navigator.of(context).pop()),
+          CupertinoDialogAction(
+            child: const Text('好'),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
         ],
       ),
     );
@@ -241,44 +262,110 @@ class _ReaderPageState extends State<ReaderPage> {
   void _openDetail() {
     Navigator.of(context)
         .push(
-      CupertinoPageRoute(
-        builder: (_) => BookDetailPage(
-          book: widget.book,
-          repository: widget.repository,
-          contentLoader: widget.contentLoader,
-        ),
-      ),
-    )
+          CupertinoPageRoute(
+            builder: (_) => BookDetailPage(
+              book: widget.book,
+              repository: widget.repository,
+              contentLoader: widget.contentLoader,
+            ),
+          ),
+        )
         .then((updated) {
-      if (updated != null && updated is Book && mounted) _saveProgress();
+          if (updated != null && updated is Book && mounted) _saveProgress();
+        });
+  }
+
+  Future<void> _toggleListening() async {
+    if (!_tts.isSupported) {
+      _toast('听书功能当前支持 iPhone / iPad');
+      return;
+    }
+    if (_listening) {
+      await _closeListening();
+      return;
+    }
+    setState(() => _listening = true);
+    await _speakCurrentPage();
+    _saveProgress();
+  }
+
+  Future<void> _closeListening() async {
+    await _tts.stop();
+    if (!mounted) return;
+    setState(() {
+      _listening = false;
+      _audioPlaying = false;
+      _audioPaused = false;
     });
+    _saveProgress();
   }
 
-  void _toggleListening() {
-    // 听书接口预留：play/pause/stop/previousSentence/nextSentence/setRate/setVoice。
-    // Kokoro 未完成时只切换 UI 显隐并给出真实提示，不伪造播放、不启动假计时器。
-    if (!_audioModelReady) {
-      _toast('本地听书模型尚未准备');
+  Future<void> _onAudioPlayPause() async {
+    if (!_listening) return;
+    if (_audioPlaying) {
+      final paused = await _tts.pause();
+      if (mounted && paused) {
+        setState(() {
+          _audioPlaying = false;
+          _audioPaused = true;
+        });
+      }
+    } else if (_audioPaused) {
+      final resumed = await _tts.resume();
+      if (mounted && resumed) {
+        setState(() {
+          _audioPlaying = true;
+          _audioPaused = false;
+        });
+      }
+    } else {
+      await _speakCurrentPage();
+    }
+    _saveProgress();
+  }
+
+  Future<void> _speakCurrentPage() async {
+    final text = _controller?.currentText.trim();
+    if (text == null || text.isEmpty) return;
+    setState(() {
+      _audioPlaying = true;
+      _audioPaused = false;
+    });
+    try {
+      await _tts.speak(text);
+    } on PlatformException catch (error) {
+      if (!mounted) return;
+      setState(() => _audioPlaying = false);
+      _toast(error.message ?? '语音播放失败');
+    }
+  }
+
+  Future<void> _onAudioCompleted() async {
+    if (!_listening || _controller == null || !mounted) return;
+    final moved = await _controller!.moveNext();
+    if (!mounted) return;
+    if (!moved) {
+      setState(() {
+        _audioPlaying = false;
+        _audioPaused = false;
+      });
+      _toast('本书已朗读完毕');
       return;
     }
-    setState(() => _listening = !_listening);
-    _saveProgress();
+    _onPageSettled();
+    await _speakCurrentPage();
   }
 
-  void _closeListening() {
-    setState(() => _listening = false);
-    _saveProgress();
+  Future<void> _audioMovePage(bool forward) async {
+    if (_controller == null) return;
+    await _tts.stop();
+    final moved = forward
+        ? await _controller!.moveNext()
+        : await _controller!.movePrevious();
+    if (!moved) return;
+    _onPageSettled();
+    await _speakCurrentPage();
   }
-
-  void _onAudioPlayPause() {
-    if (!_audioModelReady) {
-      _toast('本地听书模型尚未准备');
-      return;
-    }
-    setState(() => _listening = !_listening);
-    _saveProgress();
-  }
-
 
   void _showSettingsSheet() {
     showCupertinoModalPopup(
@@ -328,15 +415,69 @@ class _ReaderPageState extends State<ReaderPage> {
         title: const Text('更多设置'),
         message: const Text('以下选项已保存设置，功能暂未开放'),
         actions: [
-          CupertinoActionSheetAction(onPressed: () { Navigator.of(ctx).pop(); _toast('自动翻页：暂未开放'); }, child: const Text('自动翻页')),
-          CupertinoActionSheetAction(onPressed: () { Navigator.of(ctx).pop(); _toast('屏幕常亮：暂未开放'); }, child: const Text('屏幕常亮')),
-          CupertinoActionSheetAction(onPressed: () { Navigator.of(ctx).pop(); _toast('音量键翻页：暂未开放'); }, child: const Text('音量键翻页')),
-          CupertinoActionSheetAction(onPressed: () { Navigator.of(ctx).pop(); _toast('简繁转换：暂未开放'); }, child: const Text('简繁转换')),
-          CupertinoActionSheetAction(onPressed: () { Navigator.of(ctx).pop(); _toast('阅读方向：暂未开放'); }, child: const Text('阅读方向')),
-          CupertinoActionSheetAction(onPressed: () { Navigator.of(ctx).pop(); _toast('状态栏显示：暂未开放'); }, child: const Text('状态栏显示')),
-          CupertinoActionSheetAction(onPressed: () { Navigator.of(ctx).pop(); _toast('阅读进度显示：暂未开放'); }, child: const Text('阅读进度显示')),
-          CupertinoActionSheetAction(onPressed: () { Navigator.of(ctx).pop(); _toast('章节标题显示：暂未开放'); }, child: const Text('章节标题显示')),
-          CupertinoActionSheetAction(onPressed: () { Navigator.of(ctx).pop(); _toast('点击区域设置：暂未开放'); }, child: const Text('点击区域设置')),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _toast('自动翻页：暂未开放');
+            },
+            child: const Text('自动翻页'),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _toast('屏幕常亮：暂未开放');
+            },
+            child: const Text('屏幕常亮'),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _toast('音量键翻页：暂未开放');
+            },
+            child: const Text('音量键翻页'),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _toast('简繁转换：暂未开放');
+            },
+            child: const Text('简繁转换'),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _toast('阅读方向：暂未开放');
+            },
+            child: const Text('阅读方向'),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _toast('状态栏显示：暂未开放');
+            },
+            child: const Text('状态栏显示'),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _toast('阅读进度显示：暂未开放');
+            },
+            child: const Text('阅读进度显示'),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _toast('章节标题显示：暂未开放');
+            },
+            child: const Text('章节标题显示'),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _toast('点击区域设置：暂未开放');
+            },
+            child: const Text('点击区域设置'),
+          ),
         ],
         cancelButton: CupertinoActionSheetAction(
           onPressed: () => Navigator.of(ctx).pop(),
@@ -379,7 +520,10 @@ class _ReaderPageState extends State<ReaderPage> {
 
   void _onChapterSliderChanged(double v) {
     if (_controller == null) return;
-    final idx = (v * (_controller!.chapterCount - 1)).round().clamp(0, _controller!.chapterCount - 1);
+    final idx = (v * (_controller!.chapterCount - 1)).round().clamp(
+      0,
+      _controller!.chapterCount - 1,
+    );
     final start = _controller!.chapters.chapters[idx].start;
     _controller!.goToOffset(start);
     _onPageSettled();
@@ -397,7 +541,10 @@ class _ReaderPageState extends State<ReaderPage> {
             theme: _settings.nightPreviousTheme ?? ReaderTheme.sepia,
             clearNightPrevious: true,
           )
-        : _settings.copyWith(theme: ReaderTheme.night, nightPreviousTheme: _settings.theme);
+        : _settings.copyWith(
+            theme: ReaderTheme.night,
+            nightPreviousTheme: _settings.theme,
+          );
     await ReadingSettingsService.instance.save(next);
     final layout = _buildLayout(next);
     setState(() {
@@ -411,14 +558,17 @@ class _ReaderPageState extends State<ReaderPage> {
   @override
   Widget build(BuildContext context) {
     // 夜间/深色模式：纯深灰底 + 柔和浅灰字，不纯黑不刺眼。
-    final isNight = _settings.theme == ReaderTheme.night ||
+    final isNight =
+        _settings.theme == ReaderTheme.night ||
         _settings.theme == ReaderTheme.dark;
     final bg = _settings.eyeCare
         ? ReaderBackground.green.color
         : isNight
-            ? _settings.theme.nightBackground
-            : _settings.background.color;
-    final textColor = isNight ? _settings.theme.nightText : _settings.textColor.color;
+        ? _settings.theme.nightBackground
+        : _settings.background.color;
+    final textColor = isNight
+        ? _settings.theme.nightText
+        : _settings.textColor.color;
     // 屏幕方向：进入时按设置锁定，可实时跟随系统切换并重排版。
     final targetOrientation = _settings.readingDirection
         ? Orientation.landscape
@@ -429,7 +579,8 @@ class _ReaderPageState extends State<ReaderPage> {
         ? 0.0
         : (1.0 - _settings.brightness).clamp(0.0, 0.7);
     // 背景图片：选中"自定义背景"且已指定本地路径时铺满全屏。
-    final bgImage = (_settings.background == ReaderBackground.custom &&
+    final bgImage =
+        (_settings.background == ReaderBackground.custom &&
             _settings.backgroundImagePath?.isNotEmpty == true)
         ? _customBgImage
         : null;
@@ -437,7 +588,9 @@ class _ReaderPageState extends State<ReaderPage> {
     return CupertinoTheme(
       data: CupertinoThemeData(
         brightness: isNight ? Brightness.dark : Brightness.light,
-        primaryColor: isNight ? CupertinoColors.activeBlue : CupertinoColors.activeBlue,
+        primaryColor: isNight
+            ? CupertinoColors.activeBlue
+            : CupertinoColors.activeBlue,
       ),
       child: CupertinoPageScaffold(
         child: AnimatedContainer(
@@ -449,11 +602,17 @@ class _ReaderPageState extends State<ReaderPage> {
               if (bgImage != null)
                 Positioned.fill(child: Image.file(bgImage, fit: BoxFit.cover)),
               if (_loading || _controller == null)
-                const Center(key: Key('reader_loading'), child: CupertinoActivityIndicator())
+                const Center(
+                  key: Key('reader_loading'),
+                  child: CupertinoActivityIndicator(),
+                )
               else ...[
                 // 正文层（分层渲染，不依赖工具栏状态）
                 Positioned.fill(
-                  child: Container(key: const Key('reader_pager'), child: _buildBody(textColor)),
+                  child: Container(
+                    key: const Key('reader_pager'),
+                    child: _buildBody(textColor),
+                  ),
                 ),
                 // 手势层：始终存在。中间区点击切换工具栏（沉浸↔显示），
                 // 因此“显示后再点中间”一定能隐藏。左右区翻页仅在沉浸态生效，
@@ -464,7 +623,9 @@ class _ReaderPageState extends State<ReaderPage> {
                         ? () {}
                         : () {
                             if (_controller!.hasPrev) {
-                              _controller!.movePrevious().then((_) => _onPageSettled());
+                              _controller!.movePrevious().then(
+                                (_) => _onPageSettled(),
+                              );
                             }
                           },
                     onToggleToolbar: _toggleToolbar,
@@ -472,7 +633,9 @@ class _ReaderPageState extends State<ReaderPage> {
                         ? () {}
                         : () {
                             if (_controller!.hasNext) {
-                              _controller!.moveNext().then((_) => _onPageSettled());
+                              _controller!.moveNext().then(
+                                (_) => _onPageSettled(),
+                              );
                             }
                           },
                   ),
@@ -496,21 +659,13 @@ class _ReaderPageState extends State<ReaderPage> {
                   bottom: 0,
                   child: ReaderAudioFloatingBar(
                     listening: _listening,
-                    modelReady: _audioModelReady,
-                    statusText: _audioModelReady
-                        ? (_listening ? '正在朗读…' : '已暂停')
-                        : '本地听书模型尚未准备',
+                    modelReady: _tts.isSupported,
+                    playing: _audioPlaying,
+                    title: widget.book.title,
+                    statusText: _audioPlaying ? '正在朗读当前页' : '已暂停',
                     progress: _controller?.sentenceProgress ?? 0.0,
-                    onPrevSentence: () {
-                      if (_controller?.hasPrev == true) {
-                        _controller!.movePrevious().then((_) => _onPageSettled());
-                      }
-                    },
-                    onNextSentence: () {
-                      if (_controller?.hasNext == true) {
-                        _controller!.moveNext().then((_) => _onPageSettled());
-                      }
-                    },
+                    onPrevSentence: () => _audioMovePage(false),
+                    onNextSentence: () => _audioMovePage(true),
                     onSeek: (_) {},
                     onPlayPause: _onAudioPlayPause,
                     onClose: _closeListening,
@@ -568,7 +723,7 @@ class _ReaderPageState extends State<ReaderPage> {
                     onSettings: () => _showSettingsSheet(),
                     onListening: _toggleListening,
                   ),
-              ),
+                ),
             ],
           ),
         ),
@@ -596,7 +751,10 @@ class _ReaderPageState extends State<ReaderPage> {
         title: const Text('删除书籍'),
         content: Text('确定删除《${widget.book.title}》？此操作不可撤销。'),
         actions: [
-          CupertinoDialogAction(child: const Text('取消'), onPressed: () => Navigator.of(ctx).pop()),
+          CupertinoDialogAction(
+            child: const Text('取消'),
+            onPressed: () => Navigator.of(ctx).pop(),
+          ),
           CupertinoDialogAction(
             isDestructiveAction: true,
             child: const Text('删除'),

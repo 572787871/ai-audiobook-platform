@@ -11,15 +11,15 @@ enum ImportProgressState {
 
 /// 导入进度通知
 class ImportProgress {
-  const ImportProgress({
-    required this.state,
-    this.message,
-  });
+  const ImportProgress({required this.state, this.message});
   final ImportProgressState state;
   final String? message;
 
   ImportProgress copyWith({ImportProgressState? state, String? message}) =>
-      ImportProgress(state: state ?? this.state, message: message ?? this.message);
+      ImportProgress(
+        state: state ?? this.state,
+        message: message ?? this.message,
+      );
 }
 
 /// 导入阶段文案（中文）

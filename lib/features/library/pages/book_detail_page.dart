@@ -81,7 +81,10 @@ class _BookDetailPageState extends State<BookDetailPage> {
             const SizedBox(height: 4),
             Text(
               '格式：${_book.fileType.label}',
-              style: const TextStyle(fontSize: 15, color: AppTheme.secondaryText),
+              style: const TextStyle(
+                fontSize: 15,
+                color: AppTheme.secondaryText,
+              ),
             ),
             const SizedBox(height: 20),
 
@@ -94,7 +97,10 @@ class _BookDetailPageState extends State<BookDetailPage> {
                   _row('文件大小', FileSizeFormatter.format(_book.fileSize)),
                   _row('字符数', isTxt ? '${_book.characterCount ?? 0} 字' : '—'),
                   _row('导入时间', created),
-                  _row('上次阅读', DateFormat('yyyy-MM-dd HH:mm').format(_book.updatedAt)),
+                  _row(
+                    '上次阅读',
+                    DateFormat('yyyy-MM-dd HH:mm').format(_book.updatedAt),
+                  ),
                   _row('解析状态', _book.parseStatus.label),
                   _row('章节状态', isTxt ? '未分章' : '不可用'),
                   _row('AI 模型', '未下载'),
@@ -131,11 +137,9 @@ class _BookDetailPageState extends State<BookDetailPage> {
               decoration: AppTheme.cardDecoration,
               child: Column(
                 children: [
-                  _row('阅读进度',
-                      '${(_book.readingProgress * 100).round()}%'),
+                  _row('阅读进度', '${(_book.readingProgress * 100).round()}%'),
                   _row('当前章节', _book.lastReadChapter ?? '未开始'),
-                  _row('阅读时长',
-                      '${(_book.readingTimeSec / 60).floor()} 分钟'),
+                  _row('阅读时长', '${(_book.readingTimeSec / 60).floor()} 分钟'),
                 ],
               ),
             ),
@@ -169,8 +173,10 @@ class _BookDetailPageState extends State<BookDetailPage> {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
-          Text(label,
-              style: const TextStyle(fontSize: 15, color: AppTheme.secondaryText)),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 15, color: AppTheme.secondaryText),
+          ),
           const Spacer(),
           Expanded(
             child: Text(
@@ -184,14 +190,14 @@ class _BookDetailPageState extends State<BookDetailPage> {
     );
   }
 
-  Widget _actionButton(BuildContext context, String title,
-      {required VoidCallback onPressed}) {
+  Widget _actionButton(
+    BuildContext context,
+    String title, {
+    required VoidCallback onPressed,
+  }) {
     return SizedBox(
       width: double.infinity,
-      child: CupertinoButton.filled(
-        onPressed: onPressed,
-        child: Text(title),
-      ),
+      child: CupertinoButton.filled(onPressed: onPressed, child: Text(title)),
     );
   }
 
@@ -201,8 +207,10 @@ class _BookDetailPageState extends State<BookDetailPage> {
       child: CupertinoButton(
         onPressed: null,
         color: AppTheme.iconBackground,
-        child: Text(title,
-            style: const TextStyle(color: AppTheme.secondaryText)),
+        child: Text(
+          title,
+          style: const TextStyle(color: AppTheme.secondaryText),
+        ),
       ),
     );
   }
@@ -297,7 +305,9 @@ class _BookDetailPageState extends State<BookDetailPage> {
       ),
     );
     if (result != null && result.isNotEmpty && result != _book.title) {
-      await _repo.save(_book.copyWith(title: result, updatedAt: DateTime.now()));
+      await _repo.save(
+        _book.copyWith(title: result, updatedAt: DateTime.now()),
+      );
     }
   }
 

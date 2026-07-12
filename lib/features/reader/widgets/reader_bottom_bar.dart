@@ -65,10 +65,24 @@ class ReaderBottomBar extends StatelessWidget {
                     onPressed: onNextChapter,
                     child: Transform(
                       alignment: Alignment.center,
-                      transform: Matrix4(-1.0, 0, 0, 0,
-                          0, 1.0, 0, 0,
-                          0, 0, 1.0, 0,
-                          0, 0, 0, 1.0),
+                      transform: Matrix4(
+                        -1.0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        1.0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        1.0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        1.0,
+                      ),
                       child: const Icon(CupertinoIcons.back, size: 22),
                     ),
                   ),
@@ -77,7 +91,13 @@ class ReaderBottomBar extends StatelessWidget {
             ),
             Padding(
               padding: const EdgeInsets.only(bottom: 2),
-              child: Text(chapterPositionLabel, style: TextStyle(color: fg.withValues(alpha: 0.6), fontSize: 11)),
+              child: Text(
+                chapterPositionLabel,
+                style: TextStyle(
+                  color: fg.withValues(alpha: 0.6),
+                  fontSize: 11,
+                ),
+              ),
             ),
             const SizedBox(height: 4),
             // 第二层：4 入口
@@ -85,10 +105,22 @@ class ReaderBottomBar extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _Entry(icon: CupertinoIcons.list_bullet, label: '目录', onTap: onDirectory),
+                _Entry(
+                  icon: CupertinoIcons.list_bullet,
+                  label: '目录',
+                  onTap: onDirectory,
+                ),
                 _Entry(icon: CupertinoIcons.moon, label: '夜间', onTap: onNight),
-                _Entry(icon: CupertinoIcons.slider_horizontal_3, label: '设置', onTap: onSettings),
-                _Entry(icon: CupertinoIcons.volume_up, label: '听书', onTap: onListening),
+                _Entry(
+                  icon: CupertinoIcons.slider_horizontal_3,
+                  label: '设置',
+                  onTap: onSettings,
+                ),
+                _Entry(
+                  icon: CupertinoIcons.volume_up,
+                  label: '听书',
+                  onTap: onListening,
+                ),
               ],
             ),
           ],

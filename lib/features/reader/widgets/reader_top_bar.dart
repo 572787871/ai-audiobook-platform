@@ -94,7 +94,10 @@ class ReaderTopBar extends StatelessWidget {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       color: CupertinoColors.systemBackground.resolveFrom(context),
-      padding: EdgeInsets.only(left: 12, top: MediaQuery.of(context).padding.top),
+      padding: EdgeInsets.only(
+        left: 12,
+        top: MediaQuery.of(context).padding.top,
+      ),
       child: SafeArea(
         top: false,
         child: SizedBox(
@@ -113,15 +116,26 @@ class ReaderTopBar extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(bookTitle,
-                        style: TextStyle(color: fg, fontSize: 16, fontWeight: FontWeight.w600),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis),
+                    Text(
+                      bookTitle,
+                      style: TextStyle(
+                        color: fg,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                     if (chapterTitle != null)
-                      Text(chapterTitle!,
-                          style: TextStyle(color: fg.withValues(alpha: 0.6), fontSize: 12),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis),
+                      Text(
+                        chapterTitle!,
+                        style: TextStyle(
+                          color: fg.withValues(alpha: 0.6),
+                          fontSize: 12,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                   ],
                 ),
               ),

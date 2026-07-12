@@ -5,11 +5,7 @@ class CircularIconButton extends StatelessWidget {
   final IconData icon;
   final double size;
 
-  const CircularIconButton({
-    super.key,
-    required this.icon,
-    this.size = 36,
-  });
+  const CircularIconButton({super.key, required this.icon, this.size = 36});
 
   void _showPlaceholder(BuildContext context) {
     showCupertinoDialog(

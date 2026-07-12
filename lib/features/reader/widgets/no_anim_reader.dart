@@ -29,8 +29,9 @@ class NoAnimReader extends StatelessWidget {
       onTapUp: (d) {
         final w = MediaQuery.of(context).size.width;
         if (d.localPosition.dx < 24) return; // 最左交给系统返回
-        final Future<bool> Function() action =
-            d.localPosition.dx >= w / 2 ? controller.moveNext : controller.movePrevious;
+        final Future<bool> Function() action = d.localPosition.dx >= w / 2
+            ? controller.moveNext
+            : controller.movePrevious;
         final moved = d.localPosition.dx >= w / 2
             ? controller.hasNext
             : controller.hasPrev;

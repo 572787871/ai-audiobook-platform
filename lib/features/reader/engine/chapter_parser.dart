@@ -14,7 +14,7 @@ class ChapterInfo {
   final int index;
   final String title;
   final int start; // 章节正文起始字符偏移（含标题）
-  final int end;   // 章节正文结束字符偏移（不含下一章标题）
+  final int end; // 章节正文结束字符偏移（不含下一章标题）
   int get length => (end - start).clamp(0, end - start);
 
   ChapterInfo({
@@ -25,8 +25,7 @@ class ChapterInfo {
   });
 
   @override
-  String toString() =>
-      'ChapterInfo(#$index $title [$start,$end) len=$length)';
+  String toString() => 'ChapterInfo(#$index $title [$start,$end) len=$length)';
 }
 
 /// 章节解析结果。
@@ -54,8 +53,10 @@ class ChapterList {
   /// 章节内偏移：全局 offset - 章节 start。
   int offsetInChapter(int chapterIndex, int globalOffset) {
     if (chapterIndex < 0 || chapterIndex >= chapters.length) return 0;
-    return (globalOffset - chapters[chapterIndex].start)
-        .clamp(0, chapters[chapterIndex].length);
+    return (globalOffset - chapters[chapterIndex].start).clamp(
+      0,
+      chapters[chapterIndex].length,
+    );
   }
 }
 
@@ -86,8 +87,7 @@ const List<TxtChapterRule> defaultTxtRules = [
     example: '楔子',
   ),
   TxtChapterRule(
-    pattern:
-        r'^\s*([一二三四五六七八九十百千]+(?:、|\.|\s))\S{0,30}$',
+    pattern: r'^\s*([一二三四五六七八九十百千]+(?:、|\.|\s))\S{0,30}$',
     replacement: '',
     example: '一、少年',
   ),
@@ -119,18 +119,16 @@ class ChapterParser {
     }
 
     if (chosen == null) {
-      return ChapterList(
-        [ChapterInfo(index: 0, title: '正文', start: 0, end: total)],
-        total,
-      );
+      return ChapterList([
+        ChapterInfo(index: 0, title: '正文', start: 0, end: total),
+      ], total);
     }
 
     final matches = chosen.allMatches(text).toList();
     if (matches.isEmpty) {
-      return ChapterList(
-        [ChapterInfo(index: 0, title: '正文', start: 0, end: total)],
-        total,
-      );
+      return ChapterList([
+        ChapterInfo(index: 0, title: '正文', start: 0, end: total),
+      ], total);
     }
 
     // 去重相邻匹配，过滤过长章节（超过 maxChapterLength 用前缀作为标题位置）
@@ -150,26 +148,17 @@ class ChapterParser {
     final chapters = <ChapterInfo>[];
     for (var i = 0; i < starts.length; i++) {
       final start = starts[i];
-      final end =
-          (i + 1 < starts.length) ? starts[i + 1] : total;
-      chapters.add(ChapterInfo(
-        index: i,
-        title: titles[i],
-        start: start,
-        end: end,
-      ));
+      final end = (i + 1 < starts.length) ? starts[i + 1] : total;
+      chapters.add(
+        ChapterInfo(index: i, title: titles[i], start: start, end: end),
+      );
     }
 
     // 若首章标题不在文件最开头，补一个"正文/前言"章节
     if (chapters.isNotEmpty && chapters.first.start > 0) {
       chapters.insert(
         0,
-        ChapterInfo(
-          index: 0,
-          title: '正文',
-          start: 0,
-          end: chapters.first.start,
-        ),
+        ChapterInfo(index: 0, title: '正文', start: 0, end: chapters.first.start),
       );
       for (var i = 1; i < chapters.length; i++) {
         chapters[i] = ChapterInfo(

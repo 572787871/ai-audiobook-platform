@@ -1,5 +1,6 @@
 import 'dart:math' as math;
-import 'package:flutter/material.dart' show TextPainter, TextSpan, TextStyle, TextAlign, TextDirection;
+import 'package:flutter/material.dart'
+    show TextPainter, TextSpan, TextStyle, TextAlign, TextDirection;
 import 'reader_document.dart';
 import 'reader_layout.dart';
 import 'reader_page_model.dart';
@@ -37,8 +38,10 @@ class TextPaginator {
       textAlign: TextAlign.left,
     );
     final contentWidth = layout.contentWidth;
-    final maxLinesPerPage =
-        math.max(1, (layout.contentHeight / layout.lineHeightPx).floor());
+    final maxLinesPerPage = math.max(
+      1,
+      (layout.contentHeight / layout.lineHeightPx).floor(),
+    );
 
     final pages = <ReaderPageModel>[];
     var pageStart = 0; // 当前页起始字符偏移
@@ -47,11 +50,13 @@ class TextPaginator {
     var lineText = ''; // 当前行文本（不含换行符）
 
     void flushPage(int endExclusive) {
-      pages.add(ReaderPageModel(
-        startOffset: pageStart,
-        endOffset: endExclusive,
-        text: text.substring(pageStart, endExclusive),
-      ));
+      pages.add(
+        ReaderPageModel(
+          startOffset: pageStart,
+          endOffset: endExclusive,
+          text: text.substring(pageStart, endExclusive),
+        ),
+      );
       pageStart = endExclusive;
       lineCount = 0;
     }

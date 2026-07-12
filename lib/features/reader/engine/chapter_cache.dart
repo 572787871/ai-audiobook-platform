@@ -7,13 +7,12 @@ library;
 
 import 'reader_page_model.dart';
 
-
 class CachedChapter {
   final int index;
   final String title;
   final List<ReaderPageModel> pages;
   final int startOffset; // 本章在全文的起始字符偏移
-  final int endOffset;   // 本章在全文的结束字符偏移
+  final int endOffset; // 本章在全文的结束字符偏移
 
   const CachedChapter({
     required this.index,

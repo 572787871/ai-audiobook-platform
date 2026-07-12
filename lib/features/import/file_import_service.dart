@@ -42,7 +42,9 @@ class FileImportService {
     bool forceImport = false,
   }) async {
     try {
-      onProgress?.call(const ImportProgress(state: ImportProgressState.validating));
+      onProgress?.call(
+        const ImportProgress(state: ImportProgressState.validating),
+      );
 
       // 1. 文件存在性
       if (!await sourceFile.exists()) {
@@ -80,8 +82,7 @@ class FileImportService {
         return FileImportResult(
           success: false,
           errorCode: FileImportErrorCode.tooLarge,
-          errorMessage:
-              '文件过大（最大 ${_formatLimit(limit)}），请压缩后重试',
+          errorMessage: '文件过大（最大 ${_formatLimit(limit)}），请压缩后重试',
         );
       }
 
@@ -99,7 +100,9 @@ class FileImportService {
       }
 
       // 6. 复制到沙盒
-      onProgress?.call(const ImportProgress(state: ImportProgressState.copying));
+      onProgress?.call(
+        const ImportProgress(state: ImportProgressState.copying),
+      );
       final repo = BookRepository.instance;
       final booksDir = await repo.getBooksDir();
       final bookId = _uuid.v4();
@@ -107,8 +110,9 @@ class FileImportService {
       await bookDir.create(recursive: true);
 
       final originalName = p.basename(sourceFile.path);
-      final originalTarget =
-          File(p.join(bookDir.path, 'original.${fileType.extension}'));
+      final originalTarget = File(
+        p.join(bookDir.path, 'original.${fileType.extension}'),
+      );
       await sourceFile.copy(originalTarget.path);
 
       final now = DateTime.now();
@@ -116,7 +120,9 @@ class FileImportService {
 
       if (fileType == BookFileType.txt) {
         // TXT：解码 + 统计字符 + 保存 content.txt
-        onProgress?.call(const ImportProgress(state: ImportProgressState.decoding));
+        onProgress?.call(
+          const ImportProgress(state: ImportProgressState.decoding),
+        );
         final rawBytes = await originalTarget.readAsBytes();
         final decoded = await TextEncodingService.decodeBytesAsync(rawBytes);
         final contentTarget = File(p.join(bookDir.path, 'content.txt'));
@@ -161,9 +167,7 @@ class FileImportService {
       onProgress?.call(const ImportProgress(state: ImportProgressState.done));
       return FileImportResult(success: true, book: book);
     } catch (e) {
-      final msg = e is EncodingException
-          ? '无法识别文件编码，可能是乱码或尚不支持的编码'
-          : '导入失败：$e';
+      final msg = e is EncodingException ? '无法识别文件编码，可能是乱码或尚不支持的编码' : '导入失败：$e';
       return FileImportResult(
         success: false,
         errorCode: e is EncodingException
@@ -185,12 +189,16 @@ class FileImportService {
     // 用唯一子目录隔离，文件名保持原始 originalFileName，
     // 以便 importFile 能正确从文件名提取书名（不受影响）。
     final tmpDir = Directory(
-        p.join(dir.path, 'import_${DateTime.now().microsecondsSinceEpoch}'));
+      p.join(dir.path, 'import_${DateTime.now().microsecondsSinceEpoch}'),
+    );
     await tmpDir.create(recursive: true);
     final tmp = File(p.join(tmpDir.path, originalFileName));
     await tmp.writeAsBytes(bytes, flush: true);
-    final result = await importFile(tmp,
-        onProgress: onProgress, forceImport: forceImport);
+    final result = await importFile(
+      tmp,
+      onProgress: onProgress,
+      forceImport: forceImport,
+    );
     if (await tmpDir.exists()) await tmpDir.delete(recursive: true);
     return result;
   }
@@ -211,7 +219,8 @@ class FileImportService {
     final baseName = p.basename(sourceFile.path).toLowerCase();
     for (final b in books) {
       if (b.fileType != fileType) continue;
-      if (b.fileSize == fileSize && b.originalFileName.toLowerCase() == baseName) {
+      if (b.fileSize == fileSize &&
+          b.originalFileName.toLowerCase() == baseName) {
         return b.id;
       }
       if (sha != null && b.originalPath.contains(sha)) {

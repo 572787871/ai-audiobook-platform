@@ -73,7 +73,9 @@ class _ScrollReaderState extends State<ScrollReader> {
   Future<void> _switchChapter({required bool forward}) async {
     // 切换前：记录当前章顶部相对视口顶的偏移，用于切换后保持视觉连续
     final curBox = _curKey.currentContext?.findRenderObject() as RenderBox?;
-    final viewportTopBefore = _scroll.hasClients ? _scroll.position.pixels : 0.0;
+    final viewportTopBefore = _scroll.hasClients
+        ? _scroll.position.pixels
+        : 0.0;
     final curTopGlobalBefore = _scroll.hasClients && curBox != null
         ? curBox.localToGlobal(Offset.zero).dy + viewportTopBefore
         : 0.0;
@@ -100,8 +102,10 @@ class _ScrollReaderState extends State<ScrollReader> {
       final newCurTopGlobal =
           newCurBox.localToGlobal(Offset.zero).dy + _scroll.position.pixels;
       final delta = curTopGlobalBefore - newCurTopGlobal;
-      final target = (viewportTopBefore + delta)
-          .clamp(0.0, _scroll.position.maxScrollExtent);
+      final target = (viewportTopBefore + delta).clamp(
+        0.0,
+        _scroll.position.maxScrollExtent,
+      );
       _scroll.jumpTo(target);
       _adjusting = false;
     });
@@ -116,8 +120,14 @@ class _ScrollReaderState extends State<ScrollReader> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: ps
-              .map((p) =>
-                  _PageText(p: p, style: widget.textStyle, color: widget.textColor, firstLineIndentChars: widget.firstLineIndentChars))
+              .map(
+                (p) => _PageText(
+                  p: p,
+                  style: widget.textStyle,
+                  color: widget.textColor,
+                  firstLineIndentChars: widget.firstLineIndentChars,
+                ),
+              )
               .toList(),
         ),
       );

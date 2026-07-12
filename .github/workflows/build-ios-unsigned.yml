@@ -2,7 +2,7 @@ name: Build iOS IPA (Unsigned)
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'agent/**']
   workflow_dispatch:
 
 concurrency:

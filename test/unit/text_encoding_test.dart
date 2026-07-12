@@ -50,12 +50,16 @@ void main() {
     // 奇数长度无法被偶数对称的 UTF-16 解析，且 GBK 遇不成对的尾字节会抛异常，
     // 因此整体走到编码失败分支。
     final bytes = List<int>.generate(63, (i) => (i * 31 + 3) % 256);
-    expect(() => TextEncodingService.decodeBytes(bytes),
-        throwsA(isA<EncodingException>()));
+    expect(
+      () => TextEncodingService.decodeBytes(bytes),
+      throwsA(isA<EncodingException>()),
+    );
   });
 
   test('空字节解码失败', () {
-    expect(() => TextEncodingService.decodeBytes(<int>[]),
-        throwsA(isA<EncodingException>()));
+    expect(
+      () => TextEncodingService.decodeBytes(<int>[]),
+      throwsA(isA<EncodingException>()),
+    );
   });
 }

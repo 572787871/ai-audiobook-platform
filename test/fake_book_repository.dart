@@ -27,6 +27,5 @@ class FakeBookRepository extends BookRepositoryBase {
   }
 
   @override
-  Future<void> delete(String id) async =>
-      _books.removeWhere((b) => b.id == id);
+  Future<void> delete(String id) async => _books.removeWhere((b) => b.id == id);
 }

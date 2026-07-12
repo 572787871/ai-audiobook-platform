@@ -57,14 +57,19 @@ class Book {
   final BookParseStatus parseStatus;
   final int? chapterCount;
   final String? coverPath;
+
   /// 连续阅读天数（按自然日去重，跨天清零）。
   final int streakDays;
+
   /// 上次阅读的自然日（YYYY-MM-DD），用于连续天数计算。
   final String? lastReadDay;
+
   /// 是否正在听书。
   final bool isListening;
+
   /// 听书语速倍率（0.5/1.0/1.5/2.0）。
   final double listenRate;
+
   /// 听书音色标识（预留 Kokoro voice，如 af_heart）。
   final String? listenVoice;
 
@@ -123,33 +128,33 @@ class Book {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'title': title,
-        'author': author,
-        'originalFileName': originalFileName,
-        'fileType': fileType.name,
-        'originalPath': originalPath,
-        'contentPath': contentPath,
-        'fileSize': fileSize,
-        'characterCount': characterCount,
-        'encoding': encoding,
-        'createdAt': createdAt.toIso8601String(),
-        'updatedAt': updatedAt.toIso8601String(),
-        'lastReadOffset': lastReadOffset,
-        'chapterIndex': chapterIndex,
-        'pageIndex': pageIndex,
-        'lastReadChapter': lastReadChapter,
-        'readingProgress': readingProgress,
-        'readingTimeSec': readingTimeSec,
-        'parseStatus': parseStatus.name,
-        'chapterCount': chapterCount,
-        'coverPath': coverPath,
-        'streakDays': streakDays,
-        'lastReadDay': lastReadDay,
-        'isListening': isListening,
-        'listenRate': listenRate,
-        'listenVoice': listenVoice,
-      };
+    'id': id,
+    'title': title,
+    'author': author,
+    'originalFileName': originalFileName,
+    'fileType': fileType.name,
+    'originalPath': originalPath,
+    'contentPath': contentPath,
+    'fileSize': fileSize,
+    'characterCount': characterCount,
+    'encoding': encoding,
+    'createdAt': createdAt.toIso8601String(),
+    'updatedAt': updatedAt.toIso8601String(),
+    'lastReadOffset': lastReadOffset,
+    'chapterIndex': chapterIndex,
+    'pageIndex': pageIndex,
+    'lastReadChapter': lastReadChapter,
+    'readingProgress': readingProgress,
+    'readingTimeSec': readingTimeSec,
+    'parseStatus': parseStatus.name,
+    'chapterCount': chapterCount,
+    'coverPath': coverPath,
+    'streakDays': streakDays,
+    'lastReadDay': lastReadDay,
+    'isListening': isListening,
+    'listenRate': listenRate,
+    'listenVoice': listenVoice,
+  };
 
   /// 从 JSON 解析。任何字段缺失或类型错误都返回 null（跳过损坏记录）。
   static Book? fromJson(Map<String, dynamic> json) {
@@ -172,9 +177,12 @@ class Book {
           parseStatusStr == null) {
         return null;
       }
-      final fileType = BookFileType.values.where((e) => e.name == fileTypeStr).firstOrNull;
-      final parseStatus =
-          BookParseStatus.values.where((e) => e.name == parseStatusStr).firstOrNull;
+      final fileType = BookFileType.values
+          .where((e) => e.name == fileTypeStr)
+          .firstOrNull;
+      final parseStatus = BookParseStatus.values
+          .where((e) => e.name == parseStatusStr)
+          .firstOrNull;
       if (fileType == null || parseStatus == null) return null;
       return Book(
         id: id,
@@ -228,10 +236,6 @@ class Book {
         streak = 1;
       }
     }
-    return copyWith(
-      lastReadDay: day,
-      streakDays: streak,
-      updatedAt: now,
-    );
+    return copyWith(lastReadDay: day, streakDays: streak, updatedAt: now);
   }
 }

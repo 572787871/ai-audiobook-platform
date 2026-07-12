@@ -17,15 +17,19 @@ class ReaderProgressBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textColor = CupertinoColors.label.resolveFrom(context).withValues(alpha: 0.7);
+    final textColor = CupertinoColors.label
+        .resolveFrom(context)
+        .withValues(alpha: 0.7);
     return SafeArea(
       top: false,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: Row(
           children: [
-            Text('${(progress * 100).toStringAsFixed(0)}%',
-                style: TextStyle(color: textColor, fontSize: 12)),
+            Text(
+              '${(progress * 100).toStringAsFixed(0)}%',
+              style: TextStyle(color: textColor, fontSize: 12),
+            ),
             const Spacer(),
             Text(rightLabel, style: TextStyle(color: textColor, fontSize: 12)),
           ],

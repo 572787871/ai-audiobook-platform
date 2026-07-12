@@ -79,7 +79,12 @@ class _CoverReaderState extends State<CoverReader> {
       onHorizontalDragEnd: _onHorizontalDragEnd,
       child: Stack(
         children: [
-          _PageText(page: cur, style: widget.textStyle, color: widget.textColor, firstLineIndentChars: widget.firstLineIndentChars),
+          _PageText(
+            page: cur,
+            style: widget.textStyle,
+            color: widget.textColor,
+            firstLineIndentChars: widget.firstLineIndentChars,
+          ),
           if (_dragging)
             FractionalTranslation(
               translation: Offset(_drag / width, 0),

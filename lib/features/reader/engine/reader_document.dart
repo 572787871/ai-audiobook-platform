@@ -9,10 +9,7 @@ class ReaderDocument {
   /// 段落列表（已去除首尾空白，保留空行作为分隔）。
   final List<String> paragraphs;
 
-  const ReaderDocument({
-    required this.content,
-    required this.paragraphs,
-  });
+  const ReaderDocument({required this.content, required this.paragraphs});
 
   /// 全文长度（字符数）。
   int get totalCharacters => content.length;
@@ -26,7 +23,9 @@ class ReaderDocument {
     int firstLineIndent = 2,
     int paragraphSpacing = 1,
   }) {
-    final normalized = rawContent.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+    final normalized = rawContent
+        .replaceAll('\r\n', '\n')
+        .replaceAll('\r', '\n');
     final rawParas = normalized.split('\n');
     final paragraphs = <String>[];
     for (var i = 0; i < rawParas.length; i++) {

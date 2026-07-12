@@ -51,7 +51,10 @@ void main() {
     final cd = Uint8List(4)
       ..buffer.asByteData().setInt16(0, 0x5C0F, Endian.little)
       ..buffer.asByteData().setInt16(2, 0x8BF4, Endian.little);
-    final r = await FileImportService.instance.importBytes(cd.toList(), 'u16le.txt');
+    final r = await FileImportService.instance.importBytes(
+      cd.toList(),
+      'u16le.txt',
+    );
     expect(r.success, true);
     expect(r.book!.encoding, 'utf-16le');
   });
@@ -60,7 +63,10 @@ void main() {
     final cd = Uint8List(4)
       ..buffer.asByteData().setInt16(0, 0x5C0F, Endian.big)
       ..buffer.asByteData().setInt16(2, 0x8BF4, Endian.big);
-    final r = await FileImportService.instance.importBytes(cd.toList(), 'u16be.txt');
+    final r = await FileImportService.instance.importBytes(
+      cd.toList(),
+      'u16be.txt',
+    );
     expect(r.success, true);
     expect(r.book!.encoding, 'utf-16be');
   });
@@ -75,21 +81,29 @@ void main() {
 
   // —— 校验失败 ——
   test('空文件导入失败', () async {
-    final r = await FileImportService.instance.importBytes(<int>[], 'empty.txt');
+    final r = await FileImportService.instance.importBytes(
+      <int>[],
+      'empty.txt',
+    );
     expect(r.success, false);
     expect(r.errorCode, FileImportErrorCode.emptyFile);
   });
 
   test('不支持扩展名失败', () async {
     final r = await FileImportService.instance.importBytes(
-        utf8.encode('hello'), 'note.md');
+      utf8.encode('hello'),
+      'note.md',
+    );
     expect(r.success, false);
     expect(r.errorCode, FileImportErrorCode.unsupportedExtension);
   });
 
   test('编码不可识别失败', () async {
     final bytes = List<int>.generate(63, (i) => (i * 13 + 7) % 256);
-    final r = await FileImportService.instance.importBytes(bytes, 'garbage.txt');
+    final r = await FileImportService.instance.importBytes(
+      bytes,
+      'garbage.txt',
+    );
     expect(r.success, false);
     expect(r.errorCode, FileImportErrorCode.encodingFailed);
   });
@@ -109,7 +123,16 @@ void main() {
   });
 
   test('PDF 导入保存且状态为 pending', () async {
-    final bytes = <int>[0x25, 0x50, 0x44, 0x46, 0x2D, 0x31, 0x2E, 0x34]; // %PDF-1.4
+    final bytes = <int>[
+      0x25,
+      0x50,
+      0x44,
+      0x46,
+      0x2D,
+      0x31,
+      0x2E,
+      0x34,
+    ]; // %PDF-1.4
     final r = await FileImportService.instance.importBytes(bytes, 'doc.pdf');
     expect(r.success, true);
     expect(r.book!.fileType, BookFileType.pdf);
@@ -118,7 +141,10 @@ void main() {
 
   test('DOCX 导入保存且状态为 pending', () async {
     final bytes = utf8.encode('docx placeholder');
-    final r = await FileImportService.instance.importBytes(bytes, 'report.docx');
+    final r = await FileImportService.instance.importBytes(
+      bytes,
+      'report.docx',
+    );
     expect(r.success, true);
     expect(r.book!.fileType, BookFileType.docx);
     expect(r.book!.parseStatus, BookParseStatus.pending);
@@ -139,8 +165,11 @@ void main() {
   test('forceImport 可绕过重复检测', () async {
     final bytes = utf8.encode('重复测试内容2');
     final r1 = await FileImportService.instance.importBytes(bytes, 'dup2.txt');
-    final r2 = await FileImportService.instance.importBytes(bytes, 'dup2.txt',
-        forceImport: true);
+    final r2 = await FileImportService.instance.importBytes(
+      bytes,
+      'dup2.txt',
+      forceImport: true,
+    );
     expect(r2.success, true);
     expect(r2.book!.id, isNot(r1.book!.id));
   });
@@ -148,7 +177,10 @@ void main() {
   // —— 持久化与恢复 ——
   test('book.json 保存与读取', () async {
     final bytes = utf8.encode('持久化测试');
-    final r = await FileImportService.instance.importBytes(bytes, 'persist.txt');
+    final r = await FileImportService.instance.importBytes(
+      bytes,
+      'persist.txt',
+    );
     final id = r.book!.id;
     // 重新加载
     final books = await BookRepository.instance.loadAll();
@@ -159,10 +191,14 @@ void main() {
   });
 
   test('App 重启后恢复书库列表（重新 loadAll）', () async {
-    final b1 = await FileImportService.instance
-        .importBytes(utf8.encode('书一'), 'a.txt');
-    final b2 = await FileImportService.instance
-        .importBytes(utf8.encode('书二'), 'b.txt');
+    final b1 = await FileImportService.instance.importBytes(
+      utf8.encode('书一'),
+      'a.txt',
+    );
+    final b2 = await FileImportService.instance.importBytes(
+      utf8.encode('书二'),
+      'b.txt',
+    );
     expect(b1.success, true);
     expect(b2.success, true);
     // 模拟重启：新建 Repository 实例指向同一目录
@@ -175,8 +211,10 @@ void main() {
   });
 
   test('删除书籍同时清理记录与文件', () async {
-    final r = await FileImportService.instance
-        .importBytes(utf8.encode('待删除'), 'del.txt');
+    final r = await FileImportService.instance.importBytes(
+      utf8.encode('待删除'),
+      'del.txt',
+    );
     final id = r.book!.id;
     final bookDir = Directory('${booksRoot.path}/$id');
     expect(await bookDir.exists(), true);
@@ -189,8 +227,10 @@ void main() {
   });
 
   test('损坏的 book.json 被跳过且崩溃', () async {
-    final r = await FileImportService.instance
-        .importBytes(utf8.encode('正常书'), 'ok.txt');
+    final r = await FileImportService.instance.importBytes(
+      utf8.encode('正常书'),
+      'ok.txt',
+    );
     // 手动写入一个损坏的 book.json
     final badDir = Directory('${booksRoot.path}/badid');
     await badDir.create(recursive: true);

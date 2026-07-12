@@ -9,7 +9,7 @@ import '../widgets/book_cover_widget.dart';
 import 'book_detail_page.dart';
 import '../../reader/pages/reader_page.dart';
 
-/// 书架页：独立页面，分类栏 + 两列实体书封面书架。
+/// 书架页：独立页面，分类栏 + 三列实体书封面书架。
 class BookShelfPage extends StatefulWidget {
   final BookRepositoryBase? repository;
   final Future<String> Function(Book book)? contentLoader;
@@ -183,10 +183,10 @@ class _BookShelfPageState extends State<BookShelfPage> {
     final updated = await Navigator.of(context).push<Book?>(
       CupertinoPageRoute(
         builder: (_) => ReaderPage(
-              book: book,
-              repository: _repo,
-              contentLoader: widget.contentLoader,
-            ),
+          book: book,
+          repository: _repo,
+          contentLoader: widget.contentLoader,
+        ),
       ),
     );
     if (!mounted) return;
@@ -315,8 +315,8 @@ class _BookShelfPageState extends State<BookShelfPage> {
               child: _books.isNotEmpty
                   ? _buildBody() // 有书时保留列表，后台刷新不闪空
                   : (_loading
-                      ? const Center(child: CupertinoActivityIndicator())
-                      : _buildBody()), // 空状态仅当 !loading && 无书
+                        ? const Center(child: CupertinoActivityIndicator())
+                        : _buildBody()), // 空状态仅当 !loading && 无书
             ),
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
@@ -338,7 +338,9 @@ class _BookShelfPageState extends State<BookShelfPage> {
     const tabs = ['全部', '阅读中', '已完成'];
     final counts = [
       _books.length,
-      _books.where((b) => b.readingProgress > 0 && b.readingProgress < 1).length,
+      _books
+          .where((b) => b.readingProgress > 0 && b.readingProgress < 1)
+          .length,
       _books.where((b) => b.readingProgress >= 1).length,
     ];
     return Container(
@@ -350,7 +352,10 @@ class _BookShelfPageState extends State<BookShelfPage> {
             GestureDetector(
               onTap: () => setState(() => _filter = i),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: _filter == i
                       ? CupertinoColors.activeBlue
@@ -400,24 +405,28 @@ class _BookShelfPageState extends State<BookShelfPage> {
   Widget _buildBody() {
     if (_books.isEmpty) {
       return const Center(
-        child: Text('书架空空如也，去首页导入吧',
-            style: TextStyle(color: AppTheme.secondaryText)),
+        child: Text(
+          '书架空空如也，去首页导入吧',
+          style: TextStyle(color: AppTheme.secondaryText),
+        ),
       );
     }
     final items = _filtered;
     if (items.isEmpty) {
       return const Center(
-        child: Text('该分类下暂无书籍',
-            style: TextStyle(color: AppTheme.secondaryText)),
+        child: Text(
+          '该分类下暂无书籍',
+          style: TextStyle(color: AppTheme.secondaryText),
+        ),
       );
     }
     return GridView.builder(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
+        crossAxisCount: 3,
         mainAxisSpacing: 18,
-        crossAxisSpacing: 14,
-        childAspectRatio: 3 / 4.6,
+        crossAxisSpacing: 12,
+        childAspectRatio: 0.57,
       ),
       itemCount: items.length,
       itemBuilder: (ctx, i) => _bookCard(items[i]),
@@ -445,59 +454,62 @@ class _BookShelfPageState extends State<BookShelfPage> {
       child: Container(
         color: AppTheme.background,
         child: Stack(
-        children: [
-          Positioned.fill(
-            child: BookCoverWidget(
-              key: Key('book_${book.id}'),
-              book: book,
+          children: [
+            Positioned.fill(
+              child: BookCoverWidget(key: Key('book_${book.id}'), book: book),
             ),
-          ),
-          // 右上角 ••• 菜单
-          if (!_editing)
-            Positioned(
-              top: 4,
-              right: 4,
-              child: CupertinoButton(
-                padding: EdgeInsets.zero,
-                minimumSize: Size.zero,
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.35),
-                    borderRadius: BorderRadius.circular(12),
+            // 右上角 ••• 菜单
+            if (!_editing)
+              Positioned(
+                top: 4,
+                right: 4,
+                child: CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  minimumSize: Size.zero,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.35),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      CupertinoIcons.ellipsis,
+                      size: 18,
+                      color: CupertinoColors.white,
+                    ),
                   ),
-                  child: const Icon(CupertinoIcons.ellipsis,
-                      size: 18, color: CupertinoColors.white),
+                  onPressed: () => _showMenu(book),
                 ),
-                onPressed: () => _showMenu(book),
               ),
-            ),
-          if (_editing)
-            Positioned(
-              top: 6,
-              right: 6,
-              child: Container(
-                width: 22,
-                height: 22,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: selected
-                      ? CupertinoColors.activeBlue
-                      : Colors.white.withValues(alpha: 0.85),
-                  border: Border.all(
+            if (_editing)
+              Positioned(
+                top: 6,
+                right: 6,
+                child: Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
                     color: selected
                         ? CupertinoColors.activeBlue
-                        : AppTheme.secondaryText,
-                    width: 1.5,
+                        : Colors.white.withValues(alpha: 0.85),
+                    border: Border.all(
+                      color: selected
+                          ? CupertinoColors.activeBlue
+                          : AppTheme.secondaryText,
+                      width: 1.5,
+                    ),
                   ),
+                  child: selected
+                      ? const Icon(
+                          CupertinoIcons.check_mark,
+                          size: 14,
+                          color: CupertinoColors.white,
+                        )
+                      : null,
                 ),
-                child: selected
-                    ? const Icon(CupertinoIcons.check_mark,
-                        size: 14, color: CupertinoColors.white)
-                    : null,
               ),
-            ),
-        ],
+          ],
         ),
       ),
     );

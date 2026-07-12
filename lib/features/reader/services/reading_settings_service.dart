@@ -77,21 +77,10 @@ class ReadingSettingsService {
 }
 
 /// 阅读背景主题（用于顶部/底部/正文底层配色）。
-enum ReaderTheme {
-  day,
-  sepia,
-  dark,
-  night,
-}
+enum ReaderTheme { day, sepia, dark, night }
 
 /// 翻页动画。
-enum PageAnimation {
-  none,
-  slide,
-  cover,
-  scroll,
-  curl,
-}
+enum PageAnimation { none, slide, cover, scroll, curl }
 
 /// 阅读背景色方案（七种 + 自定义）。
 enum ReaderBackground {
@@ -193,14 +182,14 @@ extension ReaderBackgroundX on ReaderBackground {
 
   /// 该背景下的默认正文文字色。
   ReaderTextColor get defaultText => switch (this) {
-        ReaderBackground.cream => ReaderTextColor.brown,
-        ReaderBackground.white => ReaderTextColor.black,
-        ReaderBackground.green => ReaderTextColor.black,
-        ReaderBackground.blue => ReaderTextColor.black,
-        ReaderBackground.gray => ReaderTextColor.lightGray,
-        ReaderBackground.black => ReaderTextColor.white,
-        ReaderBackground.custom => ReaderTextColor.brown,
-      };
+    ReaderBackground.cream => ReaderTextColor.brown,
+    ReaderBackground.white => ReaderTextColor.black,
+    ReaderBackground.green => ReaderTextColor.black,
+    ReaderBackground.blue => ReaderTextColor.black,
+    ReaderBackground.gray => ReaderTextColor.lightGray,
+    ReaderBackground.black => ReaderTextColor.white,
+    ReaderBackground.custom => ReaderTextColor.brown,
+  };
 }
 
 extension ReaderTextColorX on ReaderTextColor {
@@ -299,6 +288,7 @@ class ReadingSettings {
   final ReaderTextColor textColor;
   final double brightness;
   final bool eyeCare;
+
   /// 进入夜间前记录的上一主题，再点夜间恢复用。
   final ReaderTheme? nightPreviousTheme;
   // ---- 更多设置（预留接口，UI 标“暂未开放”） ----
@@ -311,6 +301,7 @@ class ReadingSettings {
   final bool showProgress;
   final bool showChapterTitle;
   final bool tapZoneCustom;
+
   /// 自定义背景图片本地路径（选中"阅读背景=自定义"且已选图时生效）。
   final String? backgroundImagePath;
 
@@ -377,41 +368,58 @@ class ReadingSettings {
   }
 
   Map<String, dynamic> toJson() => {
-        'fontSize': fontSize,
-        'fontFamily': fontFamily,
-        'fontWeight': fontWeight,
-        'lineHeight': lineHeight,
-        'paragraphSpacing': paragraphSpacing,
-        'horizontalMargin': horizontalMargin,
-        'verticalMargin': verticalMargin,
-        'firstLineIndent': firstLineIndent,
-        'pageAnimation': pageAnimation.name,
-        'theme': theme.name,
-        'background': background.name,
-        'textColor': textColor.name,
-        'brightness': brightness,
-        'eyeCare': eyeCare,
-        'nightPreviousTheme': nightPreviousTheme?.name,
-        'autoPage': autoPage,
-        'keepScreenOn': keepScreenOn,
-        'volumeKeyPage': volumeKeyPage,
-        'traditionalChinese': traditionalChinese,
-        'readingDirection': readingDirection,
-        'showStatusBar': showStatusBar,
-        'showProgress': showProgress,
-        'showChapterTitle': showChapterTitle,
-        'tapZoneCustom': tapZoneCustom,
-        if (backgroundImagePath != null) 'backgroundImagePath': backgroundImagePath,
-      };
+    'fontSize': fontSize,
+    'fontFamily': fontFamily,
+    'fontWeight': fontWeight,
+    'lineHeight': lineHeight,
+    'paragraphSpacing': paragraphSpacing,
+    'horizontalMargin': horizontalMargin,
+    'verticalMargin': verticalMargin,
+    'firstLineIndent': firstLineIndent,
+    'pageAnimation': pageAnimation.name,
+    'theme': theme.name,
+    'background': background.name,
+    'textColor': textColor.name,
+    'brightness': brightness,
+    'eyeCare': eyeCare,
+    'nightPreviousTheme': nightPreviousTheme?.name,
+    'autoPage': autoPage,
+    'keepScreenOn': keepScreenOn,
+    'volumeKeyPage': volumeKeyPage,
+    'traditionalChinese': traditionalChinese,
+    'readingDirection': readingDirection,
+    'showStatusBar': showStatusBar,
+    'showProgress': showProgress,
+    'showChapterTitle': showChapterTitle,
+    'tapZoneCustom': tapZoneCustom,
+    if (backgroundImagePath != null) 'backgroundImagePath': backgroundImagePath,
+  };
 
   factory ReadingSettings.fromJson(Map<String, dynamic> json) {
-    final theme = _enum<ReaderTheme>(ReaderTheme.values, json['theme'], ReaderTheme.sepia);
-    final anim = _enum<PageAnimation>(PageAnimation.values, json['pageAnimation'], PageAnimation.slide);
+    final theme = _enum<ReaderTheme>(
+      ReaderTheme.values,
+      json['theme'],
+      ReaderTheme.sepia,
+    );
+    final anim = _enum<PageAnimation>(
+      PageAnimation.values,
+      json['pageAnimation'],
+      PageAnimation.slide,
+    );
     final bg = _enum<ReaderBackground>(
-        ReaderBackground.values, json['background'], ReaderBackground.cream);
+      ReaderBackground.values,
+      json['background'],
+      ReaderBackground.cream,
+    );
     final tc = _enum<ReaderTextColor>(
-        ReaderTextColor.values, json['textColor'], ReaderBackground.cream.defaultText);
-    final nightPrev = _enumOrNull<ReaderTheme>(ReaderTheme.values, json['nightPreviousTheme']);
+      ReaderTextColor.values,
+      json['textColor'],
+      ReaderBackground.cream.defaultText,
+    );
+    final nightPrev = _enumOrNull<ReaderTheme>(
+      ReaderTheme.values,
+      json['nightPreviousTheme'],
+    );
     return ReadingSettings(
       fontSize: (json['fontSize'] as num?)?.toDouble() ?? 22.0,
       fontFamily: (json['fontFamily'] as String?) ?? 'system',
@@ -443,7 +451,8 @@ class ReadingSettings {
 }
 
 T _enum<T>(List<T> values, dynamic name, T fallback) =>
-    values.where((e) => e.toString().split('.').last == name).firstOrNull ?? fallback;
+    values.where((e) => e.toString().split('.').last == name).firstOrNull ??
+    fallback;
 
 T? _enumOrNull<T>(List<T> values, dynamic name) {
   if (name == null) return null;

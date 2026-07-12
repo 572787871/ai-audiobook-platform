@@ -46,7 +46,10 @@ class _SlideReaderState extends State<SlideReader>
   @override
   void initState() {
     super.initState();
-    _anim = AnimationController(vsync: this, duration: const Duration(milliseconds: 200));
+    _anim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
     _tween = _anim.drive(Tween<double>(begin: 0, end: 0));
     _anim.addListener(_onTick);
   }

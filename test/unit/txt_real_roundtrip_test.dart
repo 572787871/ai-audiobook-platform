@@ -31,8 +31,7 @@ void main() {
     final srcDir = Directory.systemTemp.createTempSync('src_');
     final srcFile = File('${srcDir.path}/$fileName');
     await srcFile.writeAsBytes(rawBytes, flush: true);
-    expect(await srcFile.exists(), true,
-        reason: '源文件应真实存在于磁盘');
+    expect(await srcFile.exists(), true, reason: '源文件应真实存在于磁盘');
 
     // 2) 真实导入（走完整 importFile 流程）
     final r = await FileImportService.instance.importFile(srcFile);
@@ -42,14 +41,12 @@ void main() {
 
     // 3) 真实从磁盘读回 original.* 字节，与源字节逐字节一致（复制必须无损）
     final originalBytes = await File(r.book!.originalPath).readAsBytes();
-    expect(originalBytes, equals(rawBytes),
-        reason: 'original.* 必须与源文件字节完全一致');
+    expect(originalBytes, equals(rawBytes), reason: 'original.* 必须与源文件字节完全一致');
 
     // 4) 真实从磁盘读回 content.txt 字节，utf8 解码后等于期望文本
     final contentBytes = await File(r.book!.contentPath!).readAsBytes();
     final decoded = utf8.decode(contentBytes);
-    expect(decoded, equals(expectedText),
-        reason: 'content.txt 解码文本必须与期望一致');
+    expect(decoded, equals(expectedText), reason: 'content.txt 解码文本必须与期望一致');
 
     // 5) characterCount 与文本长度一致
     expect(r.book!.characterCount, equals(expectedText.length));

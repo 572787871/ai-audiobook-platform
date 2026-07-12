@@ -37,15 +37,14 @@ class ReaderPosition {
     double? readingProgress,
     int? readingTimeSec,
     DateTime? lastReadAt,
-  }) =>
-      ReaderPosition(
-        chapterIndex: chapterIndex ?? this.chapterIndex,
-        pageIndex: pageIndex ?? this.pageIndex,
-        characterOffset: characterOffset ?? this.characterOffset,
-        readingProgress: readingProgress ?? this.readingProgress,
-        readingTimeSec: readingTimeSec ?? this.readingTimeSec,
-        lastReadAt: lastReadAt ?? this.lastReadAt,
-      );
+  }) => ReaderPosition(
+    chapterIndex: chapterIndex ?? this.chapterIndex,
+    pageIndex: pageIndex ?? this.pageIndex,
+    characterOffset: characterOffset ?? this.characterOffset,
+    readingProgress: readingProgress ?? this.readingProgress,
+    readingTimeSec: readingTimeSec ?? this.readingTimeSec,
+    lastReadAt: lastReadAt ?? this.lastReadAt,
+  );
 
   /// 由字符偏移与全文长度推导进度。
   factory ReaderPosition.fromOffset({
@@ -75,5 +74,8 @@ class ReaderPosition {
 
   @override
   int get hashCode =>
-      chapterIndex.hashCode ^ characterOffset.hashCode ^ readingProgress.hashCode ^ readingTimeSec.hashCode;
+      chapterIndex.hashCode ^
+      characterOffset.hashCode ^
+      readingProgress.hashCode ^
+      readingTimeSec.hashCode;
 }

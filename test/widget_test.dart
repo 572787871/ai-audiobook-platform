@@ -24,24 +24,29 @@ Future<void> pumpUntilFound(
   throw TestFailure('Widget not found: $finder');
 }
 
-Book _makeBook(String id, String title, double progress, {int lastReadOffset = 0}) => Book(
-      id: id,
-      title: title,
-      originalFileName: '$title.txt',
-      fileType: BookFileType.txt,
-      originalPath: '/tmp/$title.txt',
-      contentPath: '/tmp/$title.content.txt',
-      fileSize: 1024,
-      characterCount: 10000,
-      encoding: 'UTF-8',
-      createdAt: DateTime(2026, 7, 11),
-      updatedAt: DateTime(2026, 7, 11),
-      lastReadOffset: lastReadOffset,
-      readingProgress: progress,
-      parseStatus: BookParseStatus.ready,
-      chapterCount: 0,
-      coverPath: null,
-    );
+Book _makeBook(
+  String id,
+  String title,
+  double progress, {
+  int lastReadOffset = 0,
+}) => Book(
+  id: id,
+  title: title,
+  originalFileName: '$title.txt',
+  fileType: BookFileType.txt,
+  originalPath: '/tmp/$title.txt',
+  contentPath: '/tmp/$title.content.txt',
+  fileSize: 1024,
+  characterCount: 10000,
+  encoding: 'UTF-8',
+  createdAt: DateTime(2026, 7, 11),
+  updatedAt: DateTime(2026, 7, 11),
+  lastReadOffset: lastReadOffset,
+  readingProgress: progress,
+  parseStatus: BookParseStatus.ready,
+  chapterCount: 0,
+  coverPath: null,
+);
 
 void main() {
   // 注入阅读器设置目录，避免 flutter test 环境下 path_provider 触发进程崩溃，
@@ -67,12 +72,9 @@ void main() {
     expect(find.byKey(const Key('import_fab')), findsNothing);
   });
 
-  testWidgets('首页只显示“书库”入口卡片，不直接展开书籍列表',
-      (tester) async {
+  testWidgets('首页只显示“书库”入口卡片，不直接展开书籍列表', (tester) async {
     final repo = FakeBookRepository([_makeBook('b1', '测试小说', 0.0)]);
-    await tester.pumpWidget(
-      CupertinoApp(home: LibraryPage(repository: repo)),
-    );
+    await tester.pumpWidget(CupertinoApp(home: LibraryPage(repository: repo)));
     await pumpUntilFound(tester, find.text('书库'));
     expect(find.text('已导入 1 本书'), findsOneWidget);
     expect(find.text('测试小说'), findsNothing);
@@ -80,9 +82,7 @@ void main() {
 
   testWidgets('点击书库入口进入独立 BookShelfPage', (tester) async {
     final repo = FakeBookRepository([_makeBook('b1', '测试小说', 0.0)]);
-    await tester.pumpWidget(
-      CupertinoApp(home: LibraryPage(repository: repo)),
-    );
+    await tester.pumpWidget(CupertinoApp(home: LibraryPage(repository: repo)));
     await pumpUntilFound(tester, find.text('书库'));
     await tester.ensureVisible(find.byKey(const Key('shelf_entry')));
     await tester.pumpAndSettle();
@@ -160,15 +160,19 @@ void main() {
   testWidgets('ReaderPage 点击中部显示工具栏与返回按钮', (tester) async {
     final longText = '第一章 开局\n' * 600;
     final repo = FakeBookRepository([_makeBook('b1', '测试小说', 0.0)]);
-    ReadingSettingsService.instance
-        .setSettingsForTest((await ReadingSettingsService.instance.get())
-            .copyWith(pageAnimation: PageAnimation.scroll));
+    ReadingSettingsService.instance.setSettingsForTest(
+      (await ReadingSettingsService.instance.get()).copyWith(
+        pageAnimation: PageAnimation.scroll,
+      ),
+    );
     await tester.pumpWidget(
-      CupertinoApp(home: ReaderPage(
-        book: repo.books.first,
-        repository: repo,
-        contentLoader: (_) async => longText,
-      )),
+      CupertinoApp(
+        home: ReaderPage(
+          book: repo.books.first,
+          repository: repo,
+          contentLoader: (_) async => longText,
+        ),
+      ),
     );
     await pumpUntilFound(tester, find.byType(SingleChildScrollView));
     // 默认沉浸：返回按钮不显示
@@ -183,18 +187,24 @@ void main() {
   testWidgets('点击返回前会保存进度', (tester) async {
     final longText = '第一章 开局\n' * 600;
     final repo = FakeBookRepository([_makeBook('b1', '测试小说', 0.0)]);
-    ReadingSettingsService.instance
-        .setSettingsForTest((await ReadingSettingsService.instance.get())
-            .copyWith(pageAnimation: PageAnimation.scroll));
-    ReadingSettingsService.instance
-        .setSettingsForTest((await ReadingSettingsService.instance.get())
-            .copyWith(pageAnimation: PageAnimation.scroll));
+    ReadingSettingsService.instance.setSettingsForTest(
+      (await ReadingSettingsService.instance.get()).copyWith(
+        pageAnimation: PageAnimation.scroll,
+      ),
+    );
+    ReadingSettingsService.instance.setSettingsForTest(
+      (await ReadingSettingsService.instance.get()).copyWith(
+        pageAnimation: PageAnimation.scroll,
+      ),
+    );
     await tester.pumpWidget(
-      CupertinoApp(home: ReaderPage(
-        book: repo.books.first,
-        repository: repo,
-        contentLoader: (_) async => longText,
-      )),
+      CupertinoApp(
+        home: ReaderPage(
+          book: repo.books.first,
+          repository: repo,
+          contentLoader: (_) async => longText,
+        ),
+      ),
     );
     await pumpUntilFound(tester, find.byType(SingleChildScrollView));
     await tester.tap(find.byKey(const Key('reader_tap_center')));
@@ -209,7 +219,9 @@ void main() {
     // 注入内存正文（多页），不依赖真实磁盘读取 / path_provider
     final longText = '第一章 开局\n' * 600;
     // 初始进度 0（尚未阅读）
-    final repo = FakeBookRepository([_makeBook('b1', '测试小说', 0.0, lastReadOffset: 1500)]);
+    final repo = FakeBookRepository([
+      _makeBook('b1', '测试小说', 0.0, lastReadOffset: 1500),
+    ]);
     await tester.pumpWidget(
       CupertinoApp(
         home: BookDetailPage(
@@ -227,9 +239,11 @@ void main() {
     expect(find.text('0%'), findsWidgets);
 
     // 进入阅读器，并指定起始阅读页为第 1 页（模拟“读到这里”，不依赖手势）
-    ReadingSettingsService.instance
-        .setSettingsForTest((await ReadingSettingsService.instance.get())
-            .copyWith(pageAnimation: PageAnimation.scroll));
+    ReadingSettingsService.instance.setSettingsForTest(
+      (await ReadingSettingsService.instance.get()).copyWith(
+        pageAnimation: PageAnimation.scroll,
+      ),
+    );
     await tester.tap(find.text('继续阅读'));
     await tester.pumpAndSettle();
     await pumpUntilFound(tester, find.byType(SingleChildScrollView));
@@ -280,9 +294,7 @@ void main() {
 
   testWidgets('从书架返回首页后数量同步为 0', (tester) async {
     final repo = FakeBookRepository([_makeBook('b1', '测试小说', 0.0)]);
-    await tester.pumpWidget(
-      CupertinoApp(home: LibraryPage(repository: repo)),
-    );
+    await tester.pumpWidget(CupertinoApp(home: LibraryPage(repository: repo)));
     await pumpUntilFound(tester, find.text('已导入 1 本书'));
     await tester.ensureVisible(find.byKey(const Key('shelf_entry')));
     await tester.pumpAndSettle();
@@ -306,7 +318,9 @@ void main() {
       _makeBook('b1', '书一', 0.1),
       _makeBook('b2', '书二', 0.2),
     ]);
-    await tester.pumpWidget(CupertinoApp(home: BookShelfPage(repository: repo)));
+    await tester.pumpWidget(
+      CupertinoApp(home: BookShelfPage(repository: repo)),
+    );
     await pumpUntilFound(tester, find.byKey(const Key('book_b2')));
     // 通过长按 -> 书籍详情 进入（封面默认进阅读器）
     await tester.longPress(find.byKey(const Key('book_b1')));
@@ -327,7 +341,9 @@ void main() {
       _makeBook('b1', '书一', 0.1),
       _makeBook('b2', '书二', 0.2),
     ]);
-    await tester.pumpWidget(CupertinoApp(home: BookShelfPage(repository: repo)));
+    await tester.pumpWidget(
+      CupertinoApp(home: BookShelfPage(repository: repo)),
+    );
     await pumpUntilFound(tester, find.byKey(const Key('book_b2')));
     // 长按 b1 菜单删除
     await tester.longPress(find.byKey(const Key('book_b1')));
@@ -342,7 +358,9 @@ void main() {
 
   testWidgets('仅 loading=false 且无书时显示空书架', (tester) async {
     final repo = FakeBookRepository([]);
-    await tester.pumpWidget(CupertinoApp(home: BookShelfPage(repository: repo)));
+    await tester.pumpWidget(
+      CupertinoApp(home: BookShelfPage(repository: repo)),
+    );
     await tester.pumpAndSettle();
     expect(find.text('书架空空如也，去首页导入吧'), findsWidgets);
   });
@@ -355,12 +373,17 @@ void main() {
     ]);
     Future<String> longLoader(Book _) async => longText;
     await tester.pumpWidget(
-        CupertinoApp(home: BookShelfPage(repository: repo, contentLoader: longLoader)));
+      CupertinoApp(
+        home: BookShelfPage(repository: repo, contentLoader: longLoader),
+      ),
+    );
     await pumpUntilFound(tester, find.byKey(const Key('book_b2')));
     // 点击封面进入阅读器
-    ReadingSettingsService.instance
-        .setSettingsForTest((await ReadingSettingsService.instance.get())
-            .copyWith(pageAnimation: PageAnimation.scroll));
+    ReadingSettingsService.instance.setSettingsForTest(
+      (await ReadingSettingsService.instance.get()).copyWith(
+        pageAnimation: PageAnimation.scroll,
+      ),
+    );
     await tester.tap(find.byKey(const Key('book_b1')));
     await pumpUntilFound(tester, find.byType(SingleChildScrollView));
     await tester.pumpAndSettle();

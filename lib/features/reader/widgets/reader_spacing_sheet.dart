@@ -47,7 +47,8 @@ class ReaderSpacingSheet extends StatelessWidget {
                 value: settings.paragraphSpacing,
                 min: 0,
                 max: 32,
-                onChanged: (v) => onChanged(settings.copyWith(paragraphSpacing: v)),
+                onChanged: (v) =>
+                    onChanged(settings.copyWith(paragraphSpacing: v)),
               ),
             ),
             _Row(
@@ -57,7 +58,8 @@ class ReaderSpacingSheet extends StatelessWidget {
                 value: settings.horizontalMargin,
                 min: 8,
                 max: 48,
-                onChanged: (v) => onChanged(settings.copyWith(horizontalMargin: v)),
+                onChanged: (v) =>
+                    onChanged(settings.copyWith(horizontalMargin: v)),
               ),
             ),
             _Row(
@@ -67,7 +69,8 @@ class ReaderSpacingSheet extends StatelessWidget {
                 value: settings.verticalMargin,
                 min: 0,
                 max: 48,
-                onChanged: (v) => onChanged(settings.copyWith(verticalMargin: v)),
+                onChanged: (v) =>
+                    onChanged(settings.copyWith(verticalMargin: v)),
               ),
             ),
             _Row(
@@ -78,7 +81,8 @@ class ReaderSpacingSheet extends StatelessWidget {
                 min: 0,
                 max: 4,
                 divisions: 4,
-                onChanged: (v) => onChanged(settings.copyWith(firstLineIndent: v)),
+                onChanged: (v) =>
+                    onChanged(settings.copyWith(firstLineIndent: v)),
               ),
             ),
             Container(height: 0.5, color: line),
@@ -103,11 +107,13 @@ class _Row extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [
-            Text(label, style: TextStyle(color: fg)),
-            const Spacer(),
-            Text(value, style: TextStyle(color: fg.withValues(alpha: 0.6))),
-          ]),
+          Row(
+            children: [
+              Text(label, style: TextStyle(color: fg)),
+              const Spacer(),
+              Text(value, style: TextStyle(color: fg.withValues(alpha: 0.6))),
+            ],
+          ),
           child,
         ],
       ),

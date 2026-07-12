@@ -12,9 +12,7 @@ class AudiobookApp extends StatelessWidget {
       theme: const CupertinoThemeData(
         brightness: Brightness.light,
         scaffoldBackgroundColor: AppTheme.background,
-        textTheme: CupertinoTextThemeData(
-          primaryColor: AppTheme.primaryText,
-        ),
+        textTheme: CupertinoTextThemeData(primaryColor: AppTheme.primaryText),
       ),
       home: const LibraryPage(),
       debugShowCheckedModeBanner: false,

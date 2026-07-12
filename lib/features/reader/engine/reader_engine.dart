@@ -15,7 +15,8 @@ class ReaderEngine {
   const ReaderEngine(this.document, this.layout);
 
   /// 执行分页，返回真正独立的页列表。
-  List<ReaderPageModel> paginate() => TextPaginator(document, layout).paginate();
+  List<ReaderPageModel> paginate() =>
+      TextPaginator(document, layout).paginate();
 
   /// 根据字符偏移定位到页索引（二分查找）。
   int pageIndexForOffset(int offset, List<ReaderPageModel> pages) {
@@ -34,9 +35,8 @@ class ReaderEngine {
   }
 
   /// 由字符偏移推导 [ReaderPosition]（进度 = offset / total）。
-  ReaderPosition positionForOffset(int offset) =>
-      ReaderPosition.fromOffset(
-        characterOffset: offset,
-        totalCharacters: document.totalCharacters,
-      );
+  ReaderPosition positionForOffset(int offset) => ReaderPosition.fromOffset(
+    characterOffset: offset,
+    totalCharacters: document.totalCharacters,
+  );
 }

@@ -21,10 +21,7 @@ class EmptyLibraryHeader extends StatelessWidget {
           SizedBox(height: 8),
           Text(
             '导入小说，让 AI 为你实时朗读',
-            style: TextStyle(
-              fontSize: 16,
-              color: AppTheme.secondaryText,
-            ),
+            style: TextStyle(fontSize: 16, color: AppTheme.secondaryText),
           ),
         ],
       ),

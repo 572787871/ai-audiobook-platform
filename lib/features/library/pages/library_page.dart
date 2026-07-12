@@ -34,7 +34,8 @@ class _LibraryPageState extends State<LibraryPage> {
   }
 
   Future<void> _loadBooks() async {
-    final books = await (widget.repository ?? BookRepository.instance).loadAll();
+    final books = await (widget.repository ?? BookRepository.instance)
+        .loadAll();
     // 最近添加在前
     books.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     if (mounted) {
@@ -228,7 +229,9 @@ class _LibraryPageState extends State<LibraryPage> {
       return const Center(child: CupertinoActivityIndicator());
     }
     return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: AppTheme.horizontalPadding),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppTheme.horizontalPadding,
+      ),
       children: [
         const SizedBox(height: 8),
         // 导入入口区：首页本身就是导入入口
@@ -270,8 +273,8 @@ class _LibraryPageState extends State<LibraryPage> {
     final subtitle = count == 0
         ? '暂无已导入书籍'
         : count == 1
-            ? '已导入 1 本书'
-            : '已导入 $count 本书';
+        ? '已导入 1 本书'
+        : '已导入 $count 本书';
     return GestureDetector(
       key: const Key('shelf_entry'),
       onTap: _openShelf,
@@ -288,8 +291,11 @@ class _LibraryPageState extends State<LibraryPage> {
                 borderRadius: BorderRadius.circular(10),
               ),
               child: const Center(
-                child: Icon(CupertinoIcons.square_stack_3d_up,
-                    size: 24, color: AppTheme.primaryText),
+                child: Icon(
+                  CupertinoIcons.square_stack_3d_up,
+                  size: 24,
+                  color: AppTheme.primaryText,
+                ),
               ),
             ),
             const SizedBox(width: 14),
@@ -326,9 +332,6 @@ class _LibraryPageState extends State<LibraryPage> {
       ),
     );
   }
-
-
-
 }
 
 /// 导入进度弹窗

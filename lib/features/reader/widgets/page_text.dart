@@ -9,16 +9,21 @@ Widget buildPageText({
   required TextStyle style,
   required double firstLineIndentChars,
   TextAlign textAlign = TextAlign.left,
-  EdgeInsetsGeometry padding = const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+  EdgeInsetsGeometry padding = const EdgeInsets.symmetric(
+    horizontal: 16,
+    vertical: 12,
+  ),
 }) {
-  final indent = (firstLineIndentChars * (style.fontSize ?? 18.0)).clamp(0.0, 200.0);
+  final indent = (firstLineIndentChars * (style.fontSize ?? 18.0)).clamp(
+    0.0,
+    200.0,
+  );
   return Padding(
     padding: padding,
     child: Text.rich(
       TextSpan(
         children: [
-          if (indent > 0)
-            WidgetSpan(child: SizedBox(width: indent)),
+          if (indent > 0) WidgetSpan(child: SizedBox(width: indent)),
           TextSpan(text: text, style: style),
         ],
       ),

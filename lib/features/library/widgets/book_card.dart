@@ -7,11 +7,7 @@ import '../models/book_file_type.dart';
 
 /// 书库书籍卡片
 class BookCard extends StatelessWidget {
-  const BookCard({
-    super.key,
-    required this.book,
-    required this.onTap,
-  });
+  const BookCard({super.key, required this.book, required this.onTap});
 
   final Book book;
   final VoidCallback onTap;

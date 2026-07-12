@@ -7,7 +7,6 @@ library;
 
 import 'reader_page_model.dart';
 
-
 /// 排版签名：用于在布局参数变化时判断是否需重分页。
 class LayoutSignature {
   final double fontSize;
@@ -44,15 +43,15 @@ class LayoutSignature {
 
   @override
   int get hashCode => Object.hash(
-        fontSize,
-        lineHeight,
-        paragraphSpacing,
-        horizontalMargin,
-        contentWidth,
-        contentHeight,
-        fontFamily,
-        fontWeightIndex,
-      );
+    fontSize,
+    lineHeight,
+    paragraphSpacing,
+    horizontalMargin,
+    contentWidth,
+    contentHeight,
+    fontFamily,
+    fontWeightIndex,
+  );
 }
 
 class _Entry {
