@@ -131,14 +131,16 @@ enum Inflater {
       }
     }
 
-    func fixedLengths() -> [Int] {
+    func fixedLengths() -> (count: [Int], symbol: [Int], maxbits: Int) {
       var lengths = Array(repeating: 8, count: 288)
       for i in 144..<256 { lengths[i] = 9 }
       for i in 256..<280 { lengths[i] = 7 }
       for i in 280..<288 { lengths[i] = 8 }
-      return lengths
+      return construct(lengths, 288) ?? (count: Array(repeating: 0, count: 16), symbol: Array(repeating: -1, count: 288), maxbits: 0)
     }
-    func fixedDists() -> [Int] { Array(repeating: 5, count: 30) }
+    func fixedDists() -> (count: [Int], symbol: [Int], maxbits: Int) {
+      return construct(Array(repeating: 5, count: 30), 30) ?? (count: Array(repeating: 0, count: 16), symbol: Array(repeating: -1, count: 30), maxbits: 0)
+    }
 
     mutating func dynamic() -> ((count: [Int], symbol: [Int], maxbits: Int),
                                 (count: [Int], symbol: [Int], maxbits: Int))? {
