@@ -354,4 +354,36 @@ class ReaderController {
   }
 
   int get currentChapterIndex => _chapterIndex;
+
+  // ---- 句子级（听书进度用）----
+  List<String> get sentences {
+    final t = currentText;
+    if (t.isEmpty) return const [''];
+    return t
+        .split(RegExp(r'(?<=[。！？\n])'))
+        .where((s) => s.trim().isNotEmpty)
+        .toList();
+  }
+
+  int get sentenceCount => sentences.length;
+
+  /// 当前句子在页内的字符偏移（相对页 start），用于计算听书进度。
+  int get sentenceCharOffset {
+    final t = currentText;
+    if (t.isEmpty) return 0;
+    final parts = t.split(RegExp(r'(?<=[。！？\n])'));
+    var acc = 0;
+    for (final p in parts) {
+      if (p.trim().isNotEmpty) return acc;
+      acc += p.length;
+    }
+    return 0;
+  }
+
+  /// 听书进度 0..1（当前句在页内的位置占比，真实模型接入后可由 TTS 提供）。
+  double get sentenceProgress {
+    final total = currentPage.text.length;
+    if (total <= 0) return 0.0;
+    return (sentenceCharOffset / total).clamp(0.0, 1.0);
+  }
 }

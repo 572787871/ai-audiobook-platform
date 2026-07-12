@@ -353,6 +353,7 @@ class _ReaderPageState extends State<ReaderPage> {
         builder: (_) => DirectoryPage(
           chapters: _controller!.chapters,
           currentChapterIndex: _controller!.chapterIndex,
+          currentOffset: _controller!.currentCharacterOffset,
           onJump: (globalOffset) {
             _controller!.goToOffset(globalOffset);
             _saveProgress();
@@ -409,10 +410,15 @@ class _ReaderPageState extends State<ReaderPage> {
 
   @override
   Widget build(BuildContext context) {
+    // 夜间/深色模式：纯深灰底 + 柔和浅灰字，不纯黑不刺眼。
+    final isNight = _settings.theme == ReaderTheme.night ||
+        _settings.theme == ReaderTheme.dark;
     final bg = _settings.eyeCare
         ? ReaderBackground.green.color
-        : _settings.background.color;
-    final textColor = _settings.textColor.color;
+        : isNight
+            ? _settings.theme.nightBackground
+            : _settings.background.color;
+    final textColor = isNight ? _settings.theme.nightText : _settings.textColor.color;
     // 屏幕方向：进入时按设置锁定，可实时跟随系统切换并重排版。
     final targetOrientation = _settings.readingDirection
         ? Orientation.landscape
@@ -427,7 +433,13 @@ class _ReaderPageState extends State<ReaderPage> {
             _settings.backgroundImagePath?.isNotEmpty == true)
         ? _customBgImage
         : null;
-    return CupertinoPageScaffold(
+    // 夜间/深色模式统一作用于工具栏、弹窗、目录等 Cupertino 组件。
+    return CupertinoTheme(
+      data: CupertinoThemeData(
+        brightness: isNight ? Brightness.dark : Brightness.light,
+        primaryColor: isNight ? CupertinoColors.activeBlue : CupertinoColors.activeBlue,
+      ),
+      child: CupertinoPageScaffold(
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           color: bg,
@@ -443,24 +455,28 @@ class _ReaderPageState extends State<ReaderPage> {
                 Positioned.fill(
                   child: Container(key: const Key('reader_pager'), child: _buildBody(textColor)),
                 ),
-                // 手势层：仅沉浸态启用。左25%上页/中50%显隐/右25%下页；
-                // 最左24pt交系统返回。工具栏显示时隐藏，避免抢占返回按钮点击。
-                if (!_showToolbar)
-                  Positioned.fill(
-                    child: ReaderTapOverlay(
-                      onTapPrevious: () {
-                        if (_controller!.hasPrev) {
-                          _controller!.movePrevious().then((_) => _onPageSettled());
-                        }
-                      },
-                      onToggleToolbar: _toggleToolbar,
-                      onTapNext: () {
-                        if (_controller!.hasNext) {
-                          _controller!.moveNext().then((_) => _onPageSettled());
-                        }
-                      },
-                    ),
+                // 手势层：始终存在。中间区点击切换工具栏（沉浸↔显示），
+                // 因此“显示后再点中间”一定能隐藏。左右区翻页仅在沉浸态生效，
+                // 工具栏显示时不翻页（避免与按钮冲突）。最左 24pt 仍为系统返回。
+                Positioned.fill(
+                  child: ReaderTapOverlay(
+                    onTapPrevious: _showToolbar
+                        ? () {}
+                        : () {
+                            if (_controller!.hasPrev) {
+                              _controller!.movePrevious().then((_) => _onPageSettled());
+                            }
+                          },
+                    onToggleToolbar: _toggleToolbar,
+                    onTapNext: _showToolbar
+                        ? () {}
+                        : () {
+                            if (_controller!.hasNext) {
+                              _controller!.moveNext().then((_) => _onPageSettled());
+                            }
+                          },
                   ),
+                ),
                 // 沉浸态进度信息
                 if (!_showToolbar && !_loading)
                   Positioned(
@@ -484,6 +500,18 @@ class _ReaderPageState extends State<ReaderPage> {
                     statusText: _audioModelReady
                         ? (_listening ? '正在朗读…' : '已暂停')
                         : '本地听书模型尚未准备',
+                    progress: _controller?.sentenceProgress ?? 0.0,
+                    onPrevSentence: () {
+                      if (_controller?.hasPrev == true) {
+                        _controller!.movePrevious().then((_) => _onPageSettled());
+                      }
+                    },
+                    onNextSentence: () {
+                      if (_controller?.hasNext == true) {
+                        _controller!.moveNext().then((_) => _onPageSettled());
+                      }
+                    },
+                    onSeek: (_) {},
                     onPlayPause: _onAudioPlayPause,
                     onClose: _closeListening,
                   ),
@@ -513,6 +541,8 @@ class _ReaderPageState extends State<ReaderPage> {
                     onBack: _handleBack,
                     onListening: _toggleListening,
                     onShare: _onShare,
+                    onAddToShelf: () => _toast('本书已在书架中'),
+                    onDownload: () => _toast('内容已在本机，无需下载'),
                     onBookDetail: _openDetail,
                     onRename: _onRename,
                     onSearch: _onSearch,
@@ -542,6 +572,7 @@ class _ReaderPageState extends State<ReaderPage> {
             ],
           ),
         ),
+      ),
     );
   }
 

@@ -1,21 +1,21 @@
 library;
 
 import 'package:flutter/cupertino.dart';
-import 'dart:developer';
 import '../engine/reader_controller.dart';
 import '../engine/reader_page_model.dart';
 import 'page_text.dart';
 
 /// 左右滑动翻页（默认且当前唯一开放的模式）。
 ///
-/// 设计（修复抖动/闪回/手势失效/边界错乱/跨章节失败/页面重复）：
-///  - 固定三页窗口 [上一页, 当前页, 下一页]，PageView 始终停在中间 index=1；
-///  - [onPageChanged] 在翻页动画【完全结束】后才会被调用（不是滑动过半），
-///    此时才让 [ReaderController] 真正推进，并立即 rebuild 新的 prev/cur/next；
-///  - 用无动画的 [PageController.jumpToPage] 重置回中间（内容连续，无视觉跳变）；
-///  - [_isTransitioning] 全程加锁：禁止重复 onPageChanged、禁止多次 jumpToPage、
-///    禁止 moveNext/movePrevious 与页面状态分离；reset 期间用 IgnorePointer 禁手势；
-///  - 真正边界（上一页/下一页为 null）时【回弹】到中间，绝不渲染空页兜底。
+/// 设计（稳定、顺滑、贴近成熟阅读器）：
+///  - 自绘三页轮播：[上一页, 当前页, 下一页]，手指拖动直接跟手位移（0..1）；
+///  - 翻页阈值取 0.2（远小于系统 PageView 的 0.5），小幅滑动也能翻页，杜绝“滑了不动”；
+///  - 松手按阈值/甩动速度决定完成或回弹，完成后用 200ms 动画滑到满屏再提交
+///    [ReaderController.moveNext]/[movePrevious]，随后瞬间归零（底层已是目标页），
+///    无闪白、无空白、无重复页、无跳变；
+///  - 边界（首章首页/末章末页）回弹到当前页，绝不渲染空页兜底；
+///  - 跨章由 [ReaderController] 统一处理，翻页动画结束即进入下一章第一页。
+/// 不依赖 PageView 的 50% 吸附，真机滑动稳定。
 class SlideReader extends StatefulWidget {
   final ReaderController controller;
   final TextStyle textStyle;
@@ -36,115 +36,122 @@ class SlideReader extends StatefulWidget {
   State<SlideReader> createState() => _SlideReaderState();
 }
 
-class _SlideReaderState extends State<SlideReader> {
-  late PageController _pageController;
-  static const int _mid = 1;
-  bool _isTransitioning = false;
+class _SlideReaderState extends State<SlideReader>
+    with SingleTickerProviderStateMixin {
+  double _t = 0.0; // 翻页进度：<0 向左揭下一页，>0 向右揭上一页，绝对值 0..1
+  late final AnimationController _anim;
+  late Animation<double> _tween;
+  bool _animating = false;
 
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(initialPage: _mid);
+    _anim = AnimationController(vsync: this, duration: const Duration(milliseconds: 200));
+    _tween = _anim.drive(Tween<double>(begin: 0, end: 0));
+    _anim.addListener(_onTick);
   }
 
   @override
   void dispose() {
-    _pageController.dispose();
+    _anim.removeListener(_onTick);
+    _anim.dispose();
     super.dispose();
   }
 
-  // 三页窗口：[上一页, 当前页, 下一页]。边界处用当前页占位以保证连续，
-  // 但占位页不会触发翻页（见 _onPageChanged 的边界回弹）。
-  List<ReaderPageModel> _window() {
-    final prev = widget.controller.previousPage;
-    final cur = widget.controller.currentPage;
-    final next = widget.controller.nextPage;
-    return [
-      prev ?? cur,
-      cur,
-      next ?? cur,
-    ];
+  void _onTick() {
+    _t = _tween.value;
+    if (mounted) setState(() {});
   }
 
-  void _logReaderNav({
-    required bool goingNext,
-    required bool moved,
-    required int pageViewIndex,
-  }) {
+  ReaderPageModel get _cur => widget.controller.currentPage;
+  ReaderPageModel get _next => widget.controller.nextPage ?? _cur;
+  ReaderPageModel get _prev => widget.controller.previousPage ?? _cur;
+
+  void _onDragUpdate(DragUpdateDetails d) {
+    if (_animating) return;
+    final width = MediaQuery.of(context).size.width;
+    setState(() {
+      _t = (_t + d.delta.dx / width).clamp(-1.0, 1.0);
+    });
+  }
+
+  Future<void> _runAnim(double target) {
+    _animating = true;
+    _tween = _anim.drive(Tween<double>(begin: _t, end: target));
+    _anim.reset();
+    return _anim.forward(from: 0).then((_) {
+      _animating = false;
+    });
+  }
+
+  // 完成翻页：先滑到满屏（底层已是目标页），再提交并归零，无跳变。
+  Future<void> _finish(bool forward) async {
+    await _runAnim(forward ? -1.0 : 1.0);
     final c = widget.controller;
-    final cur = c.currentPage;
-    log('[READER_NAV] mode=slide ch=${c.chapterIndex} page=${c.pageIndex} '
-        'start=${cur.startOffset} end=${cur.endOffset} '
-        'prevExists=${c.previousPage != null} nextExists=${c.nextPage != null} '
-        'action=${goingNext ? "moveNext" : "movePrevious"} moved=$moved '
-        'pageViewIndex=$pageViewIndex transitioning=$_isTransitioning');
-  }
-
-  // 边界回弹：翻到占位页（真实上下页不存在）时，不移动 controller，
-  // 直接动画回到中间，绝不渲染空页。
-  Future<void> _snapBack() async {
-    await _pageController.animateToPage(
-      _mid,
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOut,
-    );
-    if (mounted) _isTransitioning = false;
-  }
-
-  Future<void> _onPageChanged(int index) async {
-    if (_isTransitioning) return;
-    if (index == _mid) return;
-    _isTransitioning = true;
-
-    final goingNext = index > _mid;
-    final c = widget.controller;
-
-    // 边界检查：真实上下页未就绪则不翻页，直接回弹。
-    final nextReady = goingNext ? (c.nextPage != null) : (c.previousPage != null);
-    if (!nextReady) {
-      await _snapBack();
-      return;
+    if (forward && c.hasNext) {
+      await c.moveNext();
+    } else if (!forward && c.hasPrev) {
+      await c.movePrevious();
     }
-
-    // 章节切换：nextPage 已同步就绪（分页在控制器内同步完成并缓存），
-    // 这里无需额外等待；_isTransitioning 已防止重叠触发。
-    final moved =
-        goingNext ? await c.moveNext() : await c.movePrevious();
-    _logReaderNav(goingNext: goingNext, moved: moved, pageViewIndex: index);
-
-    if (!moved) {
-      await _snapBack();
-      return;
-    }
-
+    if (mounted) widget.onPageSettled(c.currentCharacterOffset);
     if (mounted) {
-      // 1) 先 rebuild 新窗口（prev/cur/next 已随 controller 更新）
+      _t = 0.0;
       setState(() {});
-      // 2) 无动画重置到中间；内容连续，用户在 index2/0 看到的正是新的 cur，无跳变
-      _pageController.jumpToPage(_mid);
-      // 3) 通知外层保存进度
-      widget.onPageSettled(c.currentCharacterOffset);
     }
-    if (mounted) _isTransitioning = false;
+  }
+
+  Future<void> _onDragEnd(DragEndDetails d) async {
+    final progress = _t.abs();
+    final forward = _t < 0; // 向左拖动 = 下一页
+    final fling = d.velocity.pixelsPerSecond.dx.abs() > 400;
+    final willSettle = progress > 0.2 || (fling && progress > 0.08);
+    if (!willSettle ||
+        (forward ? !widget.controller.hasNext : !widget.controller.hasPrev)) {
+      // 未过阈值或边界：回弹到 0，绝不渲染空页
+      await _runAnim(0.0);
+      return;
+    }
+    await _finish(forward);
   }
 
   @override
   Widget build(BuildContext context) {
-    final window = _window();
-    return IgnorePointer(
-      ignoring: _isTransitioning,
-      child: PageView.builder(
-        controller: _pageController,
-        itemCount: window.length,
-        onPageChanged: _onPageChanged,
-        itemBuilder: (_, i) {
-          return _PageContent(
-            page: window[i],
-            style: widget.textStyle,
-            color: widget.textColor,
-            firstLineIndentChars: widget.firstLineIndentChars,
-          );
-        },
+    final width = MediaQuery.of(context).size.width;
+    final forward = _t < 0; // true: 向左揭下一页
+    final target = forward ? _next : _prev;
+    final prog = _t.abs();
+    final curX = forward ? -prog * width : prog * width;
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onHorizontalDragUpdate: _onDragUpdate,
+      onHorizontalDragEnd: _onDragEnd,
+      child: Stack(
+        children: [
+          // 底层：目标页（上一页/下一页）铺满，当前页在其上随手指滑动
+          Positioned.fill(
+            child: _PageContent(
+              page: target,
+              style: widget.textStyle,
+              color: widget.textColor,
+              firstLineIndentChars: widget.firstLineIndentChars,
+            ),
+          ),
+          // 当前页：随手指位移，覆盖在目标页之上
+          Transform.translate(
+            offset: Offset(curX, 0),
+            child: SizedBox(
+              width: width,
+              height: double.infinity,
+              child: _PageContent(
+                page: _cur,
+                style: widget.textStyle,
+                color: widget.textColor,
+                firstLineIndentChars: widget.firstLineIndentChars,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

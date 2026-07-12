@@ -7,12 +7,15 @@ import '../engine/chapter_parser.dart';
 class DirectoryPage extends StatelessWidget {
   final ChapterList chapters;
   final int currentChapterIndex;
+  /// 当前阅读字符偏移：用于区分已读/当前/未读章节配色。
+  final int currentOffset;
   final void Function(int globalOffset) onJump;
 
   const DirectoryPage({
     super.key,
     required this.chapters,
     required this.currentChapterIndex,
+    this.currentOffset = 0,
     required this.onJump,
   });
 
@@ -34,11 +37,18 @@ class DirectoryPage extends StatelessWidget {
           itemBuilder: (_, i) {
             final ch = chapters.chapters[i];
             final active = i == currentChapterIndex;
+            final read = ch.end <= currentOffset; // 整章已读
+            final fg = active
+                ? CupertinoColors.activeBlue
+                : read
+                    ? CupertinoColors.secondaryLabel
+                    : CupertinoColors.label;
             return CupertinoListTile(
               title: Text(
                 ch.title,
                 style: TextStyle(
                   fontWeight: active ? FontWeight.bold : FontWeight.normal,
+                  color: fg,
                 ),
               ),
               trailing: active ? const Icon(CupertinoIcons.location_fill, size: 16) : null,

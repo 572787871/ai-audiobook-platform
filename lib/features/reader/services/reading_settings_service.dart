@@ -126,6 +126,12 @@ extension ReaderThemeX on ReaderTheme {
         return '夜间';
     }
   }
+
+  /// 夜间模式阅读底色：纯深灰（iOS 暗色风），不纯黑，护眼。
+  Color get nightBackground => const Color(0xFF1C1C1E);
+
+  /// 夜间模式正文色：柔和浅灰，避免纯白刺眼。
+  Color get nightText => const Color(0xFFD6D6D8);
 }
 
 extension PageAnimationX on PageAnimation {

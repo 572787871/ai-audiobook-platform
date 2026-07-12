@@ -318,6 +318,16 @@ class _BookShelfPageState extends State<BookShelfPage> {
                       ? const Center(child: CupertinoActivityIndicator())
                       : _buildBody()), // 空状态仅当 !loading && 无书
             ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Text(
+                '共 ${_books.length} 本书',
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: AppTheme.secondaryText,
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -326,6 +336,11 @@ class _BookShelfPageState extends State<BookShelfPage> {
 
   Widget _buildFilterBar() {
     const tabs = ['全部', '阅读中', '已完成'];
+    final counts = [
+      _books.length,
+      _books.where((b) => b.readingProgress > 0 && b.readingProgress < 1).length,
+      _books.where((b) => b.readingProgress >= 1).length,
+    ];
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
@@ -342,14 +357,30 @@ class _BookShelfPageState extends State<BookShelfPage> {
                       : AppTheme.iconBackground,
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: Text(
-                  tabs[i],
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: _filter == i
-                        ? CupertinoColors.white
-                        : AppTheme.primaryText,
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      tabs[i],
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: _filter == i
+                            ? CupertinoColors.white
+                            : AppTheme.primaryText,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '${counts[i]}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: _filter == i
+                            ? CupertinoColors.white
+                            : AppTheme.secondaryText,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),

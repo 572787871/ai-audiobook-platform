@@ -13,6 +13,8 @@ class ReaderTopBar extends StatelessWidget {
   final void Function() onBack;
   final void Function() onListening;
   final void Function() onShare;
+  final void Function() onAddToShelf;
+  final void Function() onDownload;
   final void Function() onBookDetail;
   final void Function() onRename;
   final void Function() onSearch;
@@ -26,6 +28,8 @@ class ReaderTopBar extends StatelessWidget {
     required this.onBack,
     required this.onListening,
     required this.onShare,
+    required this.onAddToShelf,
+    required this.onDownload,
     required this.onBookDetail,
     required this.onRename,
     required this.onSearch,
@@ -120,6 +124,18 @@ class ReaderTopBar extends StatelessWidget {
                           overflow: TextOverflow.ellipsis),
                   ],
                 ),
+              ),
+              CupertinoButton(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                minimumSize: Size.zero,
+                onPressed: onAddToShelf,
+                child: const Icon(CupertinoIcons.plus_circle, size: 22),
+              ),
+              CupertinoButton(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                minimumSize: Size.zero,
+                onPressed: onDownload,
+                child: const Icon(CupertinoIcons.arrow_down_to_line, size: 22),
               ),
               CupertinoButton(
                 padding: const EdgeInsets.symmetric(horizontal: 8),

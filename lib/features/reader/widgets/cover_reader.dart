@@ -50,17 +50,20 @@ class _CoverReaderState extends State<CoverReader> {
 
   Future<void> _onHorizontalDragEnd(DragEndDetails d) async {
     final width = MediaQuery.of(context).size.width;
-    final threshold = width * 0.33;
+    final threshold = width * 0.2;
     final settleNext = _drag <= -threshold && widget.controller.hasNext;
     final settlePrev = _drag >= threshold && widget.controller.hasPrev;
+    final fling = d.velocity.pixelsPerSecond.dx.abs() > 400;
+    final flingNext = fling && _drag < 0;
+    final flingPrev = fling && _drag > 0;
     // 先回弹，避免空白闪现
     setState(() {
       _dragging = false;
       _drag = 0.0;
     });
-    if (settleNext) {
+    if (settleNext || flingNext) {
       await widget.controller.moveNext();
-    } else if (settlePrev) {
+    } else if (settlePrev || flingPrev) {
       await widget.controller.movePrevious();
     }
     if (mounted) widget.onPageSettled(widget.controller.currentCharacterOffset);
