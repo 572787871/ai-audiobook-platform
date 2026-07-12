@@ -3,6 +3,7 @@ library;
 import 'package:flutter/cupertino.dart';
 import '../engine/reader_controller.dart';
 import '../engine/reader_page_model.dart';
+import 'page_text.dart';
 
 /// 覆盖翻页（稳定版，不使用仿真动画）。
 ///
@@ -14,6 +15,7 @@ class CoverReader extends StatefulWidget {
   final ReaderController controller;
   final TextStyle textStyle;
   final Color textColor;
+  final double firstLineIndentChars;
   final void Function(int globalOffset) onPageSettled;
 
   const CoverReader({
@@ -21,6 +23,7 @@ class CoverReader extends StatefulWidget {
     required this.controller,
     required this.textStyle,
     required this.textColor,
+    required this.firstLineIndentChars,
     required this.onPageSettled,
   });
 
@@ -73,7 +76,7 @@ class _CoverReaderState extends State<CoverReader> {
       onHorizontalDragEnd: _onHorizontalDragEnd,
       child: Stack(
         children: [
-          _PageText(page: cur, style: widget.textStyle, color: widget.textColor),
+          _PageText(page: cur, style: widget.textStyle, color: widget.textColor, firstLineIndentChars: widget.firstLineIndentChars),
           if (_dragging)
             FractionalTranslation(
               translation: Offset(_drag / width, 0),
@@ -83,6 +86,7 @@ class _CoverReaderState extends State<CoverReader> {
                   page: overlay,
                   style: widget.textStyle,
                   color: widget.textColor,
+                  firstLineIndentChars: widget.firstLineIndentChars,
                 ),
               ),
             ),
@@ -96,17 +100,20 @@ class _PageText extends StatelessWidget {
   final ReaderPageModel page;
   final TextStyle style;
   final Color color;
-  const _PageText({required this.page, required this.style, required this.color});
+  final double firstLineIndentChars;
+  const _PageText({
+    required this.page,
+    required this.style,
+    required this.color,
+    required this.firstLineIndentChars,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Text(
-        page.text,
-        style: style.copyWith(color: color),
-        textAlign: TextAlign.left,
-      ),
+    return buildPageText(
+      text: page.text,
+      style: style.copyWith(color: color),
+      firstLineIndentChars: firstLineIndentChars,
     );
   }
 }

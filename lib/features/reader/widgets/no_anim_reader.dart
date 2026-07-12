@@ -2,6 +2,7 @@ library;
 
 import 'package:flutter/cupertino.dart';
 import '../engine/reader_controller.dart';
+import 'page_text.dart';
 
 /// 无动画整页翻：点击右侧进入下一页，点击左侧进入上一页，
 /// 跨章节由 [ReaderController.moveNext] / [ReaderController.movePrevious] 统一处理。
@@ -9,6 +10,7 @@ class NoAnimReader extends StatelessWidget {
   final ReaderController controller;
   final TextStyle textStyle;
   final Color textColor;
+  final double firstLineIndentChars;
   final void Function(int globalOffset) onPageSettled;
 
   const NoAnimReader({
@@ -16,6 +18,7 @@ class NoAnimReader extends StatelessWidget {
     required this.controller,
     required this.textStyle,
     required this.textColor,
+    required this.firstLineIndentChars,
     required this.onPageSettled,
   });
 
@@ -39,13 +42,10 @@ class NoAnimReader extends StatelessWidget {
       child: Container(
         color: CupertinoColors.transparent,
         alignment: Alignment.centerLeft,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Text(
-            page.text,
-            style: textStyle.copyWith(color: textColor),
-            textAlign: TextAlign.left,
-          ),
+        child: buildPageText(
+          text: page.text,
+          style: textStyle.copyWith(color: textColor),
+          firstLineIndentChars: firstLineIndentChars,
         ),
       ),
     );

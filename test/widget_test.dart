@@ -174,7 +174,7 @@ void main() {
     // 默认沉浸：返回按钮不显示
     expect(find.byKey(const Key('reader_back')), findsNothing);
     // 点击正文区域显示工具栏（中间 1/3 触发 onToggleToolbar）
-    await tester.tapAt(const Offset(400, 400));
+    await tester.tap(find.byKey(const Key('reader_tap_center')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('reader_back')), findsOneWidget);
     expect(find.text('测试小说'), findsOneWidget);
@@ -197,7 +197,7 @@ void main() {
       )),
     );
     await pumpUntilFound(tester, find.byType(SingleChildScrollView));
-    await tester.tapAt(const Offset(400, 400));
+    await tester.tap(find.byKey(const Key('reader_tap_center')));
     await tester.pumpAndSettle();
     final before = repo.savedCount;
     await tester.tap(find.byKey(const Key('reader_back')));
@@ -234,7 +234,7 @@ void main() {
     await tester.pumpAndSettle();
     await pumpUntilFound(tester, find.byType(SingleChildScrollView));
     // 沉浸模式：先点击正文显示工具栏（含返回按钮）
-    await tester.tapAt(const Offset(400, 400));
+    await tester.tap(find.byKey(const Key('reader_tap_center')));
     await tester.pumpAndSettle();
     await pumpUntilFound(tester, find.byKey(const Key('reader_back')));
 
@@ -364,7 +364,7 @@ void main() {
     await tester.tap(find.byKey(const Key('book_b1')));
     await pumpUntilFound(tester, find.byType(SingleChildScrollView));
     await tester.pumpAndSettle();
-    await tester.tapAt(const Offset(400, 400));
+    await tester.tap(find.byKey(const Key('reader_tap_center')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('reader_back')));
     await tester.pumpAndSettle();

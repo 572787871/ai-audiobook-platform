@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'dart:developer';
 import '../engine/reader_controller.dart';
 import '../engine/reader_page_model.dart';
+import 'page_text.dart';
 
 /// 左右滑动翻页（默认且当前唯一开放的模式）。
 ///
@@ -19,6 +20,7 @@ class SlideReader extends StatefulWidget {
   final ReaderController controller;
   final TextStyle textStyle;
   final Color textColor;
+  final double firstLineIndentChars;
   final void Function(int globalOffset) onPageSettled;
 
   const SlideReader({
@@ -26,6 +28,7 @@ class SlideReader extends StatefulWidget {
     required this.controller,
     required this.textStyle,
     required this.textColor,
+    required this.firstLineIndentChars,
     required this.onPageSettled,
   });
 
@@ -139,6 +142,7 @@ class _SlideReaderState extends State<SlideReader> {
             page: window[i],
             style: widget.textStyle,
             color: widget.textColor,
+            firstLineIndentChars: widget.firstLineIndentChars,
           );
         },
       ),
@@ -150,17 +154,20 @@ class _PageContent extends StatelessWidget {
   final ReaderPageModel page;
   final TextStyle style;
   final Color color;
-  const _PageContent({required this.page, required this.style, required this.color});
+  final double firstLineIndentChars;
+  const _PageContent({
+    required this.page,
+    required this.style,
+    required this.color,
+    required this.firstLineIndentChars,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Text(
-        page.text,
-        style: style.copyWith(color: color),
-        textAlign: TextAlign.left,
-      ),
+    return buildPageText(
+      text: page.text,
+      style: style.copyWith(color: color),
+      firstLineIndentChars: firstLineIndentChars,
     );
   }
 }

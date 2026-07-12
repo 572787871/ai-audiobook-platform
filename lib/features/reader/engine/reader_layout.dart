@@ -12,6 +12,8 @@ class ReaderLayout {
   final double verticalMargin;
   final double pageWidth;
   final double pageHeight;
+  /// 首行缩进字符数（中文按字符宽缩进，排版参数，不影响分页算法）。
+  final double firstLineIndentChars;
 
   const ReaderLayout({
     required this.fontSize,
@@ -22,6 +24,7 @@ class ReaderLayout {
     required this.verticalMargin,
     required this.pageWidth,
     required this.pageHeight,
+    this.firstLineIndentChars = 2.0,
     this.fontFamily,
   });
 

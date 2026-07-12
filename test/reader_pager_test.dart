@@ -108,7 +108,7 @@ void main() {
     await pumpUntilFound(tester, find.byKey(const Key('reader_pager')));
     await tester.pumpAndSettle();
     // 中点 tap 显示工具栏（证明已进入阅读器且可交互）
-    await tester.tapAt(const Offset(400, 400));
+    await tester.tap(find.byKey(const Key('reader_tap_center')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('reader_back')), findsOneWidget);
   });
@@ -120,7 +120,7 @@ void main() {
     await pumpUntilFound(tester, find.byKey(const Key('reader_pager')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('reader_back')), findsNothing);
-    await tester.tapAt(const Offset(400, 400));
+    await tester.tap(find.byKey(const Key('reader_tap_center')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('reader_back')), findsOneWidget);
   });
@@ -273,6 +273,7 @@ void main() {
             textStyle: const TextStyle(fontSize: 18, color: CupertinoColors.black),
             textColor: CupertinoColors.black,
             onPageSettled: (_) {},
+            firstLineIndentChars: 2.0,
           ),
         );
 

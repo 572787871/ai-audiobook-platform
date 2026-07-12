@@ -2,6 +2,7 @@ library;
 
 import 'package:flutter/cupertino.dart';
 import '../engine/reader_controller.dart';
+import 'page_text.dart';
 import '../engine/reader_page_model.dart';
 
 /// 连续滚动阅读：始终渲染 [prev, cur, next] 三章页拼接为可滚动列，
@@ -11,12 +12,14 @@ class ScrollReader extends StatefulWidget {
   final ReaderController controller;
   final TextStyle textStyle;
   final Color textColor;
+  final double firstLineIndentChars;
 
   const ScrollReader({
     super.key,
     required this.controller,
     required this.textStyle,
     required this.textColor,
+    required this.firstLineIndentChars,
   });
 
   @override
@@ -114,7 +117,7 @@ class _ScrollReaderState extends State<ScrollReader> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: ps
               .map((p) =>
-                  _PageText(p: p, style: widget.textStyle, color: widget.textColor))
+                  _PageText(p: p, style: widget.textStyle, color: widget.textColor, firstLineIndentChars: widget.firstLineIndentChars))
               .toList(),
         ),
       );
@@ -139,16 +142,23 @@ class _PageText extends StatelessWidget {
   final ReaderPageModel p;
   final TextStyle style;
   final Color color;
-  const _PageText({required this.p, required this.style, required this.color});
+  final double firstLineIndentChars;
+  const _PageText({
+    required this.p,
+    required this.style,
+    required this.color,
+    required this.firstLineIndentChars,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: Text(
-        p.text,
+      child: buildPageText(
+        text: p.text,
         style: style.copyWith(color: color),
-        textAlign: TextAlign.left,
+        firstLineIndentChars: firstLineIndentChars,
+        padding: EdgeInsets.zero,
       ),
     );
   }
