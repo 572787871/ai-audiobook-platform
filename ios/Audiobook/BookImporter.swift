@@ -61,7 +61,6 @@ enum BookImporter {
     }
     return nil
   }
-  }
 
   static func importEpub(url: URL) throws -> (title: String, content: String, format: String) {
     let entries = try ZipArchive.entries(at: url)
