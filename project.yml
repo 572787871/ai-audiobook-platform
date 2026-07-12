@@ -1,0 +1,41 @@
+name: Audiobook
+options:
+  bundleIdPrefix: com.ai.audiobook
+  deploymentTarget:
+    iOS: "17.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    TARGETED_DEVICE_FAMILY: "1,2"
+targets:
+  Audiobook:
+    type: application
+    platform: iOS
+    sources:
+      - path: ios/Audiobook
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ai.audiobook.reader
+        PRODUCT_NAME: 听书AI
+        INFOPLIST_KEY_CFBundleDisplayName: 听书 AI
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.books
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_STYLE: Automatic
+    info:
+      path: ios/Audiobook/Info.plist
+      properties:
+        CFBundleDisplayName: 听书 AI
+        UILaunchScreen: {}
+        UIBackgroundModes:
+          - audio
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+  AudiobookTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: ios/AudiobookTests
+    dependencies:
+      - target: Audiobook

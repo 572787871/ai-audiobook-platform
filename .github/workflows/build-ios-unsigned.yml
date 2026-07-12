@@ -17,38 +17,37 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.44.6'
-          channel: 'stable'
-          cache: true
+      - name: Install XcodeGen
+        run: brew install xcodegen
 
-      - name: Flutter version
-        run: flutter --version
+      - name: Generate Xcode project
+        run: xcodegen generate
 
-      - name: Pub get
-        run: flutter pub get
-
-      - name: Analyze
-        run: flutter analyze
-
-      - name: Test
-        run: flutter test
-
-      - name: Build unsigned app bundle (no codesign)
+      - name: Run native tests
         run: |
-          flutter build ios \
-            --no-codesign \
-            --release \
-            --verbose
+          xcodebuild test \
+            -project Audiobook.xcodeproj \
+            -scheme Audiobook \
+            -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Build native unsigned app bundle
+        run: |
+          xcodebuild build \
+            -project Audiobook.xcodeproj \
+            -scheme Audiobook \
+            -sdk iphoneos \
+            -configuration Release \
+            -derivedDataPath build/ios \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
 
       - name: Package unsigned IPA
         run: |
           set -e
-          APP="build/ios/iphoneos/Runner.app"
+          APP="build/ios/Build/Products/Release-iphoneos/听书AI.app"
           if [ ! -d "$APP" ]; then
-            echo "Runner.app not found at $APP"
+            echo "Native app not found at $APP"
             find build/ios -name "*.app" -type d
             exit 1
           fi
