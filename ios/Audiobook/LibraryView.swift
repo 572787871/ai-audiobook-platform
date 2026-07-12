@@ -1,6 +1,7 @@
 import SwiftData
 import SwiftUI
 import UniformTypeIdentifiers
+import os.log
 
 struct LibraryView: View {
   enum Filter: String, CaseIterable { case all = "全部", reading = "阅读中", completed = "已完成" }
@@ -51,7 +52,10 @@ struct LibraryView: View {
         guard let url = try? result.get().first else { return }
         Task { await importBook(url) }
       }
-      .alert("导入失败", isPresented: .constant(importError != nil)) {
+      .alert("导入失败", isPresented: Binding(
+        get: { importError != nil },
+        set: { if !$0 { importError = nil } }
+      )) {
         Button("好") { importError = nil }
       } message: { Text(importError ?? "") }
       .confirmationDialog("删除确认", isPresented: .constant(pendingDelete != nil), titleVisibility: .visible) {
@@ -114,6 +118,7 @@ struct LibraryView: View {
       context.insert(Book(title: parsed.title, content: parsed.content, format: parsed.format))
       try context.save()
     } catch {
+      os_log(.error, "导入失败: %{public}@", error.localizedDescription)
       importError = (error as? ImportError)?.errorDescription ?? error.localizedDescription
     }
   }

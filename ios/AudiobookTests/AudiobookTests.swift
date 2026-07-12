@@ -43,6 +43,24 @@ final class AudiobookTests: XCTestCase {
     }
   }
 
+  /// 苹果「文件」App 里的中文 txt 常是 GBK/GB18030（非 UTF-8），
+  /// 必须能正确解码，否则导入静默失败、界面毫无反应。
+  func testImportGbkTextParsesChineseContent() throws {
+    let text = "第一章 风起\n这是 GBK 编码的正文。\n第二章 云涌"
+    guard let gbk = text.data(using: .gb18030) else {
+      XCTFail("无法生成 GB18030 测试数据")
+      return
+    }
+    XCTAssertNotEqual(gbk, Data(text.utf8), "测试数据应确实为非 UTF-8 编码")
+    let url = makeTempFile(named: "gbk小说.txt", content: gbk)
+    let result = try BookImporter.importResult(.success(url))
+    XCTAssertEqual(result.title, "gbk小说")
+    XCTAssertEqual(result.format, "txt")
+    XCTAssertTrue(result.content.contains("第一章 风起"))
+    XCTAssertTrue(result.content.contains("这是 GBK 编码的正文。"))
+    XCTAssertTrue(result.content.contains("第二章 云涌"))
+  }
+
   // MARK: - 测试辅助
 
   private func makeTempFile(named name: String, content: Data) -> URL {

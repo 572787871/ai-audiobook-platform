@@ -1,5 +1,15 @@
 import Foundation
 import UniformTypeIdentifiers
+import CoreFoundation
+
+extension String.Encoding {
+  /// GB18030 兼容 GBK / GB2312，覆盖绝大多数中文 Windows 导出的 txt。
+  static let gb18030 = String.Encoding(
+    rawValue: CFStringConvertEncodingToNSStringEncoding(
+      CFStringEncoding(CFStringEncodings.GB_18030_2000.rawValue)
+    )
+  )
+}
 
 enum BookImporter {
   static func importResult(_ result: Result<URL, Error>) throws -> (title: String, content: String, format: String) {
@@ -14,14 +24,43 @@ enum BookImporter {
 
   private static func importText(url: URL) throws -> (title: String, content: String, format: String) {
     let data = try Data(contentsOf: url)
-    let text = String(data: data, encoding: .utf8)
-      ?? String(data: data, encoding: .utf16)
-      ?? String(data: data, encoding: .utf16LittleEndian)
-      ?? String(data: data, encoding: .utf16BigEndian)
+    guard !data.isEmpty else { throw ImportError.encoding }
+    // 优先用系统编码嗅探（能区分 UTF-8 / UTF-16 / UTF-32 以及带 BOM 的情况），
+    // 再按常见编码依次尝试，最大限度兼容中文 txt。
+    let text = decodeText(data)
     guard let text, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
       throw ImportError.encoding
     }
     return (title: url.deletingPathExtension().lastPathComponent, content: text, format: "txt")
+  }
+
+  /// 按「系统嗅探 → 常见编码依次尝试」的顺序解码，兜底 latin1 防止乱码后空内容。
+  private static func decodeText(_ data: Data) -> String? {
+    let tmp = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString)
+      .appendingPathExtension("txt")
+    try? data.write(to: tmp)
+    defer { try? FileManager.default.removeItem(at: tmp) }
+    var detected = String.Encoding.utf8
+    if let s = try? String(contentsOf: tmp, usedEncoding: &detected), !s.isEmpty { return s }
+    let candidates: [String.Encoding] = [
+      .utf8,
+      .utf16,
+      .utf16LittleEndian,
+      .utf16BigEndian,
+      .utf32,
+      .utf32LittleEndian,
+      .utf32BigEndian,
+      .gb18030,
+      .isoLatin1
+    ]
+    for enc in candidates {
+      if let s = String(data: data, encoding: enc), !s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        return s
+      }
+    }
+    return nil
+  }
   }
 
   static func importEpub(url: URL) throws -> (title: String, content: String, format: String) {
