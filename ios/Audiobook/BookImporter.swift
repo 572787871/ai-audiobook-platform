@@ -72,7 +72,7 @@ struct ZipArchive {
     for _ in 0..<total {
       guard offset + 46 <= data.count else { break }
       guard data.uint32(at: offset) == 0x02014b50 else { break }
-      let method = data.uint16(at: offset + 10)
+      let method = Int(data.uint16(at: offset + 10))
       let compSize = Int(data.uint32(at: offset + 20))
       let uncompSize = Int(data.uint32(at: offset + 24))
       let nameLen = Int(data.uint16(at: offset + 28))
@@ -182,8 +182,10 @@ struct EpubManifest {
   }
 
   private static func attr(_ tag: String, _ name: String) -> String? {
-    guard let m = tag.firstMatch(of: #"\#(name)\s*=\s*["']([^"']*)["']"#) else { return nil }
-    return String(m.1)
+    let regex = try? NSRegularExpression(pattern: #"\#(name)\s*=\s*["']([^"']*)["']"#)
+    guard let r = regex?.firstMatch(in: tag, range: NSRange(tag.startIndex..., in: tag)),
+          let rr = Range(r.range(at: 1), in: tag) else { return nil }
+    return String(tag[rr])
   }
 
   private static func resolveHref(_ href: String, opfPath: String) -> String {
