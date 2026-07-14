@@ -12,50 +12,40 @@ concurrency:
 jobs:
   build-ios:
     name: Build unsigned IPA on macOS
-    runs-on: macos-latest
+    runs-on: macos-15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.44.6'
-          channel: 'stable'
-          cache: true
+      - name: List Xcode version
+        run: xcodebuild -version
 
-      - name: Flutter version
-        run: flutter --version
-
-      - name: Pub get
-        run: flutter pub get
-
-      - name: Analyze
-        run: flutter analyze
-
-      - name: Test
-        run: flutter test
-
-      - name: Build unsigned app bundle (no codesign)
+      - name: Build unsigned app
         run: |
-          flutter build ios \
-            --no-codesign \
-            --release \
-            --verbose
+          cd ios
+          xcodebuild -project Runner.xcodeproj \
+            -scheme Runner \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            build
 
       - name: Package unsigned IPA
         run: |
           set -e
-          APP="build/ios/iphoneos/Runner.app"
+          APP="ios/build/Build/Products/Release-iphoneos/Runner.app"
           if [ ! -d "$APP" ]; then
             echo "Runner.app not found at $APP"
-            find build/ios -name "*.app" -type d
+            find ios/build -name "*.app" -type d
             exit 1
           fi
           WORKDIR=$(mktemp -d)
           mkdir -p "$WORKDIR/Payload"
           cp -R "$APP" "$WORKDIR/Payload/"
-          IPA_NAME="ai_audiobook_platform_unsigned.ipa"
+          IPA_NAME="bookshelf-reader-unsigned.ipa"
           pushd "$WORKDIR" >/dev/null
           zip -r -q "$GITHUB_WORKSPACE/$IPA_NAME" Payload
           popd >/dev/null
@@ -64,6 +54,6 @@ jobs:
       - name: Upload unsigned IPA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ai-audiobook-unsigned-ipa
-          path: ai_audiobook_platform_unsigned.ipa
+          name: bookshelf-reader-ios-unsigned
+          path: bookshelf-reader-unsigned.ipa
           if-no-files-found: error
