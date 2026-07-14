@@ -28,7 +28,6 @@ class BookShelfPage extends StatefulWidget {
 class _BookShelfPageState extends State<BookShelfPage> {
   final List<Book> _books = [];
   bool _loading = true;
-  int _filter = 0; // 0:全部 1:阅读中 2:已完成
   bool _importing = false;
 
   BookRepositoryBase get _repo => widget.repository ?? BookRepository.instance;
@@ -56,23 +55,6 @@ class _BookShelfPageState extends State<BookShelfPage> {
     });
   }
 
-  List<Book> _filtered() {
-    switch (_filter) {
-      case 1:
-        return _books
-            .where((b) => b.readingProgress > 0 && b.readingProgress < 1)
-            .toList();
-      case 2:
-        return _books.where((b) => b.readingProgress >= 1).toList();
-      default:
-        return _books;
-    }
-  }
-
-  int _readingCount() => _books
-      .where((b) => b.readingProgress > 0 && b.readingProgress < 1)
-      .length;
-  int _doneCount() => _books.where((b) => b.readingProgress >= 1).length;
 
   // ---- 导入 ----
 
@@ -425,7 +407,6 @@ class _BookShelfPageState extends State<BookShelfPage> {
         child: Column(
           children: [
             _buildHeader(safeTop),
-            _buildTabs(),
             Expanded(child: _buildBody()),
           ],
         ),
@@ -489,69 +470,11 @@ class _BookShelfPageState extends State<BookShelfPage> {
     );
   }
 
-  Widget _buildTabs() {
-    const tabs = ['全部', '阅读中', '已完成'];
-    final counts = [_books.length, _readingCount(), _doneCount()];
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-      child: Row(
-        children: [
-          for (var i = 0; i < tabs.length; i++) ...[
-            if (i > 0) const SizedBox(width: 24),
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => setState(() => _filter = i),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Text(
-                        tabs[i],
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: _filter == i
-                              ? FontWeight.w600
-                              : FontWeight.w400,
-                          color: _filter == i
-                              ? AppTheme.primaryText
-                              : AppTheme.secondaryText,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${counts[i]}',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: _filter == i
-                              ? AppTheme.secondaryText
-                              : AppTheme.secondaryText.withValues(alpha: 0.6),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Container(
-                    height: 2,
-                    width: 24,
-                    color: _filter == i
-                        ? AppTheme.primaryText
-                        : Colors.transparent,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
   Widget _buildBody() {
     if (_loading) {
       return const Center(child: CupertinoActivityIndicator());
     }
-    final items = _filtered();
+    final items = _books;
     if (items.isEmpty) {
       return _buildEmpty();
     }

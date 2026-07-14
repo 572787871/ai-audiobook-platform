@@ -619,9 +619,7 @@ class _ReaderPageState extends State<ReaderPage> {
                 // 工具栏显示时不翻页（避免与按钮冲突）。最左 24pt 仍为系统返回。
                 Positioned.fill(
                   child: ReaderTapOverlay(
-                    onTapPrevious: _showToolbar
-                        ? () {}
-                        : () {
+                    onTapPrevious: () {
                             if (_controller!.hasPrev) {
                               _controller!.movePrevious().then(
                                 (_) => _onPageSettled(),
@@ -629,9 +627,7 @@ class _ReaderPageState extends State<ReaderPage> {
                             }
                           },
                     onToggleToolbar: _toggleToolbar,
-                    onTapNext: _showToolbar
-                        ? () {}
-                        : () {
+                    onTapNext: () {
                             if (_controller!.hasNext) {
                               _controller!.moveNext().then(
                                 (_) => _onPageSettled(),

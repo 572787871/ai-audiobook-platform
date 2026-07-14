@@ -101,26 +101,6 @@ void main() {
     expect(find.text('暂无书籍'), findsOneWidget);
   });
 
-  testWidgets('分类 Tab 显示真实数量', (tester) async {
-    final repo = FakeBookRepository([
-      _makeBook('b1', '未读', 0.0),
-      _makeBook('b2', '阅读中', 0.5),
-      _makeBook('b3', '已完成', 1.0),
-    ]);
-    await tester.pumpWidget(
-      CupertinoApp(home: BookShelfPage(repository: repo)),
-    );
-    await pumpUntilFound(tester, find.text('全部'));
-    expect(find.text('3'), findsWidgets);
-    // 点击"阅读中" Tab
-    await tester.tap(find.text('阅读中').first);
-    await tester.pumpAndSettle();
-    expect(find.textContaining('1'), findsWidgets);
-    // 点击"已完成" Tab
-    await tester.tap(find.text('已完成').first);
-    await tester.pumpAndSettle();
-    expect(find.textContaining('1'), findsWidgets);
-  });
 
   testWidgets('长按显示菜单', (tester) async {
     final repo = FakeBookRepository([_makeBook('b1', '测试小说', 0.5)]);
