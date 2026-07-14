@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 enum ReaderPalette: String, CaseIterable, Identifiable {
@@ -16,9 +17,28 @@ enum ReaderPalette: String, CaseIterable, Identifiable {
 
 @Observable
 final class ReaderSettings {
-  var fontSize: CGFloat = 20
-  var lineSpacing: CGFloat = 12
-  var horizontalPadding: CGFloat = 30
-  var palette: ReaderPalette = .paper
-  var eyeCare = false
+  private let defaults: UserDefaults
+  var fontSize: CGFloat { didSet { defaults.set(Double(fontSize), forKey: "reader.fontSize") } }
+  var lineSpacing: CGFloat { didSet { defaults.set(Double(lineSpacing), forKey: "reader.lineSpacing") } }
+  var horizontalPadding: CGFloat { didSet { defaults.set(Double(horizontalPadding), forKey: "reader.horizontalPadding") } }
+  var palette: ReaderPalette { didSet { defaults.set(palette.rawValue, forKey: "reader.palette") } }
+  var eyeCare: Bool {
+    didSet {
+      defaults.set(eyeCare, forKey: "reader.eyeCare")
+      if eyeCare, palette != .night { palette = .green }
+      if !eyeCare, palette == .green { palette = .paper }
+    }
+  }
+
+  init(defaults: UserDefaults = .standard) {
+    self.defaults = defaults
+    let savedFontSize = defaults.double(forKey: "reader.fontSize")
+    let savedLineSpacing = defaults.double(forKey: "reader.lineSpacing")
+    let savedPadding = defaults.double(forKey: "reader.horizontalPadding")
+    fontSize = savedFontSize > 0 ? CGFloat(savedFontSize) : 20
+    lineSpacing = savedLineSpacing > 0 ? CGFloat(savedLineSpacing) : 12
+    horizontalPadding = savedPadding > 0 ? CGFloat(savedPadding) : 30
+    palette = ReaderPalette(rawValue: defaults.string(forKey: "reader.palette") ?? "") ?? .paper
+    eyeCare = defaults.bool(forKey: "reader.eyeCare")
+  }
 }

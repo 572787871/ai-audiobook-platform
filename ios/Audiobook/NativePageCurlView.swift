@@ -2,11 +2,13 @@ import SwiftUI
 import UIKit
 
 struct NativePageCurlView: UIViewControllerRepresentable {
-  let pages: [String]
+  let pages: [ReaderPage]
   @Binding var currentIndex: Int
   let background: UIColor
   let foreground: UIColor
   let fontSize: CGFloat
+  let lineSpacing: CGFloat
+  let horizontalPadding: CGFloat
   let onCenterTap: () -> Void
 
   func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -26,6 +28,23 @@ struct NativePageCurlView: UIViewControllerRepresentable {
 
   func updateUIViewController(_ controller: UIPageViewController, context: Context) {
     context.coordinator.parent = self
+    let signature = context.coordinator.renderSignature
+    let nextSignature = RenderSignature(
+      pageCount: pages.count,
+      pageRanges: pages.map(\.range),
+      fontSize: fontSize,
+      lineSpacing: lineSpacing,
+      horizontalPadding: horizontalPadding,
+      background: background,
+      foreground: foreground
+    )
+    if signature != nextSignature {
+      context.coordinator.renderSignature = nextSignature
+      context.coordinator.visibleIndex = min(max(0, currentIndex), max(0, pages.count - 1))
+      controller.view.backgroundColor = background
+      controller.setViewControllers([context.coordinator.controller(at: context.coordinator.visibleIndex)], direction: .forward, animated: false)
+      return
+    }
     guard context.coordinator.visibleIndex != currentIndex else { return }
     let direction: UIPageViewController.NavigationDirection = currentIndex > context.coordinator.visibleIndex ? .forward : .reverse
     controller.setViewControllers([context.coordinator.controller(at: currentIndex)], direction: direction, animated: true)
@@ -35,14 +54,40 @@ struct NativePageCurlView: UIViewControllerRepresentable {
   final class Coordinator: NSObject, UIPageViewControllerDataSource, UIPageViewControllerDelegate, UIGestureRecognizerDelegate {
     var parent: NativePageCurlView
     var visibleIndex: Int
-    init(_ parent: NativePageCurlView) { self.parent = parent; visibleIndex = parent.currentIndex }
+    var renderSignature: RenderSignature
+    init(_ parent: NativePageCurlView) {
+      self.parent = parent
+      visibleIndex = parent.currentIndex
+      renderSignature = RenderSignature(
+        pageCount: parent.pages.count,
+        pageRanges: parent.pages.map(\.range),
+        fontSize: parent.fontSize,
+        lineSpacing: parent.lineSpacing,
+        horizontalPadding: parent.horizontalPadding,
+        background: parent.background,
+        foreground: parent.foreground
+      )
+    }
 
     func controller(at index: Int) -> UIViewController {
-      let view = PageTextView(text: parent.pages[index], background: Color(parent.background), foreground: Color(parent.foreground), fontSize: parent.fontSize)
-      let host = UIHostingController(rootView: view)
-      host.view.tag = index
-      host.view.backgroundColor = parent.background
-      return host
+      let page = parent.pages[min(max(0, index), max(0, parent.pages.count - 1))]
+      let controller = UIViewController()
+      let pageView = CoreTextReaderPageView(frame: .zero)
+      pageView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+      pageView.frame = controller.view.bounds
+      pageView.configure(
+        text: page.text,
+        startsMidParagraph: page.startsMidParagraph,
+        fontSize: parent.fontSize,
+        lineSpacing: parent.lineSpacing,
+        horizontalPadding: parent.horizontalPadding,
+        foreground: parent.foreground,
+        background: parent.background
+      )
+      controller.view.addSubview(pageView)
+      controller.view.tag = index
+      controller.view.backgroundColor = parent.background
+      return controller
     }
 
     func pageViewController(_ pageViewController: UIPageViewController, viewControllerBefore viewController: UIViewController) -> UIViewController? {
@@ -66,12 +111,22 @@ struct NativePageCurlView: UIViewControllerRepresentable {
   }
 }
 
-private struct PageTextView: View {
-  let text: String; let background: Color; let foreground: Color; let fontSize: CGFloat
-  var body: some View {
-    ZStack {
-      background.ignoresSafeArea()
-      Text(text).font(.system(size: fontSize, design: .serif)).foregroundStyle(foreground).lineSpacing(10).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(.horizontal, 30).padding(.top, 76).padding(.bottom, 40)
-    }
+struct RenderSignature: Equatable {
+  let pageCount: Int
+  let pageRanges: [NSRange]
+  let fontSize: CGFloat
+  let lineSpacing: CGFloat
+  let horizontalPadding: CGFloat
+  let background: UIColor
+  let foreground: UIColor
+
+  static func == (lhs: RenderSignature, rhs: RenderSignature) -> Bool {
+    lhs.pageCount == rhs.pageCount
+      && lhs.pageRanges == rhs.pageRanges
+      && lhs.fontSize == rhs.fontSize
+      && lhs.lineSpacing == rhs.lineSpacing
+      && lhs.horizontalPadding == rhs.horizontalPadding
+      && lhs.background.isEqual(rhs.background)
+      && lhs.foreground.isEqual(rhs.foreground)
   }
 }

@@ -9,6 +9,12 @@ extension String.Encoding {
       CFStringEncoding(CFStringEncodings.GB_18030_2000.rawValue)
     )
   )
+
+  static let big5 = String.Encoding(
+    rawValue: CFStringConvertEncodingToNSStringEncoding(
+      CFStringEncoding(CFStringEncodings.big5.rawValue)
+    )
+  )
 }
 
 enum BookImporter {
@@ -25,8 +31,8 @@ enum BookImporter {
   private static func importText(url: URL) throws -> (title: String, content: String, format: String) {
     let data = try Data(contentsOf: url)
     guard !data.isEmpty else { throw ImportError.encoding }
-    // 优先用系统编码嗅探（能区分 UTF-8 / UTF-16 / UTF-32 以及带 BOM 的情况），
-    // 再按常见编码依次尝试，最大限度兼容中文 txt。
+    // 先按 BOM 和严格 UTF-8 判断，再尝试中文传统编码。系统 usedEncoding 嗅探会把
+    // 合法 GBK 误判成西文编码，因此不能放在 GB18030 之前。
     let text = decodeText(data)
     guard let text, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
       throw ImportError.encoding
@@ -34,32 +40,43 @@ enum BookImporter {
     return (title: url.deletingPathExtension().lastPathComponent, content: text, format: "txt")
   }
 
-  /// 按「系统嗅探 → 常见编码依次尝试」的顺序解码，兜底 latin1 防止乱码后空内容。
+  /// 按确定性从高到低解码，避免“能解码”但内容乱码的错误命中。
   private static func decodeText(_ data: Data) -> String? {
-    let tmp = FileManager.default.temporaryDirectory
-      .appendingPathComponent(UUID().uuidString)
-      .appendingPathExtension("txt")
-    try? data.write(to: tmp)
-    defer { try? FileManager.default.removeItem(at: tmp) }
-    var detected = String.Encoding.utf8
-    if let s = try? String(contentsOf: tmp, usedEncoding: &detected), !s.isEmpty { return s }
-    let candidates: [String.Encoding] = [
-      .utf8,
-      .utf16,
-      .utf16LittleEndian,
-      .utf16BigEndian,
-      .utf32,
-      .utf32LittleEndian,
-      .utf32BigEndian,
-      .gb18030,
-      .isoLatin1
+    let bomEncodings: [([UInt8], String.Encoding)] = [
+      ([0x00, 0x00, 0xFE, 0xFF], .utf32BigEndian),
+      ([0xFF, 0xFE, 0x00, 0x00], .utf32LittleEndian),
+      ([0xEF, 0xBB, 0xBF], .utf8),
+      ([0xFE, 0xFF], .utf16BigEndian),
+      ([0xFF, 0xFE], .utf16LittleEndian),
     ]
-    for enc in candidates {
-      if let s = String(data: data, encoding: enc), !s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-        return s
+    for (bom, encoding) in bomEncodings where data.starts(with: bom) {
+      return nonEmptyString(data: data, encoding: encoding)
+    }
+
+    if let utf8 = nonEmptyString(data: data, encoding: .utf8) { return utf8 }
+
+    // 无 BOM 的 UTF-16/32 通常包含大量 NUL；只在具备该特征时尝试，防止把 GBK
+    // 两字节序列误当成 UTF-16 后返回一串“合法但错误”的汉字。
+    let sample = data.prefix(4096)
+    let nullCount = sample.reduce(into: 0) { if $1 == 0 { $0 += 1 } }
+    if nullCount * 5 >= max(1, sample.count) {
+      for encoding in [String.Encoding.utf32LittleEndian, .utf32BigEndian, .utf16LittleEndian, .utf16BigEndian] {
+        if let unicode = nonEmptyString(data: data, encoding: encoding) { return unicode }
       }
     }
-    return nil
+
+    if let gb = nonEmptyString(data: data, encoding: .gb18030) { return gb }
+    if let traditional = nonEmptyString(data: data, encoding: .big5) { return traditional }
+    return nonEmptyString(data: data, encoding: .isoLatin1)
+  }
+
+  private static func nonEmptyString(data: Data, encoding: String.Encoding) -> String? {
+    guard let decoded = String(data: data, encoding: encoding),
+          !decoded.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+    if decoded.unicodeScalars.first == "\u{FEFF}" {
+      return String(decoded.unicodeScalars.dropFirst())
+    }
+    return decoded
   }
 
   static func importEpub(url: URL) throws -> (title: String, content: String, format: String) {

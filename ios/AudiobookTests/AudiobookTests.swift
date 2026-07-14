@@ -8,6 +8,11 @@ final class AudiobookTests: XCTestCase {
     XCTAssertEqual(chapters[1].title, "第二章 后续")
   }
 
+  func testChapterParserFindsYueduStyleEnglishAndSpecialChapters() {
+    let chapters = ChapterParser.parse("Prologue\n开场\nChapter 1 Arrival\n正文\n番外 小记\n结尾")
+    XCTAssertEqual(chapters.map(\.title), ["Prologue", "Chapter 1 Arrival", "番外 小记"])
+  }
+
   func testImportTextParsesUtf8Content() throws {
     let text = "第一章 风起\n这是正文内容。\n第二章 云涌\n更多内容。"
     let url = makeTempFile(named: "测试小说.txt", content: Data(text.utf8))
@@ -41,6 +46,62 @@ final class AudiobookTests: XCTestCase {
         return
       }
     }
+  }
+
+  func testCoreTextPaginationPreservesEveryUTF16Character() {
+    let paragraph = "第一章 风起\n这是用于验证 CoreText 分页的正文，包含中文、English 和 emoji 📖。\n"
+    let text = String(repeating: paragraph, count: 80)
+    let pages = ReaderPaginator.paginate(
+      text: text,
+      configuration: ReaderPaginationConfiguration(
+        size: CGSize(width: 390, height: 844),
+        fontSize: 20,
+        lineSpacing: 12,
+        horizontalPadding: 30
+      )
+    )
+    XCTAssertGreaterThan(pages.count, 1)
+    XCTAssertEqual(pages.map(\.text).joined(), text)
+    XCTAssertEqual(pages.first?.range.location, 0)
+    XCTAssertEqual(NSMaxRange(pages.last!.range), (text as NSString).length)
+  }
+
+  func testReadingOffsetMapsBackAfterRepagination() {
+    let text = String(repeating: "段落文字用于测试稳定阅读位置。\n", count: 300)
+    let offset = (text as NSString).length / 2
+    let compact = ReaderPaginator.paginate(
+      text: text,
+      configuration: ReaderPaginationConfiguration(
+        size: CGSize(width: 320, height: 568), fontSize: 20, lineSpacing: 12, horizontalPadding: 24
+      )
+    )
+    let large = ReaderPaginator.paginate(
+      text: text,
+      configuration: ReaderPaginationConfiguration(
+        size: CGSize(width: 430, height: 932), fontSize: 24, lineSpacing: 16, horizontalPadding: 36
+      )
+    )
+    let first = compact[ReaderPaginator.pageIndex(containingUTF16Offset: offset, pages: compact)]
+    let second = large[ReaderPaginator.pageIndex(containingUTF16Offset: offset, pages: large)]
+    XCTAssertTrue(NSLocationInRange(offset, first.range))
+    XCTAssertTrue(NSLocationInRange(offset, second.range))
+  }
+
+  func testNarrationChunkerPreservesAbsoluteSourceRanges() {
+    let text = "标题\n\n第一段正文。\n第二段正文很长，但仍按段落连续朗读。\n"
+    let start = (text as NSString).range(of: "第一段").location
+    let segments = NarrationTextChunker.split(text, startingAtUTF16Offset: start, targetLength: 100)
+    XCTAssertEqual(segments.count, 2)
+    XCTAssertEqual(segments[0].text, "第一段正文。")
+    XCTAssertEqual((text as NSString).substring(with: segments[1].sourceRange), segments[1].text)
+    XCTAssertEqual(segments[0].sourceRange.location, start)
+  }
+
+  func testNarrationChunkerDoesNotSplitEmojiGraphemes() {
+    let text = "甲📖乙\n"
+    let segments = NarrationTextChunker.split(text, startingAtUTF16Offset: 0, targetLength: 1)
+    XCTAssertEqual(segments.map(\.text).joined(), "甲📖乙")
+    XCTAssertTrue(segments.first?.text.contains("📖") == true)
   }
 
   /// 苹果「文件」App 里的中文 txt 常是 GBK/GB18030（非 UTF-8），

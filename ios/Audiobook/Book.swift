@@ -38,11 +38,11 @@ struct Chapter: Identifiable, Equatable {
 }
 
 enum ChapterParser {
-  private static let pattern = #"(?m)^\s*(第[0-9零一二三四五六七八九十百千万两]+[章节回卷篇部].*)$"#
+  private static let pattern = #"^\s*((?:第[0-9零一二三四五六七八九十百千萬万两]+[章节節回卷篇部]|卷[0-9零一二三四五六七八九十百千萬万两]+|(?:chapter|part)\s*\d+|序章|序言|序幕|前言|引子|引言|楔子|尾声|尾聲|终章|終章|后记|後記|番外|结语|結語|prologue|epilogue|preface|introduction)[^\r\n]*)$"#
 
   static func parse(_ text: String) -> [Chapter] {
     let source = text as NSString
-    let regex = try? NSRegularExpression(pattern: pattern)
+    let regex = try? NSRegularExpression(pattern: pattern, options: [.anchorsMatchLines, .caseInsensitive])
     let matches = regex?.matches(in: text, range: NSRange(location: 0, length: source.length)) ?? []
     guard !matches.isEmpty else {
       return [Chapter(id: 0, title: "正文", start: 0, end: source.length)]
@@ -55,7 +55,8 @@ enum ChapterParser {
       let start = match.range.location
       let end = index + 1 < matches.count ? matches[index + 1].range.location : source.length
       let titleRange = match.numberOfRanges > 1 ? match.range(at: 1) : match.range
-      chapters.append(Chapter(id: chapters.count, title: source.substring(with: titleRange), start: start, end: end))
+      let title = source.substring(with: titleRange).trimmingCharacters(in: .whitespacesAndNewlines)
+      chapters.append(Chapter(id: chapters.count, title: title, start: start, end: end))
     }
     return chapters
   }
