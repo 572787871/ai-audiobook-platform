@@ -1,129 +1,132 @@
 import AVFoundation
 import UIKit
 
-protocol TTSPlayable: AnyObject {
-    var isPlaying: Bool { get }
-    var onPageFinished: (() -> String?)? { get set }
-    func speak(text: String, rate: Float)
-    func pause() -> Bool
-    func resume() -> Bool
-    func stop()
-}
-
-@MainActor
-final class SystemTTSEngine: NSObject, TTSPlayable, AVSpeechSynthesizerDelegate, ObservableObject {
-    @Published var isPlaying = false
-    @Published var isPaused = false
-    @Published var currentSentenceIndex = 0
-    @Published var totalSentences = 0
-    @Published var currentSentence = ""
-
-    var onPageFinished: (() -> String?)?
-
-    private let synthesizer = AVSpeechSynthesizer()
-    private var sentences: [String] = []
-    private var rate: Float = 0.5
-    private var currentText = ""
-
-    override init() {
-        super.init()
-        synthesizer.delegate = self
-        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio)
-    }
-
-    func speak(text: String, rate: Float = 0.5) {
-        stop()
-        self.rate = rate
-        currentText = text
-        sentences = splitSentences(text)
-        totalSentences = sentences.count
-        currentSentenceIndex = 0
-        speakCurrentSentence()
-    }
-
-    private func splitSentences(_ text: String) -> [String] {
-        var result: [String] = []
-        text.enumerateSubstrings(in: text.startIndex..., options: .bySentences) { sub, _, _, stop in
-            if let s = sub?.trimmingCharacters(in: .whitespacesAndNewlines), !s.isEmpty {
-                result.append(s)
+// MARK: - TTS Panel View
+struct TTSPanelView: View {
+    @ObservedObject var engine: ReaderEngine
+    @ObservedObject var ttsCoordinator: TTSCoordinator
+    @Binding var settings: TTSSettings
+    @Environment(\.dismiss) private var dismiss
+    @State private var timerText = "关闭"
+    
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 24) {
+                // Book info
+                VStack(spacing: 4) {
+                    Text(engine.currentChapterTitle)
+                        .font(.headline)
+                    if !ttsCoordinator.currentSentence.isEmpty {
+                        Text(ttsCoordinator.currentSentence)
+                            .font(.body)
+                            .foregroundColor(.secondary)
+                            .lineLimit(3)
+                            .padding(.horizontal)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.accentColor.opacity(0.1))
+                            .cornerRadius(8)
+                            .padding(.horizontal)
+                    }
+                }
+                .padding(.top)
+                
+                Spacer()
+                
+                // Playback controls
+                HStack(spacing: 40) {
+                    Button(action: { ttsCoordinator.prevSentence() }) {
+                        Image(systemName: "backward.fill")
+                            .font(.title2)
+                    }
+                    .disabled(ttsCoordinator.playbackState == .stopped)
+                    
+                    Button(action: {
+                        switch ttsCoordinator.playbackState {
+                        case .stopped:
+                            ttsCoordinator.attach(reader: engine)
+                            ttsCoordinator.speakCurrentPage(reader: engine)
+                        case .playing:
+                            ttsCoordinator.pause()
+                        case .paused:
+                            ttsCoordinator.resume()
+                        }
+                    }) {
+                        Image(systemName: ttsCoordinator.playbackState == .playing
+                              ? "pause.circle.fill" : "play.circle.fill")
+                            .font(.system(size: 48))
+                            .foregroundColor(.accentColor)
+                    }
+                    
+                    Button(action: { ttsCoordinator.nextSentence() }) {
+                        Image(systemName: "forward.fill")
+                            .font(.title2)
+                    }
+                    .disabled(ttsCoordinator.playbackState == .stopped)
+                }
+                
+                // Rate slider
+                VStack(spacing: 8) {
+                    HStack {
+                        Text("语速")
+                            .font(.caption)
+                        Slider(value: $settings.rate, in: 0.3...0.8) { _ in
+                            ttsCoordinator.setRate(settings.rate)
+                        }
+                        Image(systemName: "hare")
+                            .font(.caption)
+                    }
+                    .padding(.horizontal, 40)
+                    
+                    // Pitch
+                    HStack {
+                        Text("音调")
+                            .font(.caption)
+                        Slider(value: $settings.pitchMultiplier, in: 0.5...1.5)
+                        Image(systemName: "music.note")
+                            .font(.caption)
+                    }
+                    .padding(.horizontal, 40)
+                }
+                
+                // Timer
+                HStack {
+                    Text("定时关闭")
+                        .font(.caption)
+                    Picker("", selection: $settings.timerMinutes) {
+                        Text("关闭").tag(0)
+                        Text("15分钟").tag(15)
+                        Text("30分钟").tag(30)
+                        Text("60分钟").tag(60)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 250)
+                }
+                .padding(.horizontal, 20)
+                
+                // Sentence progress
+                if ttsCoordinator.totalSentences > 0 {
+                    Text("\(ttsCoordinator.currentSentenceIndex + 1)/\(ttsCoordinator.totalSentences)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+            }
+            .navigationTitle("听书")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("关闭") {
+                        ttsCoordinator.stop()
+                        dismiss()
+                    }
+                }
+            }
+            .onDisappear {
+                if ttsCoordinator.playbackState != .stopped {
+                    ttsCoordinator.stop()
+                }
             }
         }
-        if result.isEmpty { result = [text] }
-        return result
-    }
-
-    private func speakCurrentSentence() {
-        guard currentSentenceIndex < sentences.count else {
-            if let next = onPageFinished?() {
-                speak(text: next, rate: rate)
-                return
-            }
-            stop()
-            return
-        }
-        let sentence = sentences[currentSentenceIndex]
-        currentSentence = sentence
-        let utterance = AVSpeechUtterance(string: sentence)
-        utterance.rate = rate
-        utterance.voice = AVSpeechSynthesisVoice.speechVoices()
-            .first(where: { $0.language == "zh-CN" && $0.quality == .enhanced })
-            ?? AVSpeechSynthesisVoice(language: "zh-CN")
-        utterance.prefersAssistiveTechnologySettings = false
-        synthesizer.speak(utterance)
-        isPlaying = true
-        isPaused = false
-    }
-
-    func pause() -> Bool {
-        guard isPlaying, !isPaused else { return false }
-        let ok = synthesizer.pauseSpeaking(at: .word)
-        if ok { isPaused = true; isPlaying = false }
-        return ok
-    }
-
-    func resume() -> Bool {
-        guard isPaused else { return false }
-        let ok = synthesizer.continueSpeaking()
-        if ok { isPaused = false; isPlaying = true }
-        return ok
-    }
-
-    func stop() {
-        synthesizer.stopSpeaking(at: .immediate)
-        isPlaying = false
-        isPaused = false
-        sentences = []
-        currentSentenceIndex = 0
-        totalSentences = 0
-    }
-
-    func nextSentence() {
-        synthesizer.stopSpeaking(at: .word)
-        currentSentenceIndex += 1
-        speakCurrentSentence()
-    }
-
-    func prevSentence() {
-        synthesizer.stopSpeaking(at: .word)
-        if currentSentenceIndex > 0 { currentSentenceIndex -= 1 }
-        speakCurrentSentence()
-    }
-
-    // MARK: - AVSpeechSynthesizerDelegate
-    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
-        Task { @MainActor in
-            currentSentenceIndex += 1
-            if currentSentenceIndex < sentences.count {
-                speakCurrentSentence()
-            } else if let next = onPageFinished?() {
-                speak(text: next, rate: rate)
-            } else {
-                isPlaying = false
-            }
-        }
-    }
-
-    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
-        Task { @MainActor in isPlaying = false; isPaused = false }
     }
 }
