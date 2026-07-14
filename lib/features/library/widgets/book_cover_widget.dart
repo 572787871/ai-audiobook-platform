@@ -2,10 +2,9 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart' show Colors;
 import '../models/book.dart';
 import '../services/book_cover_service.dart';
+import '../../../theme/app_theme.dart';
 
-/// 实体书封面卡片（微信读书 / Apple Books 风格）。
-///
-/// 渐变底色 + 书名 + 可选作者 + 底部蓝色阅读进度条。
+/// 封面组件：渐变底色 + 书名 + 可选进度条
 class BookCoverWidget extends StatelessWidget {
   const BookCoverWidget({
     super.key,
@@ -23,14 +22,6 @@ class BookCoverWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = BookCoverService.colorsFor(book);
-    final pct = (book.readingProgress * 100).round();
-    final progressLabel = book.readingProgress <= 0
-        ? '未开始'
-        : pct >= 100
-        ? '已完成'
-        : '已读 $pct%';
-    final hasAuthor = book.author != null && book.author!.isNotEmpty;
-
     return GestureDetector(
       onTap: onTap,
       onLongPress: onLongPress,
@@ -38,103 +29,133 @@ class BookCoverWidget extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Expanded(
-            child: Stack(
-              children: [
-                Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(10),
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: colors,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: colors,
+                  ),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x1A000000),
+                      blurRadius: 8,
+                      offset: Offset(0, 3),
                     ),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x1A000000),
-                        blurRadius: 6,
-                        offset: Offset(0, 3),
+                  ],
+                ),
+                child: Stack(
+                  children: [
+                    // 纹理
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: _CoverTexturePainter(colors.last),
                       ),
-                    ],
-                  ),
-                  // 书脊效果
-                  foregroundDecoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(10),
-                    border: const Border(
-                      left: BorderSide(color: Color(0x2E000000), width: 5),
                     ),
-                  ),
-                  padding: const EdgeInsets.all(10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
                         child: Text(
                           book.title,
+                          textAlign: TextAlign.center,
                           maxLines: 4,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 15,
+                            fontSize: 16,
                             fontWeight: FontWeight.bold,
                             height: 1.3,
                           ),
                         ),
                       ),
-                      if (hasAuthor)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 6),
-                          child: Text(
-                            book.author!,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Color(0xD9FFFFFF),
-                              fontSize: 12,
-                            ),
+                    ),
+                    // 书脊
+                    Positioned(
+                      left: 0,
+                      top: 0,
+                      bottom: 0,
+                      child: Container(
+                        width: 4,
+                        decoration: BoxDecoration(
+                          color: colors.last.withValues(alpha: 0.3),
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(10),
+                            bottomLeft: Radius.circular(10),
                           ),
                         ),
-                    ],
-                  ),
-                ),
-                // 底部蓝色阅读进度条
-                if (showProgress)
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Container(
-                          height: 3,
-                          color: Colors.black.withValues(alpha: 0.18),
-                        ),
-                        Container(height: 3, color: CupertinoColors.activeBlue),
-                      ],
+                      ),
                     ),
-                  ),
-              ],
+                  ],
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 8),
           Text(
             book.title,
-            maxLines: 1,
+            maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
-              color: Color(0xFF000000),
+              color: AppTheme.primaryText,
+              height: 1.2,
             ),
           ),
           const SizedBox(height: 2),
+          if (book.lastReadChapter != null && book.lastReadChapter!.isNotEmpty)
+            Text(
+              book.lastReadChapter!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 11,
+                color: AppTheme.secondaryText,
+              ),
+            ),
+          const SizedBox(height: 2),
           Text(
-            progressLabel,
-            maxLines: 1,
-            style: const TextStyle(fontSize: 12, color: Color(0xFF8E8E93)),
+            _progressLabel,
+            style: TextStyle(
+              fontSize: 12,
+              color: book.readingProgress >= 1
+                  ? CupertinoColors.activeBlue
+                  : AppTheme.secondaryText,
+            ),
           ),
         ],
       ),
     );
   }
+
+  String get _progressLabel {
+    final pct = (book.readingProgress * 100).round();
+    if (book.readingProgress <= 0) return '未开始';
+    if (pct >= 100) return '已完成';
+    return '已读 $pct%';
+  }
+}
+
+class _CoverTexturePainter extends CustomPainter {
+  final Color baseColor;
+  _CoverTexturePainter(this.baseColor);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0x0FFFFFFF)
+      ..strokeWidth = 1;
+    for (var x = 0.0; x < size.width; x += 20) {
+      for (var y = 0.0; y < size.height; y += 20) {
+        if ((x + y) % 40 < 20) {
+          canvas.drawCircle(Offset(x + 2, y + 2), 1.5, paint);
+        }
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

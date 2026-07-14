@@ -3,11 +3,11 @@ import 'package:flutter/cupertino.dart';
 class AppTheme {
   AppTheme._();
 
-  static const Color background = Color(0xFFF2F2F7);
+  static const Color background = Color(0xFFF5F0E8);
   static const Color cardBackground = Color(0xFFFFFFFF);
   static const Color primaryText = Color(0xFF000000);
   static const Color secondaryText = Color(0xFF8E8E93);
-  static const Color iconBackground = Color(0xFFE5E5EA);
+  static const Color iconBackground = Color(0xFFE8E3D9);
   static const Color iconColor = Color(0xFF8E8E93);
   static const Color shadowColor = Color(0x1A000000);
 
