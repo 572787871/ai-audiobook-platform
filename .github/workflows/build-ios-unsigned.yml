@@ -12,34 +12,37 @@ concurrency:
 jobs:
   build-ios:
     name: Build unsigned IPA on macOS
-    runs-on: macos-15
+    runs-on: macos-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: List Xcode version
-        run: xcodebuild -version
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.6'
+          channel: 'stable'
+          cache: true
+
+      - name: Flutter version
+        run: flutter --version
+
+      - name: Pub get
+        run: flutter pub get
 
       - name: Build unsigned app
         run: |
-          cd ios
-          xcodebuild -project Runner.xcodeproj \
-            -scheme Runner \
-            -configuration Release \
-            -sdk iphoneos \
-            -derivedDataPath build \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO \
-            build
+          flutter build ios \
+            --no-codesign \
+            --release
 
       - name: Package unsigned IPA
         run: |
           set -e
-          APP="ios/build/Build/Products/Release-iphoneos/Runner.app"
+          APP="build/ios/iphoneos/Runner.app"
           if [ ! -d "$APP" ]; then
             echo "Runner.app not found at $APP"
-            find ios/build -name "*.app" -type d
+            find build/ios -name "*.app" -type d
             exit 1
           fi
           WORKDIR=$(mktemp -d)

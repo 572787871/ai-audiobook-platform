@@ -34,6 +34,13 @@
 				37D8062C-CED2-45D5-BD0F-4C952C8F4281 /* SystemTTSEngine.swift in Sources */,
 				F8361C2C-39C2-46FE-9FC8-AE69202147AC /* BookshelfView.swift in Sources */,
 				0F068CA6-7BDA-4000-BD14-9F5F085ACEAF /* ReaderView.swift in Sources */,
+				CBE7D1AFDC2C5B90CCE3A420 /* ReaderView.swift in Sources */,
+				30C817E3AD204B7617E6301B /* BookshelfView.swift in Sources */,
+				5F3A190D8B5ED2F7DFB85361 /* SystemTTSEngine.swift in Sources */,
+				40B4A5CA3C186CB5FDAD2D39 /* ReaderEngine.swift in Sources */,
+				83C1BF434A7F6A39DD2D797E /* TXTFileReader.swift in Sources */,
+				5E7302C9DA40277CE30A4A85 /* BookStore.swift in Sources */,
+				EC85C6A60BD58299C623C380 /* Book.swift in Sources */,
 ,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -61,6 +68,13 @@
 			isa = PBXVariantGroup;
 			children = (
 				97C147001CF9000F007C117D /* Base */,
+				0F359278A898166D9D0FAD8E /* Book.swift */,
+				F450ADA9D8417BE531172A16 /* BookStore.swift */,
+				E96E0C20B20F0BA14FF15F58 /* TXTFileReader.swift */,
+				73668A076F6D3B8515EDCEC8 /* ReaderEngine.swift */,
+				4632D7E63B7A25D86A38EAB3 /* SystemTTSEngine.swift */,
+				AAB0E34803D716A910C10E9F /* BookshelfView.swift */,
+				D247D9041D5B50198718461F /* ReaderView.swift */,
 			);
 			name = LaunchScreen.storyboard;
 			sourceTree = "<group>";
