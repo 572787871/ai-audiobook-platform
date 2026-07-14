@@ -233,9 +233,10 @@ class ReaderFontOption {
 
   static const List<ReaderFontOption> options = [
     ReaderFontOption('system', '系统字体', true),
-    ReaderFontOption('song', '宋体', false), // 暂未安装字体资源
-    ReaderFontOption('hei', '黑体', false), // 暂未安装字体资源
-    ReaderFontOption('kai', '楷体', false), // 暂未安装字体资源
+    ReaderFontOption('PingFang SC', '苹方', true),
+    ReaderFontOption('STSongti-SC-Regular', '宋体', true),
+    ReaderFontOption('STHeitiSC-Light', '黑体', true),
+    ReaderFontOption('STKaitiSC-Regular', '楷体', true),
   ];
 
   /// 已安装字体的 fontFamily 名；未安装返回 null（UI 标“暂未安装”）。

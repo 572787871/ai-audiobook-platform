@@ -75,14 +75,7 @@ class _BookShelfPageState extends State<BookShelfPage> {
             child: const Text('粘贴文本'),
             onPressed: () {
               Navigator.of(ctx).pop();
-              _toast('粘贴文本将在后续版本加入');
-            },
-          ),
-          CupertinoActionSheetAction(
-            child: const Text('从其他 App 导入'),
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              _toast('从其他 App 导入将在后续版本加入');
+              _showPasteDialog();
             },
           ),
         ],
@@ -104,6 +97,55 @@ class _BookShelfPageState extends State<BookShelfPage> {
     final path = result.files.single.path;
     if (path == null) return;
     await _importFile(File(path));
+  }
+
+
+  Future<void> _showPasteDialog() async {
+    final controller = TextEditingController();
+    final text = await showCupertinoDialog<String?>(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('粘贴文本'),
+        content: CupertinoTextField(
+          controller: controller,
+          maxLines: 10,
+          minLines: 5,
+          placeholder: '在此粘贴小说内容…',
+          keyboardType: TextInputType.multiline,
+        ),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('取消'),
+            onPressed: () => Navigator.of(ctx).pop(),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            child: const Text('导入'),
+            onPressed: () => Navigator.of(ctx).pop(controller.text),
+          ),
+        ],
+      ),
+    );
+    if (text == null || text.trim().isEmpty) return;
+    await _importPasteText(text.trim());
+  }
+
+  Future<void> _importPasteText(String text) async {
+    if (_importing) return;
+    setState(() => _importing = true);
+    try {
+      final dir = Directory.systemTemp;
+      final tmpDir = Directory('${dir.path}/paste_import_${DateTime.now().microsecondsSinceEpoch}');
+      await tmpDir.create(recursive: true);
+      final tmpFile = File('${tmpDir.path}/pasted.txt');
+      await tmpFile.writeAsString(text, flush: true);
+      await _importFile(tmpFile);
+      if (await tmpDir.exists()) await tmpDir.delete(recursive: true);
+    } catch (e) {
+      if (mounted) _showError('导入失败：$e');
+    } finally {
+      if (mounted) setState(() => _importing = false);
+    }
   }
 
   Future<void> _importFile(File sourceFile) async {

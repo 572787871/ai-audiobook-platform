@@ -31,13 +31,14 @@ class ReaderTapOverlay extends StatelessWidget {
         return Stack(
           children: [
             // 左 25%：上一页（从 24pt 之后开始）
+            // 使用 translucent 让滑动手势穿透到下方阅读器组件
             Positioned(
               left: edge,
               top: 0,
               bottom: 0,
               width: leftZoneW,
               child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
+                behavior: HitTestBehavior.translucent,
                 onTap: onTapPrevious,
                 child: const SizedBox.expand(),
               ),
@@ -56,13 +57,14 @@ class ReaderTapOverlay extends StatelessWidget {
               ),
             ),
             // 右 25%：下一页
+            // 使用 translucent 让滑动手势穿透到下方阅读器组件
             Positioned(
               left: w - rightZoneW,
               top: 0,
               bottom: 0,
               width: rightZoneW,
               child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
+                behavior: HitTestBehavior.translucent,
                 onTap: onTapNext,
                 child: const SizedBox.expand(),
               ),
