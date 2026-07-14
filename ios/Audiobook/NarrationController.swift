@@ -77,7 +77,7 @@ enum NarrationTextChunker {
 }
 
 @Observable
-final class NarrationController: NSObject, AVSpeechSynthesizerDelegate {
+final class NarrationController: NSObject, AVSpeechSynthesizerDelegate, @unchecked Sendable {
   private let synthesizer = AVSpeechSynthesizer()
   private var segments: [NarrationSegment] = []
   private var activeUtterance: AVSpeechUtterance?
@@ -306,37 +306,37 @@ final class NarrationController: NSObject, AVSpeechSynthesizerDelegate {
   }
 
   @objc private func remotePlay(_ event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
-    guard playbackState == .paused else { return .noActionableNow }
+    guard playbackState == .paused else { return .commandFailed }
     resume()
     return .success
   }
 
   @objc private func remotePause(_ event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
-    guard playbackState == .playing else { return .noActionableNow }
+    guard playbackState == .playing else { return .commandFailed }
     pause()
     return .success
   }
 
   @objc private func remoteToggle(_ event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
-    guard playbackState != .stopped else { return .noActionableNow }
+    guard playbackState != .stopped else { return .commandFailed }
     toggle()
     return .success
   }
 
   @objc private func remoteNext(_ event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
-    guard currentSegmentIndex + 1 < segments.count else { return .noActionableNow }
+    guard currentSegmentIndex + 1 < segments.count else { return .commandFailed }
     skipForward()
     return .success
   }
 
   @objc private func remotePrevious(_ event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
-    guard currentSegmentIndex > 0 else { return .noActionableNow }
+    guard currentSegmentIndex > 0 else { return .commandFailed }
     skipBackward()
     return .success
   }
 
   @objc private func remoteStop(_ event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
-    guard playbackState != .stopped else { return .noActionableNow }
+    guard playbackState != .stopped else { return .commandFailed }
     stop()
     return .success
   }
